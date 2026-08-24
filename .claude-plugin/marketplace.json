@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "网络小说创作工具箱 — 扫榜、拆文、写作全流程 Claude Code skill，覆盖长篇与短篇网文",
-    "version": "0.7.10"
+    "version": "0.8.0"
   },
   "plugins": [
     {
@@ -244,6 +244,29 @@
       ],
       "skills": [
         "./skills/story-review"
+      ]
+    },
+    {
+      "name": "story-grill",
+      "description": "采访式创作定稿。把世界观/角色/卷纲/细纲从「一次性生成」改成「逐项拍板」：一次一题带候选（推荐+反方向+后果），整段输入逐条拆解入账，冲突当场亮出，提案先行、不确认不落盘；断点续采与分段滚动。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-writing",
+      "keywords": [
+        "interview",
+        "outline",
+        "decision",
+        "worldbuilding",
+        "采访",
+        "拍板",
+        "卷纲",
+        "细纲",
+        "设定",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-grill"
       ]
     },
     {

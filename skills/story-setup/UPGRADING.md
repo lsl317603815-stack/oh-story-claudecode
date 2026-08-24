@@ -2,10 +2,10 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.2.12`
-- `agents_version: 29`
+- `setup_skill_version: 1.3.0`
+- `agents_version: 30`
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `29`，都视为待更新部署。直接重新运行 `/story-setup`（Codex 用 `$story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `29`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v29 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `30`，都视为待更新部署。直接重新运行 `/story-setup`（Codex 用 `$story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `30`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v30 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
 
 ## 升级策略
 
@@ -26,7 +26,7 @@
 - `.claude/agents/` — 所有 agent 定义
 - `.claude/rules/` — 所有 path-scoped 规则
 - `.claude/skills/story-setup/references/agent-references/` — Agent 参考资料副本
-- `.zcode/skills/{14 known skills}/`、`.zcode/commands/{14 known commands}.md` — 仅覆盖 oh-story 已知名称
+- `.zcode/skills/{15 known skills}/`、`.zcode/commands/{15 known commands}.md` — 仅覆盖 oh-story 已知名称
 - `.zcode/hooks/story_zcode_hook.js` — ZCode 专用 Hook runner
 
 ### 用户与 story-setup 共同维护，只合并管理块
@@ -81,7 +81,7 @@
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 29` 与 `setup_skill_version: 1.2.12`。
+2. 确认 `.story-deployed` 写入 `agents_version: 30` 与 `setup_skill_version: 1.3.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。
@@ -117,7 +117,12 @@
 
 ## 版本变更
 
-### v29（当前）
+### v30（当前）
+
+- `.story-deployed` 的 `agents_version` 升级到 `30`，`setup_skill_version` 升级到 `1.3.0`。
+- 新增 `story-grill` 采访式创作定稿 skill（第 15 个 skill）：CLAUDE.md / 各端 AGENTS.md 路由表新增 story-grill 行，OpenCode / ZCode 新增 story-grill command，ZCode / OpenClaw / Reasonix / generic 的 skills 复制集并入 `story-grill`；已部署项目需重跑 `/story-setup` 并新开会话以获得路由与命令。
+
+### v29
 
 - `.story-deployed` 的 `agents_version` 升级到 `29`，`setup_skill_version` 升级到 `1.2.12`。
 - 部署中文正文的生成前语言锁、交付前深扫与写后/跨章旧债门；已部署项目需重跑 `/story-setup` 并新开会话。

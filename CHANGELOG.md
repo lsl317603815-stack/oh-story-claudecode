@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.8.0（Dev 候选 · 2026-08-24）
+
+本版新增第 15 个 skill：`story-grill` 采访式创作定稿，把世界观 / 角色 / 卷纲 / 细纲从「一次性生成」改成「逐项拍板」。
+
+### story-grill：采访式创作定稿
+
+- **25 条采访纪律**（多场实战复盘沉淀）：不确认不落盘、一次一题、候选带推荐+反方向+后果、先问根再列清单、整段输入逐条拆解入账、冲突当场亮出、一个候选只捆一个决定、模式与粒度不越层（卷纲每章一行功能、卷纲/章纲不写台词）、提案先行（先摆单元整卡/章骨架再问）、分段滚动+薄前置（验证关口决定前置骨架厚薄+种子清单防正文返工）、候选先过体量核算、候选不偏科单一爽感轴、作者层术语不硬凑世界内称谓、同一问题被重复=回答层级不对等。
+- **断点续采**：每个目标一份采访记录（已拍板 / 待定 / 冲突登记），`{书名}/采访/_队列.md` 排程；新会话从「待定」第一项继续，已拍板项不重问。
+- **四模式协议**（`references/protocols.md`）：世界观 / 角色 / 卷纲 / 细纲各自的依据文件、根候选、采访项表与密点追问清单；对标资产从 `设定/题材定位.md` 主对标书字段解析，缺失不阻塞、候选来源降级并如实告知。
+- **落盘与下游**：终审含委托项清点与硬门（细纲情节点预算、卷纲结构坐标），落盘按 story-long-write 模板渲染；下游 grep 扫描后按「队列逐个采；机械性的直接改」处理引用。
+- 纯对话流程，无 agent 依赖；无结构化提问组件的运行时（Codex / generic 等）用编号候选纯文本提问，纪律不降级。
+
+### 路由与部署接线
+
+- CLAUDE.md 模板与六端 AGENTS.md 模板（OpenCode / Codex / ZCode / OpenClaw / Reasonix / generic）路由表新增 `story-grill` 行；CLAUDE.md 模板文件结构新增 `{书名}/采访/` 说明。
+- OpenCode / ZCode 新增 `story-grill` command；ZCode / OpenClaw / Reasonix / generic 的 skills 复制集经 `story*` 通配并入 story-grill；`story` 路由器新增「采访式定稿」意图行。
+- README / README_EN Skills 表新增条目，各端计数 14 → 15。
+
+### 版本与部署
+
+- 产品版本升至 `0.8.0`，`setup_skill_version` 升至 `1.3.0`，`agents_version` 升至 `30`；追踪初始化门的 `TRACKING_REQUIRED_AGENTS_VERSION=28` 与历史兼容语义保持不变。
+- 本版改动路由模板、commands 与 reference bundle；已部署项目需重新运行 `/story-setup`（Codex 用 `$story-setup`）并新开会话以获得 story-grill 路由。
+
 ## v0.7.10（Dev 候选 · 2026-08-12）
 
 本版修复中文小说写到中途突然切成英文句段、且旧规则因“所在行中文占比不足 50%”而放过的问题。修复不依赖单句提示，而是收成生成、交付、续写三层语言门。
