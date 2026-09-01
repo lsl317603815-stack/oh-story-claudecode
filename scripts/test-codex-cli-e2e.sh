@@ -85,15 +85,41 @@ if len(expected) != expected_count:
         f"repository fixture error: expected {expected_count} skills, found {len(expected)}"
     )
 
-missing = sorted(name for name, path in expected.items() if path not in rendered)
-if missing:
-    raise SystemExit(f"Codex prompt input omitted repository skills: {missing}")
+skills_dir = (repo_root / "skills").resolve()
 
-repo_pattern = re.compile(
-    re.escape(str(repo_root / "skills")) + r"/([^/]+)/SKILL\.md"
-)
-discovered = set(repo_pattern.findall(rendered))
-extra = sorted(discovered - set(expected))
+# Codex 0.151+ stops printing absolute skill paths. It numbers each skill root
+# and refers to entries as `r<N>/<skill>/SKILL.md`, expanding them through a
+# "Skill roots" table it prints alongside. Resolve our root's alias from that
+# table so the checks below keep asserting the same thing on both formats;
+# without an alias we stay on the pre-0.151 absolute-path form.
+root_alias = None
+for alias, root in re.findall(r"`(r\d+)`\s*=\s*`([^`]+)`", rendered):
+    try:
+        if Path(root).resolve() == skills_dir:
+            root_alias = alias
+            break
+    except OSError:
+        continue
+
+def discovered_names():
+    names = set(
+        re.findall(re.escape(str(skills_dir)) + r"/([^/]+)/SKILL\.md", rendered)
+    )
+    if root_alias:
+        names |= set(
+            re.findall(rf"\b{re.escape(root_alias)}/([^/\s]+)/SKILL\.md", rendered)
+        )
+    return names
+
+found = discovered_names()
+missing = sorted(set(expected) - found)
+if missing:
+    raise SystemExit(
+        f"Codex prompt input omitted repository skills: {missing}"
+        + ("" if root_alias else " (no skill-root alias matched this workspace)")
+    )
+
+extra = sorted(found - set(expected))
 if extra:
     raise SystemExit(f"Codex discovered unexpected repository skills: {extra}")
 
