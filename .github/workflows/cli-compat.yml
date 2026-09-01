@@ -31,10 +31,15 @@ jobs:
   published-install:
     # Runs the README install command verbatim against the published release.
     # Every other install check feeds `skills add` a local path, so none of them
-    # notice when the CLI stops accepting the form users are told to run — which
-    # is how a broken install command shipped. Scheduled and manual runs only:
-    # on a push the matching release does not exist yet.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # notice when installing from the published asset stops working — which is
+    # how a package that no user could install shipped for four releases.
+    #
+    # Scheduled runs only, deliberately. This asks "does the currently published
+    # release still install?", which is about the release that is already out,
+    # not the candidate being built. A manual dispatch is also how release
+    # evidence is produced, and a candidate that fixes a broken published
+    # release would be blocked by its own predecessor if this ran there.
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
