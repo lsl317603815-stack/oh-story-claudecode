@@ -77,7 +77,7 @@ PR 自动运行 `.github/workflows/cross-platform.yml`。`main` 的发行候选�
 - `scripts/manage-version.py` + `test-manage-version.py` — 公开 SemVer 版本面一致性与 tag/changelog 规则
 - `scripts/build-package.py` + `test-build-package.py` — 可复现 dev/release 包、单根目录、排除清单、manifest 和 checksum
 - `scripts/package-channel.py` + `test-package-channel.py` — 统一 gate 后构建，release 仅接受同 HEAD 的干净 dev 证据
-- `scripts/verify-package.py` + `test-verify-package.py` — 安装包安全、manifest/checksum、五版本面与 14-skill 发现 smoke
+- `scripts/verify-package.py` + `test-verify-package.py` — 安装包安全、manifest/checksum、五版本面与 16-skill 发现 smoke
 - `scripts/check-release-contract-bumps.py` + `test-release-contract-bumps.py` — story-setup/部署 payload 变化对应的独立版本轴增量门禁
 - 采集脚本 `node --check` 语法校验
 

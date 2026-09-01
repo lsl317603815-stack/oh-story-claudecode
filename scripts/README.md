@@ -14,7 +14,7 @@
 | `check-release-contract-bumps.py` | 对比上个 release tag；story-setup 本体或部署 payload 改变时强制提升对应合约版本，并禁止版本回退 | Release package preflight |
 | `package-channel.py` | 发行总入口：`dev` 先跑统一 gate 再构建；`release` 额外要求当前 HEAD 的干净 dev manifest、正确 annotated tag 与 changelog | 本地 dev/release 候选验证；CI |
 | `build-package.py` | 用可复现时间戳构建单根 zip/tar.gz，排除本地/敏感产物，输出 manifest 与 `SHA256SUMS`；dev 版本只在内存副本改写 | 由 `package-channel.py` 调用；构建器定向调试 |
-| `verify-package.py` | 校验 manifest/checksum、ZIP 安全、单根目录和五个版本面；可在临时目录用固定版 `skills` CLI 做 14-skill 发现 smoke | dev/release 构建后 |
+| `verify-package.py` | 校验 manifest/checksum、ZIP 安全、单根目录和五个版本面；可在临时目录用固定版 `skills` CLI 做 16-skill 发现 smoke | dev/release 构建后 |
 
 相关回归是 `test-manage-version.py`、`test-release-contract-bumps.py`、`test-package-channel.py`、`test-build-package.py` 和 `test-verify-package.py`。用户稳定安装包不从 `main` 直出：GitHub Actions 先用 `.github/workflows/package-dev.yml` 为精确 commit 产生 dev 证据，再由 `.github/workflows/release.yml` 手动创建不可覆盖的 draft Release。
 
@@ -64,7 +64,7 @@
 | `test-zcode-hooks.sh` | ZCode 严格 JSON Hook、正文守卫与连续性回归 | CI |
 | `test-charcount-portable.sh` | 跨平台字符统计命令在三平台 + Windows 的正确性 | CI（调 check-python-invocation） |
 | `test-hook-encoding-portable.sh` | 部署 hook 在 Windows 中文系统的编码健壮性 | CI |
-| `test-opencode-cli-e2e.sh` | 真实 OpenCode CLI 加载 smoke（repo skills 发现 / 14 commands / 7 agents / plugin） | CLI compatibility CI；需已安装 `opencode` |
+| `test-opencode-cli-e2e.sh` | 真实 OpenCode CLI 加载 smoke（repo skills 发现 / 16 commands / 7 agents / plugin） | CLI compatibility CI；需已安装 `opencode` |
 | `test-skill-numbering.sh` | Step 重排级联安全、锚点 fail-closed、代码块引用、验证零写入/提交回滚、dry-run/write/幂等性 | Linux / Windows Git Bash / macOS CI |
 
 ## 代码生成 / 同步

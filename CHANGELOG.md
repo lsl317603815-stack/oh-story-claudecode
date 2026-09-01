@@ -4,19 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## v0.10.1（Dev 候选 · 2026-09-02）
 
-修复随包发出的安装/更新命令——它一直是不能用的。
+修复：从 v0.7.6 到 v0.10.0，**没有任何用户能用文档里的命令装上这个包**。
 
-### 安装命令
+### 根因
 
-- 包里各处写的 `npx skills add <releases/latest/download/oh-story-release.zip>` **不能用**：`skills` CLI 只接受 `owner/repo`、仓库 URL 或本地路径，拿到压缩包链接会直接报 `Archive links are not supported`（1.5.22 与 1.5.23 实测一致）。
-- 安装步骤改为「下载正式 Release 资产 → 用同目录 `SHA256SUMS` 校验 → 解包 → 从解包目录 `npx skills add`」。仍然只安装经过校验的发布资产，不装浮动 `main`。
-- 修正的落点共 9 处：README / README_EN 的安装段（新增 Windows PowerShell 版本，此前只有 POSIX 命令）、`story` 的检查更新流程、`story-setup` 的三处重装提示、`session-start` hook 的两处提醒文案、`RELEASING.md` 的口径说明。README 里 `<!-- canonical-install -->` 标记之间的代码块现在是唯一真相源。
-- README 方式一改准：平台自带压缩包导入功能才能用那个链接；Claude Code / OpenCode / ZCode / OpenClaw / Codex 走 CLI，要用方式二。
+`npx skills add <release 资产 URL>` 一直报 `Archive links are not supported`。这句话说的不是「不支持压缩包链接」——读 skills CLI 源码可见 `releases/latest/download/` 是它明确支持的形态；报错来自 zip 条目校验：**压缩包内含符号链接就整包拒绝**。
+
+我们的包里恰好有一个：`.agents/skills -> ../skills`。它是给 Codex / Reasonix 在**本仓库开发时**发现 skill 用的 dev-only 路径，从来不该进分发包，却被原样打进了每一个 release 资产。对照实验可证：换一个不含符号链接的 archive URL，同一条命令装得好好的。
+
+### 修法
+
+- 打包时排除 `.agents/`（`build-package.py`）。符号链接留在仓库里，Codex 开发期发现不受影响；分发包不再含任何符号链接。这同时消除了一个可移植性隐患——带符号链接的 zip 在 Windows 解压和安全扫描下本就麻烦。
+- 安装命令因此**保持不变**，仍是原来那一行；README 另附一段「想自己核对字节」的下载校验版本。
 
 ### 新增门禁
 
-- `scripts/check-install-command.sh` 从 README 抽出安装命令**实际执行**，而不是另抄一份去跑——否则文档改了门禁不跟着变，等于没验。默认离线模式验证命令形态并用本地构建包跑通全流程，已接入统一 gate；`--live` 模式照 README 原文对已发布 Release 跑一遍，挂在 cli-compat 的每周定时与手动触发上（push 时对应 Release 还不存在）。
-- 这个缺口的成因：此前所有安装检查喂给 `skills add` 的都是本地路径，没有一条覆盖文档里让用户执行的那条远程命令。
+- `scripts/check-install-command.sh`：断言构建出的压缩包**零符号链接条目**（这正是当初该拦住的不变量），并从 README 的 `<!-- canonical-install -->` 块里抽出命令实际跑一遍——而不是另抄一份，否则文档改了门禁不跟着变。已接入统一 gate。
+- `--live` 模式照 README 原文对已发布 Release 装一次，挂在 cli-compat 的每周定时与手动触发上（push 时对应 Release 还不存在）。它验的是上一个已发布版本，针对的正是「外部 CLI 在我们不再执行的命令底下变了」这类漂移。
+- 缺口成因：此前所有安装检查喂给 `skills add` 的都是本地目录路径，没有一条走过压缩包，所以包里的符号链接从未被暴露。
 
 ## v0.10.0（Dev 候选 · 2026-09-02）
 

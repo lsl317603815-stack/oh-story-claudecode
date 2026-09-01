@@ -117,5 +117,5 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 4. **告知**：
    - 已最新 → 「已是最新版 vX.Y.Z」。
    - 有新版 → 列出 当前 vA → 最新 vB + [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)/[CHANGELOG](https://github.com/lsl317603815-stack/oh-story-claudecode/blob/main/CHANGELOG.md)（能拿到 release notes 就附本次要点），再用 AskUserQuestion 问「现在更新吗？」：
-     - 选更新 → 跑 `D="$(mktemp -d)" && curl -fsSL -o "$D/oh-story-release.zip" https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip && curl -fsSL -o "$D/SHA256SUMS" https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/SHA256SUMS && (cd "$D" && shasum -a 256 --ignore-missing -c SHA256SUMS) && unzip -q "$D/oh-story-release.zip" -d "$D/x" && npx skills add "$D"/x/oh-story-* -y -g`（`-g` 全局，去掉则只更当前目录）。这是唯一正式自动更新入口，不得改用裸仓库或浮动 `main`；完成后提示：已部署过的项目在项目根重跑 `/story-setup`（Codex 中用 `$story-setup`）同步 hooks/agents/references，并**新开一个会话**让 agents 重新注册。
+     - 选更新 → 跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`（`-g` 全局，去掉则只更当前目录）。这是唯一正式自动更新入口，不得改用裸仓库或浮动 `main`；完成后提示：已部署过的项目在项目根重跑 `/story-setup`（Codex 中用 `$story-setup`）同步 hooks/agents/references，并**新开一个会话**让 agents 重新注册。
      - 选先不 → 不动，告知随时可再来。

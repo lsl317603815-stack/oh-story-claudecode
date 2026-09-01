@@ -291,6 +291,14 @@ def _is_excluded(path: PurePosixPath, output_rel: Optional[PurePosixPath]) -> bo
     # docs/plans is a repository-local planning area in this project.
     if len(lower_parts) >= 2 and lower_parts[:2] == ("docs", "plans"):
         return True
+    # .agents/skills is a symlink to skills/, and it only serves repo-local
+    # discovery for Codex and Reasonix while working on this repository — it is
+    # dev-only, never part of what a user installs. Shipping it made the archive
+    # contain a symlink entry, and the skills CLI refuses any archive that has
+    # one ("Archive links are not supported"), which broke installing straight
+    # from the release URL. Keep it in the tree, keep it out of the package.
+    if lower_parts[0] == ".agents":
+        return True
     return False
 
 
