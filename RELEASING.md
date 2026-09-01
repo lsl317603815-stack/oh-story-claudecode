@@ -8,6 +8,8 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 
 裸仓库、分支压缩包和浮动的 `main` 只供开发测试（dev-only），不是用户发行渠道。
 
+⚠️ **这个 URL 不能直接喂给 `skills` CLI**——该 CLI 只接受 `owner/repo`、仓库 URL 或本地路径，给它压缩包链接会报 `Archive links are not supported`。用户侧的正式安装步骤是「下载该资产 → 用同目录的 `SHA256SUMS` 校验 → 解包 → `npx skills add <解包目录>`」。完整命令以 `README.md` 中 `<!-- canonical-install:begin -->` / `<!-- canonical-install:end -->` 之间的代码块为**唯一真相源**，由 `scripts/check-install-command.sh` 抽出来实际执行验证。改安装说明时改那一处，别在别处另抄一份。
+
 `v0.7.6` 是首次按本流程发布固定资产的版本；只有对应 Release 正式公开后，上面的固定 URL 才生效。不要只合并新安装说明而不完成对应 Release。
 
 ## 三条版本轴

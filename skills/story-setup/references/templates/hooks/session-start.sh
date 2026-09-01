@@ -105,7 +105,7 @@ if sentinel_exists "$ROOT/.story-deployed"; then
     done
     IFS=$OLD_IFS
     if [ -n "$MISSING_REFS" ]; then
-      OUTPUT+="[WARN] story-setup 参考资料包缺失或为空：${MISSING_REFS}。重新运行 /story-setup；若重跑后仍报这条，是 skill 包本身没装全，请重跑 npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g 再部署。${NL}${NL}"
+      OUTPUT+="[WARN] story-setup 参考资料包缺失或为空：${MISSING_REFS}。重新运行 /story-setup；若重跑后仍报这条，是 skill 包本身没装全，请按 README「安装」一节重装（下载 Release 资产、校验 SHA256、解包，再 npx skills add 解包目录）后再部署。${NL}${NL}"
       HAS_CONTENT=true
     fi
   fi
@@ -183,7 +183,7 @@ story_update_check() {
   [ "$checked" -eq 1 ] || return 0
   [ -n "$latest" ] || return 0
   if [ "$latest" != "$cur" ] && [ "$(printf '%s\n%s\n' "$cur" "$latest" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)" = "$latest" ]; then
-    OUTPUT+="[INFO] 网文工具箱有新版本 v${latest}（当前 v${cur}）。更新：npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g 后重跑 /story-setup；或对 /story 说“检查更新”。关掉提醒：export STORY_NO_UPDATE_CHECK=1${NL}"
+    OUTPUT+="[INFO] 网文工具箱有新版本 v${latest}（当前 v${cur}）。更新：按 README「安装」一节重跑安装步骤后再跑 /story-setup；或直接对 /story 说“检查更新”。关掉提醒：export STORY_NO_UPDATE_CHECK=1${NL}"
     HAS_CONTENT=true
   fi
 }

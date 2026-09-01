@@ -28,6 +28,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  published-install:
+    # Runs the README install command verbatim against the published release.
+    # Every other install check feeds `skills add` a local path, so none of them
+    # notice when the CLI stops accepting the form users are told to run — which
+    # is how a broken install command shipped. Scheduled and manual runs only:
+    # on a push the matching release does not exist yet.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run the published install command end to end
+        run: bash scripts/check-install-command.sh --live
+
   claude-code:
     runs-on: ubuntu-latest
     timeout-minutes: 15

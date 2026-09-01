@@ -20,6 +20,9 @@ python3 scripts/test-package-channel.py
 python3 scripts/test-verify-package.py
 python3 scripts/test-release-contract-bumps.py
 
+step "published install command"
+bash scripts/check-install-command.sh
+
 step "skill structure and current contracts"
 bash scripts/static-check.sh
 python3 scripts/test-static-check.py

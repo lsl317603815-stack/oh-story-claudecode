@@ -119,19 +119,43 @@ flowchart LR
 
 ## Installation
 
-**Option 1** Tell Claude Code / OpenCode / ZCode / OpenClaw / Codex, or another Web AI / agent platform that can import a skill archive:
+**Option 1** If your platform has its own "import a skill archive" feature (some Web AI / agent platforms do), give it this link:
 
 ```
-Install this skill https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
+https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
 ```
 
-**Option 2** Command line:
+Claude Code / OpenCode / ZCode / OpenClaw / Codex all go through the `skills` CLI below, which **cannot** take this link directly — use Option 2 for those.
+
+**Option 2** Command line (macOS / Linux):
 
 ```bash
-npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
+B=https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download
+D="$(mktemp -d)"
+curl -fsSL -o "$D/oh-story-release.zip" "$B/oh-story-release.zip"
+curl -fsSL -o "$D/SHA256SUMS" "$B/SHA256SUMS"
+(cd "$D" && shasum -a 256 --ignore-missing -c SHA256SUMS)
+unzip -q "$D/oh-story-release.zip" -d "$D/x"
+npx skills add "$D"/x/oh-story-* -y -g
 ```
 
-`-g` installs globally (available in every directory); drop `-g` to install only into the current directory. Re-run the same command to update. This URL always resolves to the stable asset from the latest formal GitHub Release, so it never installs the moving `main` development state.
+Windows PowerShell:
+
+```powershell
+$B = "https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download"
+$D = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([guid]::NewGuid()))
+Invoke-WebRequest "$B/oh-story-release.zip" -OutFile "$D\oh-story-release.zip"
+Invoke-WebRequest "$B/SHA256SUMS" -OutFile "$D\SHA256SUMS"
+$want = (Select-String -Path "$D\SHA256SUMS" -Pattern 'oh-story-release\.zip').Line.Split(' ')[0]
+$got  = (Get-FileHash "$D\oh-story-release.zip" -Algorithm SHA256).Hash.ToLower()
+if ($want -ne $got) { throw "SHA256 mismatch" }
+Expand-Archive "$D\oh-story-release.zip" -DestinationPath "$D\x"
+npx skills add (Get-Item "$D\x\oh-story-*").FullName -y -g
+```
+
+`-g` installs globally (available in every directory); drop `-g` to install only into the current directory. Re-run the same block to update.
+
+**Why download first**: the `skills` CLI accepts `owner/repo`, a repository URL, or a **local path** — it cannot install from an archive link (it reports `Archive links are not supported`). The block above fetches the formal Release asset, checks it against the published `SHA256SUMS`, and installs from the unpacked directory, so you still get a verified release artifact rather than the moving `main` development state.
 
 > After updating, if a project has already run `/story-setup`, re-run `/story-setup` from the project root to sync hooks / agents / references. Per-version changes are in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases); the release process is in [RELEASING.md](RELEASING.md).
 >

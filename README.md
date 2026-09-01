@@ -120,19 +120,45 @@ flowchart LR
 
 ## 安装
 
-**方式一** 直接告诉 Claude Code / OpenCode / ZCode / OpenClaw / Codex，或其他支持导入 skill 压缩包的 Web AI / Agent 平台：
+**方式一** 平台自带「导入 skill 压缩包」功能时（部分 Web AI / Agent 平台），直接给它这个链接：
 
 ```
-安装这个 skill https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
+https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
 ```
 
-**方式二** 命令行：
+Claude Code / OpenCode / ZCode / OpenClaw / Codex 走的是下面的 `skills` CLI，**不能**直接吃这个链接，请用方式二。
 
+**方式二** 命令行（macOS / Linux）：
+
+<!-- canonical-install:begin -->
 ```bash
-npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
+B=https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download
+D="$(mktemp -d)"
+curl -fsSL -o "$D/oh-story-release.zip" "$B/oh-story-release.zip"
+curl -fsSL -o "$D/SHA256SUMS" "$B/SHA256SUMS"
+(cd "$D" && shasum -a 256 --ignore-missing -c SHA256SUMS)
+unzip -q "$D/oh-story-release.zip" -d "$D/x"
+npx skills add "$D"/x/oh-story-* -y -g
+```
+<!-- canonical-install:end -->
+
+Windows PowerShell：
+
+```powershell
+$B = "https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download"
+$D = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([guid]::NewGuid()))
+Invoke-WebRequest "$B/oh-story-release.zip" -OutFile "$D\oh-story-release.zip"
+Invoke-WebRequest "$B/SHA256SUMS" -OutFile "$D\SHA256SUMS"
+$want = (Select-String -Path "$D\SHA256SUMS" -Pattern 'oh-story-release\.zip').Line.Split(' ')[0]
+$got  = (Get-FileHash "$D\oh-story-release.zip" -Algorithm SHA256).Hash.ToLower()
+if ($want -ne $got) { throw "SHA256 mismatch" }
+Expand-Archive "$D\oh-story-release.zip" -DestinationPath "$D\x"
+npx skills add (Get-Item "$D\x\oh-story-*").FullName -y -g
 ```
 
-`-g` 全局安装，所有目录可用；去掉 `-g` 则只装到当前目录。更新时重新执行同一条命令即可。该 URL 始终指向最新的正式 GitHub Release 资产，不会把浮动的 `main` 开发态安装到用户环境。
+`-g` 全局安装，所有目录可用；去掉 `-g` 则只装到当前目录。更新时重新执行同一段即可。
+
+**为什么要先下载再装**：`skills` CLI 只接受 `owner/repo`、仓库 URL 或**本地路径**，不支持直接从压缩包链接安装（会报 `Archive links are not supported`）。上面这段先取正式 Release 资产、用官方 `SHA256SUMS` 校验，再从解包目录安装——既绕开该限制，又保证装进去的是经过校验的发布资产，而不是浮动的 `main` 开发态。
 
 
 > **Codex 开发者（dev-only）：** 仅在参与本仓库开发、需要验证未发布的 `main` 时才 repo 内直接使用：Codex 会扫描 `$REPO_ROOT/.agents/skills`（指向 `skills/` 的 symlink）发现 16 个 skill；用 `$story`、`$story-setup` 或 `/skills` 调用。这不是正式安装/更新路径。Windows 上 git 需开 `core.symlinks=true`，否则 symlink 失效，改用上方 Release 压缩包安装。

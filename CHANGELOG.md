@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.10.1（Dev 候选 · 2026-09-02）
+
+修复随包发出的安装/更新命令——它一直是不能用的。
+
+### 安装命令
+
+- 包里各处写的 `npx skills add <releases/latest/download/oh-story-release.zip>` **不能用**：`skills` CLI 只接受 `owner/repo`、仓库 URL 或本地路径，拿到压缩包链接会直接报 `Archive links are not supported`（1.5.22 与 1.5.23 实测一致）。
+- 安装步骤改为「下载正式 Release 资产 → 用同目录 `SHA256SUMS` 校验 → 解包 → 从解包目录 `npx skills add`」。仍然只安装经过校验的发布资产，不装浮动 `main`。
+- 修正的落点共 9 处：README / README_EN 的安装段（新增 Windows PowerShell 版本，此前只有 POSIX 命令）、`story` 的检查更新流程、`story-setup` 的三处重装提示、`session-start` hook 的两处提醒文案、`RELEASING.md` 的口径说明。README 里 `<!-- canonical-install -->` 标记之间的代码块现在是唯一真相源。
+- README 方式一改准：平台自带压缩包导入功能才能用那个链接；Claude Code / OpenCode / ZCode / OpenClaw / Codex 走 CLI，要用方式二。
+
+### 新增门禁
+
+- `scripts/check-install-command.sh` 从 README 抽出安装命令**实际执行**，而不是另抄一份去跑——否则文档改了门禁不跟着变，等于没验。默认离线模式验证命令形态并用本地构建包跑通全流程，已接入统一 gate；`--live` 模式照 README 原文对已发布 Release 跑一遍，挂在 cli-compat 的每周定时与手动触发上（push 时对应 Release 还不存在）。
+- 这个缺口的成因：此前所有安装检查喂给 `skills add` 的都是本地路径，没有一条覆盖文档里让用户执行的那条远程命令。
+
 ## v0.10.0（Dev 候选 · 2026-09-02）
 
 本版新增第 16 个 skill：`story-drama-write` 短剧剧本写作——**不写小说，直接写剧本**，横屏 16:9 与竖屏 9:16 都支持。
