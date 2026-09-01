@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.9.0（Dev 候选 · 2026-09-01）
+## v0.10.0（Dev 候选 · 2026-09-02）
 
 本版新增第 16 个 skill：`story-drama-write` 短剧剧本写作——**不写小说，直接写剧本**，横屏 16:9 与竖屏 9:16 都支持。
+
+> 版本号从 0.8.0 直接跳到 0.10.0：0.9.0 已被另一条产品线占用，跳号避免同号不同物。本仓库自 v0.10.0 起为独立发行线，安装与更新入口一律指向本仓库。
 
 ### story-drama-write：短剧剧本写作
 
@@ -24,7 +26,7 @@ All notable changes to this project will be documented in this file.
 
 ### 版本与部署
 
-- 产品版本升至 `0.9.0`，`setup_skill_version` 升至 `1.4.0`，`agents_version` 升至 `31`；`TRACKING_REQUIRED_AGENTS_VERSION=28` 与历史兼容语义保持不变。
+- 产品版本升至 `0.10.0`，`setup_skill_version` 升至 `1.4.0`，`agents_version` 升至 `31`；`TRACKING_REQUIRED_AGENTS_VERSION=28` 与历史兼容语义保持不变。
 - 本版改动路由模板、commands 与 reference bundle；已部署项目需重新运行 `/story-setup`（Codex 用 `$story-setup`）并新开会话以获得 story-drama-write 路由。
 
 ## v0.8.0（Dev 候选 · 2026-08-24）

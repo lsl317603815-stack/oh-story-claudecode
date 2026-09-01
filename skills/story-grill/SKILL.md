@@ -2,7 +2,7 @@
 name: story-grill
 version: 1.0.0
 description: "采访式创作定稿。把世界观/角色/卷纲/细纲从「一次性生成」改成「逐项拍板」：目标拆成采访项，一次一题带 2-4 个候选（推荐+反方向+后果），作者整段输入逐条拆解入账，冲突当场亮出，提案先行、粒度不越层、不确认不落盘，支持断点续采与分段滚动。凡用户说「采访式出纲」「逐点拍板」「一点一点定」「一项项确认」「从第一性原理想」，或对一次性生成的设定/大纲不满意想逐项重定时，都应走本 skill。触发方式：/story-grill、/采访。"
-metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-claudecode"}}
+metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 
 # story-grill：采访式创作定稿（世界观 / 角色 / 卷纲 / 细纲）

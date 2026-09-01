@@ -122,18 +122,18 @@ flowchart LR
 **Option 1** Tell Claude Code / OpenCode / ZCode / OpenClaw / Codex, or another Web AI / agent platform that can import a skill archive:
 
 ```
-Install this skill https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip
+Install this skill https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
 ```
 
 **Option 2** Command line:
 
 ```bash
-npx skills add https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
+npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
 ```
 
 `-g` installs globally (available in every directory); drop `-g` to install only into the current directory. Re-run the same command to update. This URL always resolves to the stable asset from the latest formal GitHub Release, so it never installs the moving `main` development state.
 
-> After updating, if a project has already run `/story-setup`, re-run `/story-setup` from the project root to sync hooks / agents / references. Per-version changes are in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/qin1473692580-ux/oh-story-claudecode/releases); the release process is in [RELEASING.md](RELEASING.md).
+> After updating, if a project has already run `/story-setup`, re-run `/story-setup` from the project root to sync hooks / agents / references. Per-version changes are in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases); the release process is in [RELEASING.md](RELEASING.md).
 >
 
 > **Codex developers (dev-only):** Use the repository in-place only when developing this repository or testing unreleased `main`: Codex scans `$REPO_ROOT/.agents/skills` (a symlink to `skills/`) and discovers all 16 skills; invoke via `$story`, `$story-setup`, or `/skills`. This is not a stable installation/update path. On Windows, enable git `core.symlinks=true` or use the Release archive above.
@@ -325,19 +325,19 @@ Historical contributions and any referenced or incorporated third-party software
 
 <a href="https://www.star-history.com/?repos=qin1473692580-ux%2Foh-story-claudecode&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&legend=top-left" />
  </picture>
 </a>
 
 ## Contributing
 
-Use [Issues](https://github.com/qin1473692580-ux/oh-story-claudecode/issues) for bugs and feature requests. Forks and Pull Requests are welcome for new skills, knowledge-base additions, and market-data updates. See [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese only).
+Use [Issues](https://github.com/lsl317603815-stack/oh-story-claudecode/issues) for bugs and feature requests. Forks and Pull Requests are welcome for new skills, knowledge-base additions, and market-data updates. See [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese only).
 
 ## Community
 
-- **GitHub Discussions**: [ask questions, get help, share workflows](https://github.com/qin1473692580-ux/oh-story-claudecode/discussions).
+- **GitHub Discussions**: [ask questions, get help, share workflows](https://github.com/lsl317603815-stack/oh-story-claudecode/discussions).
 - **WeChat Official Account** (Chinese): "AI马内".
 
 ## Acknowledgments

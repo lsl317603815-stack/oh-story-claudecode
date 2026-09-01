@@ -4,7 +4,7 @@
 
 网文写作 skill 包，覆盖长篇与短篇网络小说的扫榜、拆文、写作、去AI味、封面图全流程。内置适配 Claude Code、OpenCode、ZCode、OpenClaw、Codex CLI、Reasonix、workbuddy；能读取项目文件的 Web AI / Agent 环境也可按通用 skills 路径使用。
 
-> **独立仓库与发行线**：本仓库是 oh-story 的现役独立产品仓库和发行线，不属于 GitHub Fork 网络，也不会自动同步任何外部仓库。后续功能、版本、Dev/Release 渠道及商业化由本项目独立规划和维护。早期代码基于 MIT 开源版本演进；完整 Git 历史用于持续记录代码来源与贡献归属，具体许可见 [`LICENSE`](LICENSE)。
+> **独立发行线**：本仓库是 oh-story 的一条独立发行线，自 v0.10.0 起安装、更新与版本号都只认本仓库，不与任何其他仓库同步，也不共用版本号命名空间（0.9.0 已被另一条线占用，本线直接跳到 0.10.0）。后续功能、版本、Dev/Release 渠道及商业化由本项目独立规划和维护。早期代码基于 MIT 开源版本演进；完整 Git 历史用于持续记录代码来源与贡献归属，具体许可见 [`LICENSE`](LICENSE)。
 >
 > 本 README 只介绍本仓库能力与本仓库案例，不混入第三方演示项目。自研改动来自真实写作复盘——长篇《[财阀除名那晚，古井给我递了药方](https://fanqienovel.com/page/7661645008545516606)》（番茄小说连载中，星河上人 著）与多篇番茄短故事全流程落地：把实战中踩过的坑改回工具本身，而不是每次靠人工记住。
 
@@ -123,13 +123,13 @@ flowchart LR
 **方式一** 直接告诉 Claude Code / OpenCode / ZCode / OpenClaw / Codex，或其他支持导入 skill 压缩包的 Web AI / Agent 平台：
 
 ```
-安装这个 skill https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip
+安装这个 skill https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip
 ```
 
 **方式二** 命令行：
 
 ```bash
-npx skills add https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
+npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g
 ```
 
 `-g` 全局安装，所有目录可用；去掉 `-g` 则只装到当前目录。更新时重新执行同一条命令即可。该 URL 始终指向最新的正式 GitHub Release 资产，不会把浮动的 `main` 开发态安装到用户环境。
@@ -148,7 +148,7 @@ npx skills add https://github.com/qin1473692580-ux/oh-story-claudecode/releases/
 >
 > **Web AI / 通用 Agent 用户：** 下载并解压上方 Release 资产后，可让 Agent 读取其中 `skills/*/SKILL.md` 与对应 `references/`；直读浮动 GitHub 仓库仅限 dev-only 测试。需要项目内副本时，`story-setup` 可选 `target_cli=generic`，只写通用 `AGENTS.md` 和 `skills/`。无本项目 hooks/custom agents 的环境按 skill 内软约束或 solo/direct fallback 执行。
 >
-> 升级后如果项目里已经跑过 `/story-setup`，建议在项目根重跑一次 `/story-setup`，同步 hooks / agents / references。每版变更见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](https://github.com/qin1473692580-ux/oh-story-claudecode/releases)；发版流程见 [RELEASING.md](RELEASING.md)。
+> 升级后如果项目里已经跑过 `/story-setup`，建议在项目根重跑一次 `/story-setup`，同步 hooks / agents / references。每版变更见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)；发版流程见 [RELEASING.md](RELEASING.md)。
 
 > **多 agent 协作要先部署再新开会话**：7 个专业 agent（story-architect、narrative-writer、consistency-checker 等）由 `/story-setup` 写入项目 `.claude/agents/`，或由 `$story-setup` 写入 `.codex/agents/*.toml`。Claude Code / Codex 都在会话启动时更稳定地注册 custom agent；ZCode 3.3.4、OpenClaw Phase 1、Reasonix Phase 1 与 generic 路径默认走 skills + solo fallback。判断是否生效：新会话里跑 `/story-review`，报告头是 `Effective Mode: full/lean` 即注册成功，是 `Fallback: ... -> solo` 说明当前运行时未暴露该 agent。
 
@@ -334,19 +334,19 @@ Claude Code 项目经 `/story-setup` 部署后会启用下列 8 个 shell hook�
 
 <a href="https://www.star-history.com/?repos=qin1473692580-ux%2Foh-story-claudecode&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=qin1473692580-ux/oh-story-claudecode&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=lsl317603815-stack/oh-story-claudecode&type=date&legend=top-left" />
  </picture>
 </a>
 
 ## 贡献
 
-欢迎通过 [Issues](https://github.com/qin1473692580-ux/oh-story-claudecode/issues) 提交缺陷和需求，也欢迎 Fork 本仓库后提交 Pull Request，贡献新 skill、补充知识库或更新市场数据。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+欢迎通过 [Issues](https://github.com/lsl317603815-stack/oh-story-claudecode/issues) 提交缺陷和需求，也欢迎 Fork 本仓库后提交 Pull Request，贡献新 skill、补充知识库或更新市场数据。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 交流
 
-- **GitHub Discussions**：[提问 / 求助 / 分享用法](https://github.com/qin1473692580-ux/oh-story-claudecode/discussions)，方便检索。
+- **GitHub Discussions**：[提问 / 求助 / 分享用法](https://github.com/lsl317603815-stack/oh-story-claudecode/discussions)，方便检索。
 - **微信公众号**：「AI马内」—— 微信搜索关注，后台留言交流。
 
 ## 致谢

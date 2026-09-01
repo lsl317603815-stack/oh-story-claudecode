@@ -2,7 +2,7 @@
 name: story-drama-write
 version: 1.0.0
 description: "短剧剧本写作（横屏 16:9 / 竖屏 9:16）。不经小说正文，直接从构思走到单集全稿：立项（世界观+项目大纲）→ 角色卡 → 分集纲 → 单集构思案 → 单集剧本。立项与分集纲只能经采访逐项拍板，不确认不落盘；构思案锁版前不动全稿一个字。画幅是立项必答项，决定每一场怎么写。凡用户说「写剧本」「短剧剧本」「分集剧本」「立项剧本」「写这集」「构思下一集」「我要写短剧不写小说」，都走本 skill。触发方式：/story-drama-write、/写剧本。"
-metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-claudecode"}}
+metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 
 # story-drama-write：短剧剧本写作（立项 → 分集纲 → 单集全稿）

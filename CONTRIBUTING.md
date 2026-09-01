@@ -33,7 +33,7 @@ RELEASING.md                   # 版本轴、发行 gate、打包与不可变发
 ---
 name: skill-name
 description: "一句话描述。触发方式：/skill-name、触发词1、触发词2"
-metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-claudecode"}}
+metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 ```
 
@@ -153,7 +153,7 @@ fork → branch → commit → PR → review → merge
 
 完整维护者流程见 [RELEASING.md](RELEASING.md)。核心边界：
 
-- 正式用户安装/更新只使用 `https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip`；裸仓库或 `main` 安装是 dev-only。
+- 正式用户安装/更新只使用 `https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip`；裸仓库或 `main` 安装是 dev-only。
 - 产品 SemVer、`setup_skill_version`、`agents_version` 是三条独立版本轴，不因一次常规发版绑定同步 bump。
 - 本地必须先跑 `python3 scripts/package-channel.py dev` 并对解包产物做安装 smoke，然后 push/merge `main`，等待同 commit 的 `package-dev` 变绿，最后才可从 `main` 手动 dispatch `Release package`。
 - 标签与 Release 资产不可覆盖；发布阶段失败后走新 PATCH，不移动 tag 或原地换包。

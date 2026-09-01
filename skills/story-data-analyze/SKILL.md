@@ -2,7 +2,7 @@
 name: story-data-analyze
 version: 1.0.0
 description: "平台后台数据归因分析。用「分发→回访→章内」三层框架定位读者流失的真实位置，按指标官方定义计算、防止误读，并把断点映射回具体文本位置再决定改哪里。触发方式：/story-data-analyze、/数据分析、/后台数据、「为什么没人看」「读者为什么流失」「分析一下后台数据」「读完率掉了」。"
-metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-claudecode"}}
+metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story-data-analyze：后台数据归因分析
 

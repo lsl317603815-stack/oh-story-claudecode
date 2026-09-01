@@ -1,7 +1,7 @@
 ---
 name: story
 description: "网络小说工具箱主入口。根据用户需求自动路由到扫榜、拆文、写作、去AI味、封面、导入与审查 skill，并可启动本地 Dashboard 浏览拆文库和写作项目。触发方式：/story、$story、/story dashboard、$story dashboard、/网文、「我想写小说」「帮我写书」「写网文」「英文小说」「中文改英文」「native 化」「海外发行」「打开工作台」「检查更新」。"
-metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-claudecode"}}
+metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story：网文工具箱路由
 
@@ -112,10 +112,10 @@ metadata: {"openclaw":{"source":"https://github.com/qin1473692580-ux/oh-story-cl
 用户问"有没有新版本""检查更新""升级"时执行。**只通知，更不更新由用户定，不自动安装。**
 
 1. **当前版本**：读本 skill 同目录的 `VERSION` 文件；缺失则视为未知。
-2. **最新版本**：优先 `gh release view --json tagName,name,url -R qin1473692580-ux/oh-story-claudecode` 取 `tagName`；无 gh 用 `curl -fsSL --max-time 5 https://api.github.com/repos/qin1473692580-ux/oh-story-claudecode/releases/latest` 取 `.tag_name`（jq 或 grep）。查不到 → 告知"暂时拉不到最新版本，可手动看 [Releases](https://github.com/qin1473692580-ux/oh-story-claudecode/releases)"，不报错。
+2. **最新版本**：优先 `gh release view --json tagName,name,url -R lsl317603815-stack/oh-story-claudecode` 取 `tagName`；无 gh 用 `curl -fsSL --max-time 5 https://api.github.com/repos/lsl317603815-stack/oh-story-claudecode/releases/latest` 取 `.tag_name`（jq 或 grep）。查不到 → 告知"暂时拉不到最新版本，可手动看 [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)"，不报错。
 3. **比较**：去掉 `v` 前缀按语义版本比（major.minor.patch）。`gh release` 默认取 latest 稳定版，不含 pre-release。
 4. **告知**：
    - 已最新 → 「已是最新版 vX.Y.Z」。
-   - 有新版 → 列出 当前 vA → 最新 vB + [Releases](https://github.com/qin1473692580-ux/oh-story-claudecode/releases)/[CHANGELOG](https://github.com/qin1473692580-ux/oh-story-claudecode/blob/main/CHANGELOG.md)（能拿到 release notes 就附本次要点），再用 AskUserQuestion 问「现在更新吗？」：
-     - 选更新 → 跑 `npx skills add https://github.com/qin1473692580-ux/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`（`-g` 全局，去掉则只更当前目录）。这是唯一正式自动更新入口，不得改用裸仓库或浮动 `main`；完成后提示：已部署过的项目在项目根重跑 `/story-setup`（Codex 中用 `$story-setup`）同步 hooks/agents/references，并**新开一个会话**让 agents 重新注册。
+   - 有新版 → 列出 当前 vA → 最新 vB + [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)/[CHANGELOG](https://github.com/lsl317603815-stack/oh-story-claudecode/blob/main/CHANGELOG.md)（能拿到 release notes 就附本次要点），再用 AskUserQuestion 问「现在更新吗？」：
+     - 选更新 → 跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`（`-g` 全局，去掉则只更当前目录）。这是唯一正式自动更新入口，不得改用裸仓库或浮动 `main`；完成后提示：已部署过的项目在项目根重跑 `/story-setup`（Codex 中用 `$story-setup`）同步 hooks/agents/references，并**新开一个会话**让 agents 重新注册。
      - 选先不 → 不动，告知随时可再来。
