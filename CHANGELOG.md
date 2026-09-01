@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.9.0（Dev 候选 · 2026-09-01）
+
+本版新增第 16 个 skill：`story-drama-write` 短剧剧本写作——**不写小说，直接写剧本**，横屏 16:9 与竖屏 9:16 都支持。
+
+### story-drama-write：短剧剧本写作
+
+- **五层流程**：立项（世界观＋项目大纲）→ 角色卡 → 分集纲 → 单集构思案 → 单集全稿。每层配岗位说明书 `references/layers/L1–L5`，说明写什么、落哪、输出什么字段。
+- **采访拍板**：立项与分集纲**只能**经采访逐项拍板，不确认不落盘；协议 `references/protocols.md` 分立项 / 角色 / 分集纲 / 单集构思案四模式，各给依据文件、根候选、采访项表与密点追问。纪律与 story-grill 同源（先问根、一次一题带 2–4 候选、整段输入拆解入账、冲突当场亮、提案先行、粒度不越层）。
+- **构思门**：单集构思案经作者锁版前，全稿一个字都不写。
+- **画幅是立项必答项**：`9:16` 或 `16:9`，不许默认也不许委托；拍板后写进项目世界观，并约束每集剧本 frontmatter 的 `aspect_ratio`。它是写法开关不是标注——竖屏走特写/快剪/单主体，横屏才容得下中景与群像调度。
+- **craft 方法论库 11 篇**（题材无关）：结构 6 篇（题材/反派/节奏/爽点/钩子/开场）＋台词 3 篇（说什么 / 怎么说像真人的七宗罪 linter / 落对白执行总纲）＋出稿后诊断 1 篇＋改编回采 1 篇。实证语料库（124 张爆款拉片卡/结构卡）不随包分发，文中引用已逐处标注在源库。
+- **格式规范**：一行式场头、`△` 动作行、`角色名：台词`，#镜号/机位/景别不进剧本。本包不带机审包，新增第五节「落稿自查」六条人工替代（场序连续、出场人物与发声主体入索引、画幅一致、frontmatter 齐全、无镜号），明令不许声称跑过机审。
+- **边界**：`story-grill` 只管小说，剧本采访走本 skill；本 skill 不碰小说正文。
+
+### 路由与部署接线
+
+- CLAUDE.md 模板与六端 AGENTS.md 模板（OpenCode / Codex / ZCode / OpenClaw / Reasonix / generic）路由表新增 `story-drama-write` 行；CLAUDE.md 与 OpenCode 模板文件结构新增 `剧本/{项目名}/` 说明。
+- OpenCode / ZCode 新增 `story-drama-write` command；`story` 路由器新增「写剧本」意图行。
+- README / README_EN Skills 表新增条目，各端计数 15 → 16。
+
+### 版本与部署
+
+- 产品版本升至 `0.9.0`，`setup_skill_version` 升至 `1.4.0`，`agents_version` 升至 `31`；`TRACKING_REQUIRED_AGENTS_VERSION=28` 与历史兼容语义保持不变。
+- 本版改动路由模板、commands 与 reference bundle；已部署项目需重新运行 `/story-setup`（Codex 用 `$story-setup`）并新开会话以获得 story-drama-write 路由。
+
 ## v0.8.0（Dev 候选 · 2026-08-24）
 
 本版新增第 15 个 skill：`story-grill` 采访式创作定稿，把世界观 / 角色 / 卷纲 / 细纲从「一次性生成」改成「逐项拍板」。

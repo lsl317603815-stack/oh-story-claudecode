@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "网络小说创作工具箱 — 扫榜、拆文、写作全流程 Claude Code skill，覆盖长篇与短篇网文",
-    "version": "0.8.0"
+    "version": "0.9.0"
   },
   "plugins": [
     {
@@ -180,6 +180,29 @@
       ],
       "skills": [
         "./skills/story-deslop"
+      ]
+    },
+    {
+      "name": "story-drama-write",
+      "description": "短剧剧本写作（横屏 16:9 / 竖屏 9:16）。不经小说正文直接从构思走到单集全稿：立项→角色卡→分集纲→构思案→单集剧本；立项与分集纲逐项采访拍板，不确认不落盘，构思案锁版前不动全稿。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-writing",
+      "keywords": [
+        "screenplay",
+        "short-drama",
+        "episode",
+        "剧本",
+        "短剧",
+        "分集",
+        "立项",
+        "画幅",
+        "采访",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-drama-write"
       ]
     },
     {

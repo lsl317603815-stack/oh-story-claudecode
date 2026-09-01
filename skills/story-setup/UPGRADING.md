@@ -2,10 +2,16 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.3.0`
-- `agents_version: 30`
+- `setup_skill_version: 1.4.0`
+- `agents_version: 31`
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `30`，都视为待更新部署。直接重新运行 `/story-setup`（Codex 用 `$story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `30`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v30 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `31`，都视为待更新部署。直接重新运行 `/story-setup`（Codex 用 `$story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `31`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v31 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+
+## v31（story-drama-write）
+
+新增第 16 个 skill `story-drama-write`：不写小说直接写短剧剧本（横屏 16:9 / 竖屏 9:16），立项 → 角色卡 → 分集纲 → 单集构思案 → 单集全稿；立项与分集纲逐项采访拍板，构思案锁版前不动全稿。画幅是立项必答项，写进项目世界观并约束每集 frontmatter 的 `aspect_ratio`。
+
+升级动作：重新运行 `/story-setup` 刷新 AGENTS.md / CLAUDE.md 路由表与 OpenCode / ZCode 命令；已部署项目的既有文件不受影响。
 
 ## 升级策略
 
@@ -26,7 +32,7 @@
 - `.claude/agents/` — 所有 agent 定义
 - `.claude/rules/` — 所有 path-scoped 规则
 - `.claude/skills/story-setup/references/agent-references/` — Agent 参考资料副本
-- `.zcode/skills/{15 known skills}/`、`.zcode/commands/{15 known commands}.md` — 仅覆盖 oh-story 已知名称
+- `.zcode/skills/{16 known skills}/`、`.zcode/commands/{16 known commands}.md` — 仅覆盖 oh-story 已知名称
 - `.zcode/hooks/story_zcode_hook.js` — ZCode 专用 Hook runner
 
 ### 用户与 story-setup 共同维护，只合并管理块
@@ -81,7 +87,7 @@
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 30` 与 `setup_skill_version: 1.3.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 31` 与 `setup_skill_version: 1.4.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。
