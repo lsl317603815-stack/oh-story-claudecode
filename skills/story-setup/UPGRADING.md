@@ -123,7 +123,12 @@
 
 ## 版本变更
 
-### v30（当前）
+### v31（当前）
+
+- `.story-deployed` 的 `agents_version` 升级到 `31`，`setup_skill_version` 升级到 `1.4.0`。
+- 新增 `story-drama-write` 短剧剧本写作 skill（第 16 个 skill）：CLAUDE.md / 各端 AGENTS.md 路由表新增 story-drama-write 行，OpenCode / ZCode 新增 story-drama-write command；已部署项目需重跑 `/story-setup` 并新开会话以获得路由与命令。
+
+### v30
 
 - `.story-deployed` 的 `agents_version` 升级到 `30`，`setup_skill_version` 升级到 `1.3.0`。
 - 新增 `story-grill` 采访式创作定稿 skill（第 15 个 skill）：CLAUDE.md / 各端 AGENTS.md 路由表新增 story-grill 行，OpenCode / ZCode 新增 story-grill command，ZCode / OpenClaw / Reasonix / generic 的 skills 复制集并入 `story-grill`；已部署项目需重跑 `/story-setup` 并新开会话以获得路由与命令。

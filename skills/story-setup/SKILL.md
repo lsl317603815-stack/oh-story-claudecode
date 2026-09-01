@@ -496,7 +496,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 | references/codex/hooks/story_codex_hook.py | Codex hook adapter（部署到 `.codex/hooks/story_codex_hook.py`） |
 | references/openclaw/AGENTS.md.tmpl | OpenClaw 项目根 AGENTS.md 模板（skills-only） |
 | references/generic/AGENTS.md.tmpl | 通用 Web AI / 其他 Agent 项目根 AGENTS.md 模板（skills + soft checks） |
-| references/zcode/ | ZCode AGENTS、14 Commands、workspace config patch 与严格 JSON Hook runner |
+| references/zcode/ | ZCode AGENTS、16 Commands、workspace config patch 与严格 JSON Hook runner |
 
 ---
 
