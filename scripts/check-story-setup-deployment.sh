@@ -62,7 +62,7 @@ write_sentinel() {
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 31
-setup_skill_version: 1.4.0
+setup_skill_version: 1.4.1
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -353,7 +353,7 @@ copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 31
-setup_skill_version: 1.4.0
+setup_skill_version: 1.4.1
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
@@ -378,7 +378,7 @@ printf '# ref
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 31
-setup_skill_version: 1.4.0
+setup_skill_version: 1.4.1
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references,skills/story-setup/references/agent-references
@@ -462,7 +462,7 @@ touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dum
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 31
-setup_skill_version: 1.4.0
+setup_skill_version: 1.4.1
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references
@@ -582,7 +582,7 @@ assert_grep 'agents_version.*小于 `31`|版本 < 31' "$SKILL_DIR/SKILL.md" "sto
 assert_grep 'agents_version.*大于 `31`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
 assert_grep '大于 31 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
-assert_grep '^version:[[:space:]]*1\.4\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
+assert_grep '^version:[[:space:]]*1\.4\.1$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
 # 漏写一个 → 半装的包检不出；名单里多出已删除的目录 → 完好的包被判残缺，fail-closed 卡死所有部署。
