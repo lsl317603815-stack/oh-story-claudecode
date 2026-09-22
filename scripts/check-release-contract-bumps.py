@@ -21,6 +21,11 @@ AGENTS_PAYLOAD_PATHS = (
     "skills/story-setup/references",
     "skills/story-setup/scripts",
 )
+# The top-level "version" of these manifests is a public product version surface
+# owned by manage-version.py and moved on every release. A diff that only touches
+# it does not change what the manifest deploys, so it must not force an
+# agents_version bump; RELEASING.md keeps the three version axes independent.
+VERSION_SURFACE_MANIFESTS = (".codebuddy-plugin/plugin.json",)
 DOTTED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
@@ -154,6 +159,38 @@ def changed_paths(root: Path, base_commit: str) -> set[str]:
     }
 
 
+def manifest_without_version(root: Path, commit: str, path: str) -> object | None:
+    """Parse a manifest at a commit with its product version removed.
+
+    Returns None when the file is absent or is not a JSON object, which callers
+    treat as a real payload change.
+    """
+
+    result = git(root, "show", "{}:{}".format(commit, path), check=False)
+    if result.returncode != 0:
+        return None
+    try:
+        value = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    value.pop("version", None)
+    return value
+
+
+def drop_version_only_changes(root: Path, base_commit: str, paths: set[str]) -> set[str]:
+    kept = set(paths)
+    for path in VERSION_SURFACE_MANIFESTS:
+        if path not in kept:
+            continue
+        base = manifest_without_version(root, base_commit, path)
+        current = manifest_without_version(root, "HEAD", path)
+        if base is not None and base == current:
+            kept.discard(path)
+    return kept
+
+
 def check_bumps(
     base: ContractVersions,
     current: ContractVersions,
@@ -233,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         head_commit = text_output(root, "rev-parse", "--verify", "HEAD^{commit}")
         base = contract_at_commit(root, base_commit, base_label)
         current = contract_at_commit(root, head_commit, "HEAD")
-        paths = changed_paths(root, base_commit)
+        paths = drop_version_only_changes(root, base_commit, changed_paths(root, base_commit))
         failures = check_bumps(base, current, paths, base_label)
     except (OSError, UnicodeError, GateError) as exc:
         print("FAIL: {}".format(exc), file=sys.stderr)

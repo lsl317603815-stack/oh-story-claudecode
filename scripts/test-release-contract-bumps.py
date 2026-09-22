@@ -143,6 +143,28 @@ class ReleaseContractBumpTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("agents_version must increase", result.stderr)
 
+    def test_product_version_only_manifest_change_needs_no_agents_bump(self) -> None:
+        # manage-version.py moves this field on every release; a PATCH release
+        # must not be forced to invalidate every deployed project.
+        self.write(".codebuddy-plugin/plugin.json", '{"version": "0.7.6"}\n')
+        self.commit("bump public product version only")
+
+        result = self.run_gate("--base-tag", "v0.7.5")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("agents_version 24 -> 24", result.stdout)
+
+    def test_manifest_change_beyond_version_still_requires_agents_bump(self) -> None:
+        self.write(
+            ".codebuddy-plugin/plugin.json",
+            '{"version": "0.7.6", "agents": ["./skills/story-setup/references/workbuddy/agents/"]}\n',
+        )
+        self.commit("bump version and change what plugin mode deploys")
+
+        result = self.run_gate("--base-tag", "v0.7.5")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("agents_version must increase", result.stderr)
+        self.assertIn(".codebuddy-plugin/plugin.json", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
