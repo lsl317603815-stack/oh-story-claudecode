@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.11.1（Dev 候选 · 2026-09-23）
+
+修复：已建追踪的书里用 `story-grill` 重定既有设定 / 大纲，落盘会被修改影响 Hook 拦下，采访流程断在最后一步（v0.11.0「已知后续」那一条）。
+
+### story-grill 落盘接入修改影响门
+
+- **先分路**：书目没有 `追踪/_tracking-state.json` 的照旧直接落盘。已建追踪的，先取 `last_committed_chapter` / `state_revision`、查有没有未闭环的修订事务、把下游扫描提前到落盘前让作者排好，再把落盘清单分成「旧内容」（已存在的设定、总纲 / 卷纲、已写章的细纲）和「规划与新建」（新文件、未写章的细纲）。分类口径与 Hook 的机械判定一致。
+- **修改影响门**：有旧内容时照 story-long-write 的修订协议走：`revision-governor` 出计划 → 先写新建文件 → `revision_guard.py plan` → 只写计划内文件 → 追踪事务 → `revision-governor` 复核 → `tracking_commit.py check` 与带审批戳的 `revision_guard.py check`。agent 不可用时主线程按角色卡 solo 做同样的影响分析。
+- **尚未开篇的书**：开书后、写第 1 章前，追踪里没有可修订的章，`tracking_commit.py` 也不会重新 init，语义改动推进不了修订号，标成语义修改的事务永远关不上。此时计划写 `semantic_change: false` 并写明理由，新口径由第 1 章 append 事务整份提交。旧文案「无正文时重新 init」已失效，一并删掉。
+- **碰到已写正文**：计划要连带改 `正文/` 时，story-grill 仍不碰正文，单独一题让作者选：改决定去贴合已写正文 / 转 story-long-write 的修订流程连同正文一起改 / 先不落盘。细纲模式重定已写章时，依据文件加读该章正文。
+- 采访记录新增「落盘中」状态：事务没闭环时写明 `change_id` 和卡在哪一关，新会话从那一关续上。
+- 已建追踪的书里，作废旧稿不再在 `设定/`、`大纲/` 里加横幅保留，改为移进 `{书名}/备份/`，免得被当成现行口径扫描。
+- `story-grill` 列入会 spawn Agent 的 skill，顶部补上与其他 skill 相同的 Spawn 版本提示，契约检查随 `agents_version` 一起校验它。
+- `story-grill` 自身版本升至 1.1.0，采访纪律不变。`story-drama-write` 只写 `剧本/`，不受这道 Hook 影响，未改。
+
+### 发版检查
+
+- `check-release-contract-bumps.py` 不再把 `.codebuddy-plugin/plugin.json` 只变了产品版本号当成部署载荷变化。此前每次升产品版本都会被要求升 `agents_version`，与「三条版本轴互相独立」相悖，补丁版也会平白要求所有项目重新部署；清单其余字段有变仍照旧要求升级。新增两条回归测试。
+
+### 版本与部署
+
+- 产品版本升至 `0.11.1`；`setup_skill_version`（1.5.0）与 `agents_version`（40）不变，已部署项目不必为此重跑 `/story-setup`。ZCode / OpenClaw / Reasonix / generic 这类把 skills 复制进项目的部署，重跑 `/story-setup` 后才拿到新版 story-grill。
+
 ## v0.11.0（Dev 候选 · 2026-09-23）
 
 本版把上游 v0.8.0 / v0.9.0（`qin1473692580-ux/oh-story-claudecode`）整体合入本线：写作治理、发布分权与 TRAE / WorkBuddy 适配全部并入，本线的 `story-grill`、`story-drama-write` 与安装修复原样保留。canonical 中文主包由 18 个扩为 **20 个 Skill**。
