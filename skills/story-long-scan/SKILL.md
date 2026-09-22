@@ -47,17 +47,17 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 | 优先级 | 模式 | 说明 | 何时用 |
 |--------|------|------|--------|
-| 1 | **脚本采集** | 直接抓取平台页面/SSR 数据，产出结构化文件 | 优先；起点默认不需要 Chrome |
+| 1 | **脚本采集** | 直接抓取平台页面/SSR 数据，产出结构化文件 | 优先；起点、番茄默认不需要 Chrome |
 | 2 | **用户提供** | 用户粘贴榜单截图/文字/链接 | 用户已有数据时 |
 | 3 | **内置知识** | 基于知识库趋势数据做分析 | 无法联网、用户无数据时 |
 
 #### 脚本采集模式
 
-优先运行对应平台脚本直接采集结构化数据。起点使用移动端 SSR pageContext，默认不需要 Chrome/CDP；番茄等需要浏览器态的平台再使用 `/browser-cdp` 启动 Chrome。
+优先运行对应平台脚本直接采集结构化数据。起点读移动端 SSR pageContext，番茄读榜单页 SSR、分页 API 与详情页 SSR，默认都走纯 HTTPS，不需要 Chrome/CDP；七猫、晋江、刺猬猫等需要浏览器态的平台，或番茄纯 HTTPS 采集失败需要回退时，再使用 `/browser-cdp` 启动 Chrome。
 
 **采集流程**：
-1. 选择平台脚本；起点直接运行 `scripts/qidian-rank-scraper.js`，番茄/七猫/晋江等按需启动 browser-cdp
-2. 等待列表元素或 SSR 数据加载，逐条提取字段（排名、书名、作者、题材、字数、推荐/在读数等），判断翻页（起点通常单页50-100条，番茄按题材逐页cap≈20）
+1. 选择平台脚本；起点、番茄直接运行 `scripts/qidian-rank-scraper.js`、`scripts/fanqie-rank-scraper.js`，七猫/晋江等按需启动 browser-cdp
+2. 等待列表元素或 SSR 数据加载，逐条提取字段（排名、书名、作者、题材、字数、推荐/在读数等），判断翻页（起点通常单页50-100条；番茄按题材走分页 API，每页 10 条，`--top` 最多 100，回退 CDP 时每题材约 20 条）
 3. 需要补充数据时（标签、简介、最新更新），进入详情页提取
 4. 按规范格式写入 Markdown 文件
 5. 多榜单/多题材时，逐组采集并保存
@@ -88,14 +88,15 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 男频新书榜 | fanqienovel.com/rank/1_1_{cat_id} | 新风向信号 |
 | 女频新书榜 | fanqienovel.com/rank/0_1_{cat_id} | 新风向信号 |
 
-URL 参数：`/rank/{channel}_{type}_{cat_id}`，channel 0=女频/1=男频，type 1=新书榜/2=阅读榜。番茄列表页有字体反爬，须用 `scripts/fanqie-rank-scraper.js` 从详情页多策略解码书名/作者/题材/评分/标签/简介，配合 browser-cdp 使用：
+URL 参数：`/rank/{channel}_{type}_{cat_id}`，channel 0=女频/1=男频，type 1=新书榜/2=阅读榜。番茄列表级书名/作者/简介有字体反爬，须用 `scripts/fanqie-rank-scraper.js` 从详情页解码书名/作者/题材/标签/简介。脚本默认 `--mode auto`：先走纯 HTTPS，不需要 Chrome 或 agent-browser，不要为番茄预先启动 `/browser-cdp`；纯 HTTPS 失败或标题解析率低于 50% 时才回退 CDP。回退要求 Chrome 已按 `/browser-cdp` 启动，而它首次启动会关闭用户的常规 Chrome，必须先征得用户同意。`--mode fetch` 只走纯 HTTPS、失败不回退，`--mode cdp` 只走浏览器。
 
 ```bash
-node scripts/fanqie-rank-scraper.js --channel 1 --type 2 --outdir {输出目录}   # 男频阅读榜
-node scripts/fanqie-rank-scraper.js --channel all --top 15 --outdir {输出目录}   # 男女频，每题材前 15 本
+node scripts/fanqie-rank-scraper.js --channel 1 --type 2 --outdir {输出目录}             # 男频阅读榜，默认每题材前 20 本
+node scripts/fanqie-rank-scraper.js --channel all --top 50 --outdir {输出目录}           # 男女频，每题材前 50 本（分页 API，最多 100）
+node scripts/fanqie-rank-scraper.js --channel 0 --type 1 --mode cdp --outdir {输出目录}  # 只走 CDP（需 /browser-cdp）
 ```
 
-> **番茄采集后必查文件头 `数据质量`**，异常排查步骤见 [references/scan-output-format.md](references/scan-output-format.md)。
+> **番茄采集后必查文件头 `数据质量` 与 `抓取方式`**；退出码 2 表示有榜单降级或失败。详情页可能被限流，大范围、深 `--top` 的采集先缩小范围试跑。异常排查步骤见 [references/scan-output-format.md](references/scan-output-format.md)。
 
 **七猫采集目标**：
 
@@ -196,7 +197,7 @@ node scripts/jjwxc-rank-scraper.js --type 12 --list-only                 # 只�
 | 新书榜 | 新题材、新风向的早期信号 |
 | 题材分布 | 各品类在读数集中度 |
 | 在读数趋势 | 同题材不同作品的流量差距 |
-| 标签热词 | 简介开头【】内的标签组合，揭示题材细分卖点（如「种田+慢热+西幻」） |
+| 标签热词 | 简介【】内的题材标签组合（脚本已跳过宣传、公告类括号），揭示题材细分卖点（如「种田+慢热+西幻」） |
 
 #### 七猫小说分析维度
 
@@ -329,7 +330,7 @@ node scripts/jjwxc-rank-scraper.js --type 12 --list-only                 # 只�
 | [references/publishing-guide.md](references/publishing-guide.md) | 平台适配+推荐机制校验+数据指标+简介设计 |
 | [references/scan-output-format.md](references/scan-output-format.md) | 脚本/CDP 采集字段定义+输出模板 |
 | [scripts/cdp-utils.js](scripts/cdp-utils.js) | CDP 公共工具函数（ab/sleep/evalJSON/safeStr/scrollLoad/getArg），各采集脚本共用 |
-| [scripts/fanqie-rank-scraper.js](scripts/fanqie-rank-scraper.js) | 番茄榜单采集，详情页多策略解码（书名/作者/题材/评分/标签/简介）绕过字体反爬，分批请求防超时，带连通性自检+标题解析率质量标注，配合 browser-cdp 使用 |
+| [scripts/fanqie-rank-scraper.js](scripts/fanqie-rank-scraper.js) | 番茄榜单采集：默认纯 HTTPS（榜单页 SSR + 分页 API，`--top` 最多 100，全程固定 rankVersion 并记录漂移）+ 详情页 SSR 解码书名/作者/题材/标签/简介绕过字体反爬，失败时回退 CDP；标签跳过宣传括号，详情页连续失败即熔断，带标题解析率质量标注 |
 | [scripts/qidian-rank-scraper.js](scripts/qidian-rank-scraper.js) | 起点榜单采集（畅销/月票/新书等），默认移动端 SSR 提取，PC/CDP 回退 |
 | [scripts/qimao-rank-scraper.js](scripts/qimao-rank-scraper.js) | 七猫榜单采集（大热/新书/完结等），tab 切换（失败重试）+滚动加载，按 bookId 取书名回填作品页链接，带连通性自检+链接/热度命中率标注 |
 | [scripts/jjwxc-rank-scraper.js](scripts/jjwxc-rank-scraper.js) | 晋江榜单采集（收入金榜/月榜等），按频道分组；列表取书名/作者/novelid，再进 onebook.php 详情页（gb18030 解码 itemprop）补采收藏/营养液/积分/字数/状态，受 --top/--detail-limit 约束，--list-only 可跳过 |

@@ -38,6 +38,7 @@ bash scripts/check-shared-files.sh
 python3 scripts/test-shared-assets.py
 node scripts/test-normalize-punctuation.js
 node scripts/test-scan-runtime.js
+node --test tests/fanqie-rank-scraper.test.mjs
 bash scripts/test-ai-patterns.sh
 bash scripts/test-degeneration.sh
 bash scripts/test-language-gate.sh
