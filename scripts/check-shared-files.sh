@@ -27,12 +27,15 @@ fi
 #   non-analyst copies have not all been confirmed byte-identical.
 #   genre-writing-formulas.md graduated to ANALYST_DIVERGENT_NAMES: its writer copies
 #   are byte-identical and now guarded.
-# - AGENTS.md.tmpl / hooks.json: CLI-specific project templates differ deliberately
-#   and are validated by each CLI adapter check.
+# - AGENTS.md.tmpl / hooks.json / disabled-hooks.json: CLI-specific project templates
+#   differ deliberately and are validated by each CLI adapter check. TRAE's disabled
+#   shape retains the required version wrapper; WorkBuddy's does not.
+# - runtime-activation.md: each native runtime has different trust, registry, namespace,
+#   shell and supported-event activation steps.
 IGNORE_NAMES="output-templates.md material-decomposition.md quality-checklist.md \
 genre-catalog.md genre-core-mechanics.md genre-readers.md \
 genre-writing-techniques.md \
-AGENTS.md.tmpl hooks.json"
+AGENTS.md.tmpl hooks.json disabled-hooks.json runtime-activation.md"
 
 # Analyst-divergent (basename): the story-short-analyze copy intentionally prepends the
 # "## 用作拆文标尺时" analyst-lens header, so it is dropped from the comparison set; all
@@ -47,12 +50,14 @@ ANALYST_DIVERGENT_NAMES="character-basics.md character-design-methods.md charact
 # must still stay byte-identical. Stricter than a wholesale ignore.
 GENRE_STYLE_DIVERGENT_NAMES="双男主.md"
 
-# Longform-divergent (basename): story-long-write's copy carries a long-form-only
-# section (长篇单元情绪引擎) that references reader-contract-and-progression.md, which
-# exists only under story-long-write; syncing it to the short-write / agent-references
-# copies would create a dangling reference. Drop the story-long-write copy from the
-# comparison; the short-write and agent-references copies must still stay byte-identical.
-LONGFORM_DIVERGENT_NAMES="emotional-methods.md"
+# Longform-divergent (basename): story-long-write's copies carry long-form-only
+# sections. emotional-methods.md references reader-contract-and-progression.md;
+# genre-prose-cards.md adds structured genre contracts consumed by the long-form
+# outline/review chain. Those assets do not exist in the narrative-writer deployment
+# mirror, so syncing either section there would create dangling references. Drop the
+# story-long-write copies; where more than one non-long-form copy exists, those copies
+# must still stay byte-identical.
+LONGFORM_DIVERGENT_NAMES="emotional-methods.md genre-prose-cards.md"
 
 mismatches=0
 checked=0
@@ -92,7 +97,11 @@ list_reference_basenames() {
   local path
   while IFS= read -r path; do
     case "$path" in
-      */.gitkeep|*/opencode/*) ;;
+      # Platform adapters intentionally reuse public Skill/Agent names while
+      # changing frontmatter and invocation syntax.  They are adapter payloads,
+      # not canonical cross-skill references.  Keep TRAE hooks in the scan so
+      # story_hook_core.js still participates in byte-parity checks.
+      */.gitkeep|*/opencode/*|*/trae/agents/*|*/trae/commands/*|*/trae/rules/*|*/workbuddy/agents/*|*/workbuddy/commands/*|*/workbuddy/rules/*) ;;
       *) printf '%s\n' "${path##*/}" ;;
     esac
   done <<< "$REFERENCE_FILES"

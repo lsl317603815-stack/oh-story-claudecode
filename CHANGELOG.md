@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.11.0（Dev 候选 · 2026-09-23）
+
+本版把上游 v0.8.0 / v0.9.0（`qin1473692580-ux/oh-story-claudecode`）整体合入本线：写作治理、发布分权与 TRAE / WorkBuddy 适配全部并入，本线的 `story-grill`、`story-drama-write` 与安装修复原样保留。canonical 中文主包由 18 个扩为 **20 个 Skill**。
+
+### 合入的上游能力（原文见下方「上游 v0.9.0」「上游 v0.8.0」两节）
+
+- **候选章接纳门**：长篇「续写 / 日更」默认先写候选章到 `追踪/候选章/`，作者接纳后才进 `正文/`；事先明确授权自动定稿的除外。
+- **修改影响治理**：已建追踪的书，修改既有正文、细纲 / 卷纲 / 总纲或设定前，先由只读 `revision-governor` 出影响计划；写入 Hook 拒绝没有计划或计划外的修改。
+- **声线与文风**：作品声线基线、文风卫生门（`check-style-hygiene.js`）、去 AI 味改为证据分层 + 最小改动。
+- **写作方法**：长篇新增 `A-standard` / `B-distilled` 双分支，旧项目默认 A。
+- **四个新 Skill**：`story-explore`（只读作品查询）、`story-research`（带来源的资料查证）、`story-release-package`（发布材料整理）、`story-publish`（经项目登记的适配器发布到平台）。
+- **数据分析**：后台数据分析重组为 Phase 0–7。
+- **新运行时**：TRAE Code（`target_cli=trae`）与 WorkBuddy / CodeBuddy Code（`target_cli=workbuddy`，另有 plugin-only 模式）原生适配。
+
+### 合流处理
+
+- **20-Skill 固定名字集**：上游在构建、验包、TRAE / WorkBuddy 部署和各端检查里锁定精确 18 个 Skill，名单外的 Skill 会让打包直接失败。本版把 `story-grill`、`story-drama-write` 并入这份名字集，补齐两者的 TRAE / WorkBuddy Commands 与各端路由表行，各端计数 18 → 20。
+- **版本轴**：产品版本 `0.11.0`，`setup_skill_version` `1.5.0`，`agents_version` `40`。两条线各自用过 `agents_version` 30 / 31（同号不同物），合流版取高于两条线全部旧值的 `40`：任一条线部署过的项目都会被提示重新部署，而不是被当成「项目比本地新」拦下。
+- **发行入口**：上游新文件里的安装、更新地址与 `metadata.openclaw.source` 统一改指本仓库。上游的 Codex 0.151+ Skill root 别名修复与本线同类修复重叠，采用上游实现。
+- **变更日志**：上游 v0.8.0 与本线 v0.8.0 同号不同物，上游两节改标「上游 v0.9.0」「上游 v0.8.0」并保留原文。
+
+### 已知后续
+
+- `story-grill` 重定既有设定 / 大纲时，若该书已建追踪（存在 `追踪/_tracking-state.json`），落盘会被修改影响 Hook 拦下，需按提示先走 revision-governor；把这一步写进 story-grill 自身流程留作后续。新书和 `story-drama-write`（写在 `剧本/` 下）不受影响。
+
+### 版本与部署
+
+- 已部署项目无论来自本线 v0.10.x 还是上游 v0.9.0，都需重新运行 `/story-setup`（Codex 用 `$story-setup`）并新开会话。
+
 ## v0.10.1（Dev 候选 · 2026-09-02）
 
 修复：从 v0.7.6 到 v0.10.0，**没有任何用户能用文档里的命令装上这个包**。
@@ -50,6 +79,76 @@ All notable changes to this project will be documented in this file.
 - 产品版本升至 `0.10.0`，`setup_skill_version` 升至 `1.4.0`，`agents_version` 升至 `31`；`TRACKING_REQUIRED_AGENTS_VERSION=28` 与历史兼容语义保持不变。
 - 本版改动路由模板、commands 与 reference bundle；已部署项目需重新运行 `/story-setup`（Codex 用 `$story-setup`）并新开会话以获得 story-drama-write 路由。
 
+## 上游 v0.9.0（2026-09-01 · qin1473692580-ux 线，经 v0.11.0 合入）
+
+v0.9.0 聚焦中文主包的写作方法治理与 TRAE Code、WorkBuddy / CodeBuddy Code 原生兼容：长篇写作新增 `A-standard` / `B-distilled` 双分支；TRAE 实际注册 13 个中文主包 Agent，WorkBuddy 实际注册 10 个 Agent，其中只读池化 Runner 可按任务承担四种数据分析职责。构建、验包与部署统一锁定中文主包的 18 个 canonical Skill，独立海外工具不随本版本打包或适配。
+
+### 长篇写作方法 A / B 分支
+
+- 新增受治理的 `A-standard` 与 `B-distilled` 写作方法。旧项目继续默认使用 A；B 只接收经过跨作品可蒸馏性判定、训练/校准/留出拆分、抽象规则编译、独立前向盲测与哈希验证的蒸馏包，并必须显式绑定到项目。B 的资料、规则包或绑定失效时硬停，不得静默回退 A。
+- 候选章与 `story_doctor.py` 都会校验写作方法快照、绑定新鲜度和编译包完整性；B 运行时只向写作者传递当章命中的抽象规则，不泄露来源作品、证据定位或原文语料。
+
+### TRAE Code 与 WorkBuddy / CodeBuddy Code 原生适配
+
+- `story-setup` 新增 `target_cli=trae`。中文主包在 TRAE 实际注册 13 个 Agent（8 个通用角色 + 5 个数据分析精确角色）；WorkBuddy 实际注册 10 个 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）。其中 `story-data-readonly-runner` 按任务加载对应角色规则，可承担其余四种只读数据分析职责；这四种逻辑职责不分别注册 Agent，因此不额外占用 registry 名额。CodeBuddy agentic registry 的总槽位为 20，所以 oh-story 项目最多注册 19 个 Agent；这只是平台容量边界，中文主包实际注册 10 个。
+- 中文主包的构建、验包与 TRAE / WorkBuddy 项目部署统一锁定精确 18 个 canonical Skill；传错工作区根、出现外来 Skill 或名称替换时在写出产物前 fail closed，独立工具不进中文包也不进本轮平台适配。
+- TRAE Hook 只使用原生事件/工具名，按稳定身份合并用户 hooks，并由 `TRAE_PROJECT_DIR` 避免与 `.claude/settings*.json` 双触发。从 `target_cli` 移除 TRAE 时使用 `disabled-hooks.json` 合并移除且仅移除 oh-story 注册；TRAE / WorkBuddy runner 发现 sentinel 已不含当前端时立即静默返回，防止减端中途失败后旧 runner 继续执行。
+- 共享书目发现核心明确排除路径分段含“备份”“归档”或 `archive` / `archives` 的历史副本；`.active-book` 误指历史树时回退到真实在写书目，不再产生伪连续性欠账。
+- WorkBuddy / CodeBuddy Code 同时支持项目裸 `/story-*` 与 plugin `/oh-story:story-*` 模式；plugin/project Hooks 严格互斥，memory 合并保留既有 `AGENTS.md`。项目 Hook 入口将 CodeBuddy CLI 在 Windows 导出的 `/c/...` 归一化为盘符路径，Bash / PowerShell 受测静态写入面和真实 CLI manifest 继续进入回归。部署后需新开会话并实际调用 Agent；设置页显示角色已启用不等于 Task registry 可调度。
+- WorkBuddy 数据分析适配单独注册 `story-data-fetcher`，并注册 `story-data-readonly-runner` 作为只读池化 Runner；其余四种只读职责由该 Runner 按 `logical_role` 加载 Skill 内角色规则和完整任务合同后执行。TRAE 保留五个分别注册的数据分析精确角色。
+- 发行回归兼容 Codex CLI 0.151+ 的 Skill root 短别名、Windows CRLF 检出、WorkBuddy UTF-8 Hook 输出与 Windows 主机编码的解码/控制台输出边界，以及未预装 `rg` 的 GitHub runner，避免把已发现的 Skill 误报为缺失或把有效 JSON 误报为空输出。
+- 新增 canonical 18 固定部署、WorkBuddy 数据只读池化、19 个 Agent 平台容量守卫、中文包边界验证、历史目录过滤、减端、TRAE disabled-hook 合并与 WorkBuddy `/c/...` 路径回归。正式部署契约为 `setup_skill_version: 1.2.22` / `agents_version: 39`；产品版本升至 v0.9.0，存量项目需重跑 `story-setup` 并新开会话。
+
+## 上游 v0.8.0（2026-08-29 · qin1473692580-ux 线，经 v0.11.0 合入）
+
+本版把“长篇写得下去”升级为“可选择、可接纳、可回修、可追溯、可安全发布”的完整闭环：AI 默认先给候选章，用户接纳后才进入正文；旧正文、大纲和设定修改先做影响计划；发布材料与平台写入分权，番茄发布器通过项目适配器安全接入。
+
+### 候选章、分支推演与接纳门
+
+- 长篇“续写/继续写/日更”默认只生成精确下一章候选稿，写入 `追踪/候选章/`；除非用户事先明确授权自动定稿，否则不直接进入 `正文/`。
+- 候选章绑定细纲、上一章、上下文和 `state_revision`；任一依赖变化后旧候选立即失效，不能拿旧稿直接晋升。
+- 新增题材/剧情分支推演与路线比较，正式大纲只接收用户明确选中的分支，不由 AI 一键替用户决定未来走向。
+- `story_doctor.py`、候选接纳回执、正文哈希和追踪事务形成原子门；未通过语言、文风、去AI味、连续性与结构检查的稿件不得接纳。
+
+### 跨工件修改与长期事实治理
+
+- 新增只读 `revision-governor` Agent 与 `revision_guard.py`。修改已提交正文、既有细纲/卷纲/总纲或设定前，必须先生成影响计划；只允许改计划内文件，闭环复核和摘要审批戳通过后才恢复续写。
+- `_tracking-state.json` 扩展长期事实、关系清单和实体事实档案：身世、血缘、婚姻、传承、别名、唯一所有权、规则边界、权限与不可逆状态由单一结构化权威维护，Markdown 只作派生视图。
+- 增加卷末顺序冷读、近章结构指纹、作者/读者双时间线和跨章期待债检查；仍有 S1/S2 冲突时不得开启下一卷。
+- 递归部署复制增加 realpath/samefile 安全预检，避免 skills-only 项目把技能目录复制进自身造成无限嵌套。
+
+### 声线保护与去 AI 味升级
+
+- 至少五章可信接纳样本后可建立作品声线基线；作者可另行精选黄金声线样本。画像只做双向 advisory，不用统计均值自动磨平文风，样本过期时阻断继续使用旧画像。
+- 新增确定性正文指标、近章结构漂移、正文—细纲连续照搬检查和盲测包；数值接近不直接判 AI，也不自动授权改文。
+- 去 AI 味改为“证据分层 + 最小改动”，保护剧情事实、伏笔、人物声线和作者手迹；停顿标点按作品文风与场景功能判断，不再一刀切删除省略号或破折号。
+
+### 中文正文文风卫生门
+
+- 新增独立 `check-style-hygiene.js`，在语言门之后检查表情符号、颜文字、火星文、标点堆砌和不可见字符；不把 `？！`、`……` 等有功能的小说标点一刀切，也不借检测器改剧情。
+- 默认使用“出版级纯中文”。作者可在每本书的 `设定/文风.md` 选择“对白弹性”“宽松复核”或逐类策略；逐字例外单独登记 `.style-hygiene-whitelist`，不与外语白名单混用。
+- 长篇、短篇、去 AI 味、审查和 narrative-writer 统一按“语言门 → 文风卫生门 → AI 句式/退化/语义审查”执行；Claude、OpenCode、Codex、ZCode、OpenClaw、Reasonix 与 generic 模板同步。
+- 新增跨平台回归测试，覆盖默认阻断、对白内允许、叙述区仍阻断、精确白名单和正常小说标点不误伤。
+
+### 查询、研究与发布分权
+
+- **story-explore**：只读查询一个授权作品的进度、角色、伏笔、时间线、设定和对标材料；输出产物版本引用，不写作、不访网。
+- **story-research**：只查证公开来源，区分事实、证据等级与写作推断；不使用浏览器 Cookie/CDP、不绕过付费墙、不外发未发布全文。
+- **story-release-package**：只把已通过发布级审查的 Artifact 整理成书名、简介、标签和章节清单；不生成封面、不导出、不登录或自动发布。
+- **story-publish**：把已批准章节交给项目登记的本地适配器。番茄接入支持 preview、preflight、登录、存草稿、原位修改、立即发布和排期；保留线上全状态防重、草稿独立确认、`--confirm-live`、显式 AI 申报和失败后禁止自动重放。
+- 发布关联 `.story-publish.json` 只保存适配器、解释器和工作目录，不保存 Book ID、Cookie、密码或 token；本书事实和机器路径不会打入通用技能。
+- 四个 Skill 均增加安全/敌对输入回归用例，并为 Claude、OpenCode、Codex、ZCode、OpenClaw、Reasonix 与 generic 同步命令和路由。
+
+### 数据分析与质量门
+
+- 后台数据分析重组为 Phase 0–7：数据可用性、版本/窗口映射、完整漏斗、异常优先级、指标到文本下钻、因果假设和上线后验证；不再脱离指标树解释单点数字。
+- 数据分析默认只提交可验证的改文实验，不直接修改正文或远端作品；结果未验证的改动不进入成功案例知识层。
+- 完整质量门覆盖18个 Skill、多端适配、发布桥接、写作检测器、追踪/修改事务、Dashboard 与安装包 smoke。
+
+### 版本与部署
+
+- 产品版本升至 `0.8.0`；`story-deslop` 为 `1.3.1`、`story-long-write` 为 `1.4.1`、`story-short-write` 为 `1.0.1`、`story-review` 为 `1.1.2`、`story-publish` 为 `1.0.0`，`setup_skill_version` 升至 `1.2.19`，`agents_version` 升至 `36`。
+- 仓库能力面从 v0.7.10 的14个扩展为18个 Skill；已部署项目必须重跑 `/story-setup`（Codex 用 `$story-setup`）并新开会话。
 ## v0.8.0（Dev 候选 · 2026-08-24）
 
 本版新增第 15 个 skill：`story-grill` 采访式创作定稿，把世界观 / 角色 / 卷纲 / 细纲从「一次性生成」改成「逐项拍板」。
@@ -315,7 +414,7 @@ All notable changes to this project will be documented in this file.
 
 - **长篇「剧情单元」概念统一并接入拆书产物（#246）**：把「剧情条 / 循环卡 / 正式情节循环 / 剧情段」五个混用叫法统一为**剧情单元**（卷纲里记为**剧情单元卡**），字段 循环ID/循环节拍/… → 单元ID/单元节拍/…（「循环」只保留节奏义如爽点循环）。拆书剧情单元接入卷纲/细纲：卷纲剧情单元卡新增「对标剧情参照」，对标节奏迁移改以剧情单元为选段单位，细纲分批边界改为「一批 = 一个剧情单元」，拆文侧 `剧情/README.md` 新增「剧情单元清单」索引（存量书可机械补建）。旧版卷纲/细纲/拆文库无这些字段一律不阻塞、按字段结构回退读取，仅在补纲/改纲时升级。story-long-write 场景表新增「补纲/扩纲」入口与卷纲锁定定义。
 - **读者契约 + 终局储备推进模型（#237）**：用「读者契约 + 终局储备」双层推进模型替代原「成长预算」，放开单章爽感，治长篇推进过快导致后期无可写；Σ 字数预算契约（密/疏预算、Σ∈[章目标, ×1.1]）不变。
-- **去 AI 味闸口机器化（无状态，#246）**：写后正文网新增确定性毒句式检测（「不是 A 而是 B」全家族、声线反差、否定排比、预告收尾），落盘即自动扫描并推回命中；写下一章前新增「毒句式欠账门」——上一章有未清 blocking 命中且未标 `<!-- 去味:跳过 -->` 豁免时拦截（判据现算自文件本身，不落任何状态文件，node 缺失或解析失败一律放行）。豁免标记冒号全半角均认，同时使写后网跳过该章毒句式推回（其余网照常）。`check-ai-patterns.js` 同步新增 voice-contrast / negation-parade / reverse-not-is / trailer-ending（blocking，经真人语料零误报校准）与 quote-emphasis-tic（advisory）。四端（Claude/OpenCode/Codex/ZCode）共享同一份判定，js↔py 逐字 parity 锁 + 引号占位对齐 check-ai-patterns.js。
+- **去 AI 味闸口机器化（无状态，#246）**：写后正文网新增确定性毒句式检测（「不是 A 而是 B」全家族、声线反差、否定排比、预告收尾），落盘即自动扫描并推回命中；写下一章前新增「毒句式欠账门」（判据现算自文件本身，不落任何状态文件，node 缺失或解析失败一律放行）。该版发布时曾提供正文内 HTML 跳过标记；现行版本已删除这项绕过，交付正文中的 HTML 一律阻断，风格取舍也不得跳过语言门。`check-ai-patterns.js` 同步新增 voice-contrast / negation-parade / reverse-not-is / trailer-ending（blocking，经真人语料零误报校准）与 quote-emphasis-tic（advisory）。四端（Claude/OpenCode/Codex/ZCode）共享同一份判定，js↔py 逐字 parity 锁 + 引号占位对齐 check-ai-patterns.js。
 
 ### 重构
 

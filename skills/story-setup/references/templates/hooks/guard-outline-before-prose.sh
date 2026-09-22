@@ -102,6 +102,16 @@ case "$TARGET" in
   *)  ABS="$ROOT/$TARGET" ;;
 esac
 
+# 旧正文/既有大纲/设定的修改必须先有 revision-governor 影响计划。该门放在正文专用
+# 细纲门之前，因此同一脚本也能覆盖总纲、卷纲、细纲和设定写入。
+if node -e "" >/dev/null 2>&1 && [ -f "$CLI" ]; then
+  REVISION_BLOCK="$(node "$CLI" revision-block-reason "$ROOT" "$ABS" 2>/dev/null || true)"
+  if [ -n "$REVISION_BLOCK" ]; then
+    printf '%s\n' "$REVISION_BLOCK" >&2
+    exit 2
+  fi
+fi
+
 # 核判据：OpenCode / ZCode / Codex 三端写正文前都调 core.proseBlockReason，唯独本端
 # 早先只有下面的纯 bash 细纲检查，于是「首建第 N+1 章前必须先提交第 N 章追踪事务」这条
 # 顺序校验在 Claude Code 上从不触发——跨章连续性守卫在这一端是开环的：模型不主动跑
@@ -212,7 +222,7 @@ case "$BASE" in
       printf '%s\n' "⚠ 细纲留存字段未填（不拦写，建议补齐后再落正文）：第 ${NUM} 章 —$RET_MISSING" >&2
       printf '%s\n' "   跑 story-long-write 的 scripts/check-outline-retention.js 补齐「收一个/变一个/开一个」，再写正文。" >&2
     fi
-    # 欠账门（无状态）：写第 N 章（首建）前，上一章有未清毒句式且未标「去味:跳过」豁免时先清再写。
+    # 欠账门（无状态）：写第 N 章（首建）前，上一章有未清毒句式时先清再写。
     # 毒句式扫描走共享核 prose-toxic 子命令（与写后网同一份规则）；node/核缺失或扫描失败一律
     # 放行（宁可漏拦不可误伤）——写后网与 SKILL 同轮铁律仍兜底。判据现算自上一章文件，无状态。
     PREV=$((NUM - 1))
@@ -227,10 +237,10 @@ case "$BASE" in
         pnum="$(basename "$f" | sed -n 's/^第0*\([0-9][0-9]*\)章.*/\1/p')"
         if [ "$pnum" = "$PREV" ]; then PREV_FILE="$f"; break; fi
       done
-      if [ -n "$PREV_FILE" ] && ! head -n 6 "$PREV_FILE" | grep -qE '去味(：|:)跳过'; then
+      if [ -n "$PREV_FILE" ]; then
         TOXIC="$(node "$CLI" prose-toxic "$PREV_FILE" 2>/dev/null || true)"
         if [ -n "$TOXIC" ]; then
-          printf '%s\n' "⛔ 写正文被拦截：上一章（$(basename "$PREV_FILE")）有未清毒句式欠账，先清零再写第 ${NUM} 章；用户显式豁免时在上一章标题行下加 <!-- 去味:跳过 --> 后重试。" >&2
+          printf '%s\n' "⛔ 写正文被拦截：上一章（$(basename "$PREV_FILE")）有未清毒句式欠账，先清零再写第 ${NUM} 章；毒句式欠账必须改写清零，正文不得添加 HTML 豁免标记。" >&2
           # 只列前 8 条。不能写 `printf … | head -n 8`：欠账多时 head 先退出，printf 吃 SIGPIPE，
           # pipefail 下整条管道返回 141，set -e 立刻终止脚本——下面的 exit 2 永远走不到，拦截
           # 退成「非阻塞错误」放过这次写入。改用 here-string 直喂 head（无管道即无 SIGPIPE），

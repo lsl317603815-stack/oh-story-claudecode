@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-EXPECTED_COUNT=16
+EXPECTED_COUNT=20
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ohstory-codex-e2e.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -85,47 +85,51 @@ if len(expected) != expected_count:
         f"repository fixture error: expected {expected_count} skills, found {len(expected)}"
     )
 
-skills_dir = (repo_root / "skills").resolve()
+skill_root = (repo_root / "skills").resolve()
+root_aliases = {
+    alias: Path(path).resolve()
+    for alias, path in re.findall(r"^- `([^`]+)` = `([^`]+)`\s*$", rendered, re.M)
+}
+repository_aliases = {
+    alias for alias, path in root_aliases.items() if path == skill_root
+}
 
-# Codex 0.151+ stops printing absolute skill paths. It numbers each skill root
-# and refers to entries as `r<N>/<skill>/SKILL.md`, expanding them through a
-# "Skill roots" table it prints alongside. Resolve our root's alias from that
-# table so the checks below keep asserting the same thing on both formats;
-# without an alias we stay on the pre-0.151 absolute-path form.
-root_alias = None
-for alias, root in re.findall(r"`(r\d+)`\s*=\s*`([^`]+)`", rendered):
-    try:
-        if Path(root).resolve() == skills_dir:
-            root_alias = alias
-            break
-    except OSError:
-        continue
-
-def discovered_names():
-    names = set(
-        re.findall(re.escape(str(skills_dir)) + r"/([^/]+)/SKILL\.md", rendered)
-    )
-    if root_alias:
-        names |= set(
-            re.findall(rf"\b{re.escape(root_alias)}/([^/\s]+)/SKILL\.md", rendered)
+def prompt_has_skill(name, absolute_path):
+    if absolute_path in rendered:
+        return True
+    return any(
+        re.search(
+            rf"\(file:\s*{re.escape(alias)}/{re.escape(name)}/SKILL\.md\)",
+            rendered,
         )
-    return names
+        for alias in repository_aliases
+    )
 
-found = discovered_names()
-missing = sorted(set(expected) - found)
+missing = sorted(
+    name for name, path in expected.items() if not prompt_has_skill(name, path)
+)
 if missing:
     raise SystemExit(
-        f"Codex prompt input omitted repository skills: {missing}"
-        + ("" if root_alias else " (no skill-root alias matched this workspace)")
+        "Codex prompt input omitted repository skills: {} "
+        "(repository aliases: {})".format(missing, sorted(repository_aliases))
     )
 
-extra = sorted(found - set(expected))
+repo_pattern = re.compile(
+    re.escape(str(repo_root / "skills")) + r"/([^/]+)/SKILL\.md"
+)
+discovered = set(repo_pattern.findall(rendered))
+for alias in repository_aliases:
+    alias_pattern = re.compile(
+        rf"\(file:\s*{re.escape(alias)}/([^/\s)]+)/SKILL\.md\)"
+    )
+    discovered.update(alias_pattern.findall(rendered))
+extra = sorted(discovered - set(expected))
 if extra:
     raise SystemExit(f"Codex discovered unexpected repository skills: {extra}")
 
 agents = sorted((repo_root / ".codex/agents").glob("*.toml"))
-if len(agents) != 7:
-    raise SystemExit(f"deployed fixture error: expected 7 custom agents, found {len(agents)}")
+if len(agents) != 8:
+    raise SystemExit(f"deployed fixture error: expected 8 custom agents, found {len(agents)}")
 for path in agents:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     for key in ("name", "description", "developer_instructions"):

@@ -1,6 +1,6 @@
 ---
 name: story-short-write
-version: 1.0.0
+version: 1.0.1
 description: "短篇网文写作。辅助短篇小说创作，从构思到成稿，聚焦情绪拉扯与节奏把控。触发方式：/story-short-write、/写短篇、「帮我写一篇短篇」「写个盐言故事」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
@@ -12,9 +12,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> Agent 兼容性：检查专业 agent 是否可用时，按 `.claude/agents/{agent}.md` → `.opencode/agents/{agent}.md` → `.codex/agents/{agent}.toml` 的顺序查找。Codex 原生子代理调用优先使用同名 `agent_type`；如果当前 Codex 运行时返回 `unknown agent_type` 或未暴露 custom-agent registry，必须降级为 solo/direct。检测到 `.zcode/` 时同样直接 solo/direct，因为 ZCode 3.3.4 不执行项目 custom agents；报告 `Fallback: project custom agents unavailable -> solo`。Claude/OpenCode 兼容面保留 `subagent_type`。
+> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。下文 `Agent(subagent_type: "{agent}", ...)` 示例在 WorkBuddy plugin-only 模式中必须把 `{agent}` 替换为 registry 实际返回的 `oh-story:{agent}`。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 31` 不一致时（标记缺失、字段缺失/非整数、小于或大于 31）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 31）` 并提示重新运行 `/story-setup` 后新开会话；大于 31 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 40` 不一致时（标记缺失、字段缺失/非整数、小于或大于 40）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 40）` 并提示重新运行 `/story-setup` 后新开会话；大于 40 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 **中文正文范围**：本 skill 只交付中文短篇正文。用户要求英文短故事、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -99,7 +99,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 1. `ls 拆文库/` 列书目；先从当前项目目录名和 `设定.md`「基本信息」识别本篇标题，排除同名或来源指向当前 `正文.md` 的 `拆文库/{当前书}/`。story-import 生成的本书拆文分析属于续写基线，不是对标候选。排除后为空 → 跳过（无对标按题材包写，见 Phase 1 情绪→题材包表）。
 2. 逐本读 `拆文库/{书}/_meta.json` 的 `genre_detected`，与本篇题材比对，标 同题材 / 弱相关。
-3. 有候选 → 用 AskUserQuestion 推荐（列候选书 +「不用，按题材包写」）。选定后记入本篇 `设定.md`「对标摘要」区作主对标，并按上方「拆文库/对标关系」规则把 `拆文库/{书}/` 同步到 `{短篇标题}/对标/{书}/`。
+3. 有候选 → 用当前平台交互能力推荐（Claude 可用 `AskUserQuestion`；TRAE Code 直接列候选书 +「不用，按题材包写」并等待回复）。选定后记入本篇 `设定.md`「对标摘要」区作主对标，并按上方「拆文库/对标关系」规则把 `拆文库/{书}/` 同步到 `{短篇标题}/对标/{书}/`。
 
 如果工作目录下存在 `对标/` 或项目根存在 `拆文库/`，或用户提到参考小说：
 
@@ -134,7 +134,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 #### Agent 调用：story-architect
 
-构思阶段，如果项目已部署 story-architect agent（查找顺序见顶部），可 spawn `Agent(subagent_type: "story-architect", prompt: "项目目录：{dir}\n任务类型：短篇构思\n查询参数：{情绪目标+题材方向}")` 辅助框架设计。如 agent 不可用，由主线程直接执行。
+构思阶段，如果当前运行时已部署 story-architect（TRAE Code `.trae/agents/story-architect.md`、WorkBuddy 项目模式 `.codebuddy/agents/story-architect.md`；其他端按顶部映射），可调用它辅助框架设计。TRAE Code 只用内置 `Agent` 按 `.trae/agents/story-architect.md` 的名称选择同名 Subagent，把 `项目目录：{dir}\n任务类型：短篇构思\n查询参数：{情绪目标+题材方向}` 作为任务正文，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式 spawn `Agent(subagent_type: "story-architect", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:story-architect` 时用该精确值。如 agent 不可用，由主线程直接执行。
 
 帮用户确定短篇的核心框架：
 
@@ -183,7 +183,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 #### Agent 调用：character-designer
 
-设计任务完成后，如果项目已部署 character-designer agent（查找顺序见顶部），可 spawn `Agent(subagent_type: "character-designer", prompt: "项目目录：{dir}\n任务类型：角色设定\n查询参数：{人设速写+关系}")` 辅助角色设定和语言风格档案。如 agent 不可用，由主线程直接执行。
+设计任务完成后，如果当前运行时已部署 character-designer（TRAE Code `.trae/agents/character-designer.md`、WorkBuddy 项目模式 `.codebuddy/agents/character-designer.md`；其他端按顶部映射），可调用它辅助角色设定和语言风格档案。TRAE Code 只用内置 `Agent` 按 `.trae/agents/character-designer.md` 的名称选择同名 Subagent，把 `项目目录：{dir}\n任务类型：角色设定\n查询参数：{人设速写+关系}` 作为任务正文，不传 `subagent_type`；WorkBuddy 项目模式 spawn `Agent(subagent_type: "character-designer", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:character-designer` 时用该精确值。如 agent 不可用，由主线程直接执行。
 
 ---
 
@@ -202,7 +202,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
   - **多对标书时**：参 `references/cross-book-recall.md`，副对标/参考对标按阶段预算进入"副对标召回摘要"；正文只传摘要，不传副书文风或原文
 - **步骤 2：指令确认**：用一句话概括本场景写作意图（情绪+技法+适配段落），并确认本场景是否有任务卡点、它卡出哪种情绪变化或新证据；没有就不强补。确认后开始写作
 
-**生成前中文锁（主会话 / narrative-writer / solo/direct 同一契约）**：开始每一批正文前都锁定 `language=zh`。叙述、对话、心理和场景必须用中文；外国人对话默认翻成中文并在场内标明语种。普通英文句/段、连续英文片段和未授权裸英文词属于语言泄漏。合法缩写/型号、URL、邮箱、文件路径/扩展名、行内或围栏代码，以及用户/设定明确要求并在 `.deslop-whitelist` 精确登记的外语可保留。
+**生成前中文锁（主会话 / narrative-writer / solo/direct 同一契约）**：开始每一批正文前都锁定 `language=zh`。叙述、对话、心理和场景必须用中文；外国人对话默认译成中文并在场内标明语种。英文、缩写、型号和剧情代号不得由模型自行豁免；URL、邮箱、文件路径/扩展名和行内/围栏代码只有在明确属于非叙事结构时才由检测器机械保护。用户明确要求逐字保留的其他外语，必须单独确认后在 `.deslop-whitelist` 精确登记；HTML 标签、注释和实体不得进入交付正文。
 
 **写作指令：按三维度揉进逐场景写作，不照搬大纲腔。**
 
@@ -210,7 +210,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - 段落按戏剧单元/画面自然断开：新动作、新线索、新对话、视线切换另起；完整推理、氛围或情绪链可稍长。
 - 高潮/打脸/反转压短，沉淀/推理/收束可长一点；爽点 beat 写密，过场 beat 写疏，避免通篇同长度。
 - 主语节奏：段首或主语重置时可点名；同一动作链内优先代词/省略；关键转折再点名。
-- 标点跟语气走：质问用问号，爆发处少量感叹；犹豫、未尽、打断用动作停顿、短句或换行处理，正文不使用 `……` / `——` / `—` / `--`。
+- 标点跟语气走：质问用问号，爆发处少量感叹；犹豫、未尽、打断优先用动作停顿、短句或换行处理，有功能的 `……` / `——` 按人物声线和平台约定保留；无功能复现、随机堆砌或平台明确禁用时再改。
 - 短篇默认第一人称在场：受虐段可直白宣泄，反击段可冷静审判；只删中立无情绪的作者讲解，不删带主角偏色的审判/预告。
 - 情绪可以直写，但后面要接场景里特有的动作或物件；没有具体承接的情绪总结句才删。
 - 任务卡点也可以承接情绪，但必须直接加重羞辱、误会、背叛、证据、反击或心死节点；删掉后情绪/证据/关系无损就压缩。
@@ -223,7 +223,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - 每批写完后更新“已写小节摘要”（3-5 条：已揭示信息、情绪位置、未回收伏笔、下一批衔接句）。
 - 下一批先读该摘要和 `正文.md` 尾部 300-500 字再续写。
 - 只有用户明确要求子代理、主会话上下文不足，或需要隔离试写时，才检查 narrative-writer agent（查找顺序见顶部）。
-- 如可用，spawn `Agent(subagent_type: "narrative-writer", prompt: ...)`，只传项目目录、输出文件、情绪目标、题材风格包、小节大纲、角色、主/副对标召回摘要、格式硬约束、写作硬约束和 `language=zh` 中文正文契约。
+- 如可用，TRAE Code 只用内置 `Agent` 按 `.trae/agents/narrative-writer.md` 的名称选择同名 Subagent，把 prompt 作为任务正文，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式验证 `.codebuddy/agents/narrative-writer.md` 后 spawn `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` 时用该精确值。只传项目目录、输出文件、情绪目标、题材风格包、小节大纲、角色、主/副对标召回摘要、格式硬约束、写作硬约束和 `language=zh` 中文正文契约。
 - 不把本 skill 整段规则塞进 prompt；细节以已加载的 `short-format.md`、题材包和 `short-craft.md` 为准。
 - 无论谁写，写入 `正文.md` 前都按同一格式规范重排，保证主会话与子代理输出一致。
 
@@ -335,8 +335,12 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ### Phase 3 完成门槛（进入 Phase 4 前必须通过）
 
-**错别字校验（本篇正文写完后第一步，先于其他所有检查）**：对实际落盘的 正文.md 运行 `node scripts/check-typos.js --check --fail-on=all 正文.md`。这一步专查错别字/形近字/音近字误用，跟风格/AI味/一致性是完全不同维度的问题，必须最先做——错字不管文风改成什么样都是错的。词典只收高置信度的固定搭配误写，命中全部是 advisory，脚本从不自动改写；先判断是不是项目里有意为之的风格化用词，确认是真错字才改。
+**正文验收第一关（语言门 + 文风卫生门）**：初稿落盘后立即运行 `node scripts/language_gate.js 正文.md`，返回零后紧接着运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md`。任一 blocking 都先退回原写作者修改并从语言门复扫；清零前不得运行错别字、去味或其他后续验收。
 
+**错别字校验（语言门通过后的第二步）**：对实际落盘的 正文.md 运行 `node scripts/check-typos.js --check --fail-on=all 正文.md`。这一步专查错别字/形近字/音近字误用，跟风格/AI味/一致性是完全不同维度的问题。词典只收高置信度的固定搭配误写，命中全部是 advisory，脚本从不自动改写；先判断是不是项目里有意为之的风格化用词，确认是真错字才改。
+
+- [ ] `node scripts/language_gate.js 正文.md` 首先返回零，未授权外语与 HTML 标记已清零
+- [ ] `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md` 无 blocking，表情、颜文字、火星文和标点堆砌符合本篇策略
 - [ ] `node scripts/check-typos.js --check --fail-on=all 正文.md` 已过一遍，命中的真错字已改
 - [ ] 总字数 ≥ 8000（优先用 Python 字符统计验证，兼容 Windows 和中文字符计数）
 - [ ] 每节 ≥ 800 字（爽文等高信息密度题材 ≥ 500 字，见 genre-writing-formulas.md）
@@ -358,13 +362,13 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 ### Phase 4：精修打磨
 
 加载 `references/writing-workflow.md` 中的精修清单完成检查。
-重点：开头钩子、情绪曲线、反转铺垫、每句话价值、格式规范、AI 腔排查。文件模式先运行 `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文.md`：blocking 先改正文并复扫；其他提示只作为读感风险，功能性写法标 `[需复核]`。再运行 `node scripts/normalize-punctuation.js 正文.md` 做标点兜底，并运行 `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文.md`。退化 blocking 要重新生成受影响段落，不靠润色；普通英文句/段、连续英文片段或未授权裸英文词须改回中文并复扫。合法缩写/型号、URL、邮箱、文件路径/扩展名、行内或围栏代码和 `.deslop-whitelist` 精确登记项不算泄漏；语言类 advisory 只有用户/设定明确授权或精确白名单命中时才能保留。
+重点：开头钩子、情绪曲线、反转铺垫、每句话价值、格式规范、AI 腔排查。文件模式每次改完正文先重跑 `node scripts/language_gate.js 正文.md`，通过后运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md`，再运行 `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文.md`：blocking 先改正文并复扫；其他提示只作为读感风险，功能性写法标 `[需复核]`。再运行 `node scripts/normalize-punctuation.js 正文.md` 做标点兜底，并运行 `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文.md`。退化 blocking 要重新生成受影响段落，不靠润色；未授权外语须改回中文并复扫。URL、邮箱、文件路径/扩展名和行内/围栏代码只机械保护明确非叙事结构；其他外语只有经用户单独确认并命中 `.deslop-whitelist` 时才能保留，HTML 标记必须清零。
 
 #### Agent 调用：narrative-writer（去AI味）+ consistency-checker
 
-精修阶段，如果项目已部署对应 agent，可 spawn：
-- `Agent(subagent_type: "narrative-writer", prompt: "项目目录：{dir}\n任务描述：去AI味+格式检查\n检查范围：{正文文件}\n语言契约：language=zh；普通英文句段或未授权裸英文词必须改回中文，只保留受保护格式或 .deslop-whitelist 精确登记项\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程")` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
-- `Agent(subagent_type: "consistency-checker", prompt: "项目目录：{dir}\n检查范围：{正文文件}\n检查类型：事实冲突+伏笔断线+角色属性不一致")` — 执行一致性检查
+精修阶段，如果当前运行时已部署对应 agent，可调用它们。TRAE Code 只由内置 `Agent` 智能体分别按 `.trae/agents/narrative-writer.md` 与 `.trae/agents/consistency-checker.md` 的名称选择同名 Subagent，把下列 prompt 作为任务正文，不传 `subagent_type`；WorkBuddy 项目模式先验证 `.codebuddy/agents/narrative-writer.md` 与 `.codebuddy/agents/consistency-checker.md`，再用内置 `Agent` 传原始 `subagent_type`；plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` / `oh-story:consistency-checker` 时使用对应精确值：
+- **narrative-writer 任务**：prompt 为 `项目目录：{dir}\n任务描述：去AI味+格式检查\n检查范围：{正文文件}\n语言契约：language=zh；未授权外语必须改回中文；只保留机械识别的非叙事结构，或用户单独确认后在 .deslop-whitelist 精确登记的外语；HTML 标记必须清零\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
+- **consistency-checker 任务**：prompt 为 `项目目录：{dir}\n检查范围：{正文文件}\n检查类型：事实冲突+伏笔断线+角色属性不一致` — 执行一致性检查
 
 如 agent 不可用，由主线程直接执行。
 
@@ -414,7 +418,8 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | [references/reversal-toolkit.md](references/reversal-toolkit.md) | 设计反转时 |
 | [references/quality-checklist.md](references/quality-checklist.md) | 精修检查时 |
 | [references/banned-words.md](references/banned-words.md) | 禁用词表 |
-| [scripts/check-typos.js](scripts/check-typos.js) | Phase 3 完成门槛第一步；写完后先查错别字/形近字/音近字，advisory 不自动改写 |
+| [scripts/check-typos.js](scripts/check-typos.js) | Phase 3 独立语言门通过后的第二步；检查错别字/形近字/音近字，advisory 不自动改写 |
+| [scripts/check-style-hygiene.js](scripts/check-style-hygiene.js) | 语言门后的中文正文卫生门；默认拦表情、颜文字、火星文、标点堆砌，可按 `设定/文风.md` 精确配置 |
 | [scripts/normalize-punctuation.js](scripts/normalize-punctuation.js) | Phase 4 文件模式确定性标点收尾 |
 | [scripts/check-ai-patterns.js](scripts/check-ai-patterns.js) | Phase 3 完成门槛与 Phase 4 复扫；报告高危 AI 句式、破折号、碎句号、长段落、微动作复读、抽象总结、套词/比喻密度、解释链、系统公告腔、提纲感短段、低连接密度 |
 | [scripts/check-degeneration.js](scripts/check-degeneration.js) | Phase 3 完成门槛与 Phase 4 复扫；中文正文显式用 `--language=zh --fail-on=blocking`，报告英文泄漏与模型退化；blocking 需修复后复扫 |
@@ -447,3 +452,25 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 - 跟随用户的语言回复，用户用什么语言就用什么语言回复
 - 中文回复遵循《中文文案排版指北》
+
+---
+
+## 去味保护协议 v1.1
+
+短篇成稿进入去AI味时，先读 [小说保护账本](references/fiction-protection-ledger.md)、[模式治理](references/pattern-governance.md) 和 [结构审计](references/structural-audit.md)，再用 [本 Skill 自带的保真脚本](scripts/deslop_guard.py) 建立源文快照、候选稿和保护账本。短篇情绪烈度、审判句、火葬场预告和有功能的重复应登记为保护项或排除条件；只编辑候选稿，先过保真审计，再对本轮改动区查残留味。问题密度高不等于授权结构重写，默认仍为 `standard + bounded`。
+
+## 中文正文英文零容忍门
+
+中文短篇正文和台词中的外语、缩写、型号和剧情代号一律判为 `language-leak blocking`，不得由模型自行豁免。URL、邮箱、代码、路径和文件名只机械保护明确非叙事结构；用户明确要求逐字保留的其他外语，必须单独确认后在 `.deslop-whitelist` 精确登记。HTML 标签、注释和实体必须清零；语言门未通过时不得交付成稿。
+
+## 本篇语言验收 Gate（强制）
+
+短篇初稿完成后立即首先运行 `node scripts/language_gate.js "{正文文件}"`。返回非零时，把报告中的行号、原片段和所在行退回正文写作者修改，并重复检查；在返回码为零前，禁止其他检测、去味验收和正式交付。不得用自动翻译、简单删除或未经用户单独确认的白名单代替正文修改。
+
+## 本篇文风卫生 Gate（强制）
+
+语言门通过后运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`。默认出版级策略阻断表情符号、颜文字、火星文、标点堆砌和不可见字符；`？！` 与 `……` 等有功能标点正常保留。若题材确需聊天体，按 [正文文风卫生门](references/style-hygiene.md) 在本篇 `设定/文风.md` 选择对白弹性或逐类配置，不得在正文生成后临时关门求通过。
+
+## 适度对白技巧（强制）
+
+重要对白场景按 [适度对白技巧](references/dialogue-craft-moderate.md) 形成轻量对白卡，并以 [对白卡 schema](references/dialogue-scene-card.schema.json) 约束字段；退化边界见 [对白归属标记漂移](references/dialogue-attribution-drift.md)。中文语言 Gate 通过后运行 `node scripts/dialogue_drift_gate.js --current "{正文文件}"`。正文自然混用无标签对白、简单“说/问”、有效动作和叙述反应。对白退化机械检测只阻断明确的连续逐句报幕，密度与动词集中只作预警并进入语义审查；不得用华丽标签、空动作或句句潜台词制造技巧感。

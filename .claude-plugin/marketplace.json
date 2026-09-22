@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "网络小说创作工具箱 — 扫榜、拆文、写作全流程 Claude Code skill，覆盖长篇与短篇网文",
-    "version": "0.10.1"
+    "version": "0.11.0"
   },
   "plugins": [
     {
@@ -46,6 +46,46 @@
       ],
       "skills": [
         "./skills/story-long-scan"
+      ]
+    },
+    {
+      "name": "story-explore",
+      "description": "作品内只读问答。查询进度、角色、伏笔、时间线和设定，返回可追溯产物引用。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-analysis",
+      "keywords": [
+        "explore",
+        "project-query",
+        "continuity",
+        "作品问答",
+        "伏笔",
+        "设定",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-explore"
+      ]
+    },
+    {
+      "name": "story-research",
+      "description": "小说创作资料研究。查证公开事实，区分证据与写作推断，交付来源和不确定性。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-analysis",
+      "keywords": [
+        "research",
+        "sources",
+        "fact-check",
+        "资料研究",
+        "考证",
+        "来源",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-research"
       ]
     },
     {
@@ -251,7 +291,7 @@
       "description": "多视角对抗式审查。full/lean 模式在已部署 reviewer agents 时并行 spawn；agents 缺失、异常、过旧或启动失败时自动降级 solo，参考文件不可读时使用内置 rubric fallback。内置番茄/起点/知乎三平台评分标准。",
       "source": "./",
       "strict": false,
-      "version": "1.1.1",
+      "version": "1.1.2",
       "category": "novel-quality",
       "keywords": [
         "review",
@@ -327,6 +367,47 @@
       ],
       "skills": [
         "./skills/story-cover"
+      ]
+    },
+    {
+      "name": "story-release-package",
+      "description": "将通过发布审查的作品整理为书名、简介、标签、章节清单和可追溯发布材料。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-publish",
+      "keywords": [
+        "release",
+        "package",
+        "metadata",
+        "发布材料",
+        "简介",
+        "标签",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-release-package"
+      ]
+    },
+    {
+      "name": "story-publish",
+      "description": "通过项目关联的本地适配器预览、预检并发布已批准章节，支持番茄草稿、修改、立即发布和排期。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-publish",
+      "keywords": [
+        "publish",
+        "fanqie",
+        "adapter",
+        "auto-publish",
+        "番茄",
+        "自动发布",
+        "草稿",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-publish"
       ]
     }
   ]

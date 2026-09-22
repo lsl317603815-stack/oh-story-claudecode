@@ -18,8 +18,8 @@ Each finding carries severity: blocking (复读/截断/占位拒绝语/tier1 工
 完整英文台词/连续短语/高置信裸词) 或 advisory (tier2 章节/歧义词、疑似外文专名或短词，交人/LLM 判)。
 --fail-on=blocking 只在出现 blocking finding 时退出 1；默认 --fail-on=all 有任何 finding 即退出 1。
 --language=auto 根据整份正文判定中文/英文（默认）；zh 开启中文正文语言门禁；en 跳过语言门禁，
-但仍执行复读、截断、占位符和工程词检测。中文正文确需保留的拉丁词或完整英文短句，可在
-正文所在项目根目录的 .deslop-whitelist 中逐行精确登记（不做子串豁免）。
+但仍执行复读、截断、占位符和工程词检测。中文正稿确需逐字保留的其他外语，必须由用户单独确认后，
+在正文所在项目根目录的 .deslop-whitelist 中逐行精确登记（不做子串豁免）。
 
 Report-only. The script never rewrites — the safe response is to regenerate the
 affected unit (chapter / 摘要) with the finding fed back as a constraint, cap retries,
@@ -67,7 +67,7 @@ const META_PLANNING_MARKER_RE = /内容概括|情节安排|预算合计|结尾�
 // 归 tier1。\b 前界保证 Bach13、Munch13 这类词不误伤。
 // 中文正文语言门禁。旧规则只扫「单行 CJK 占比 ≥50% + 全小写 ≥4 位」的裸词，会漏掉
 // 纯英文段、TitleCase 人名占位、go/to 等短词，以及英文占比一高就自动逃逸的整句。
-// 新规则先按整份正文判语言，再用等长遮罩保护 URL/邮箱/代码/路径/型号，最后按精确 offset
+// 新规则先按整份正文判语言，再用等长遮罩保护 URL/邮箱/代码/路径/文件名，最后按精确 offset
 // 判断命中是否真的位于引号内；同一行其他位置出现引号不再把整行误降级。
 const CJK_CHAR_RE = /[\u3400-\u9fff]/g;
 const LATIN_LETTER_RE = /[A-Za-z]/g;
@@ -76,16 +76,6 @@ const LATIN_TOKEN_RE = new RegExp(`(?<![A-Za-z0-9])${LATIN_TOKEN_SOURCE}(?![A-Za
 const LANGUAGE_MODES = new Set(['auto', 'zh', 'en']);
 const LANGUAGE_PHRASE_MIN_WORDS = 3;
 const LANGUAGE_PHRASE_MIN_LETTERS = 12;
-// 全大写句子不能利用“缩写保护”逃逸。只把高频自然语言词还原为
-// 普通英文 token；PDF/API/GPT 等真缩写仍保护。
-const UPPERCASE_ENGLISH_WORDS = new Set([
-  'A', 'AN', 'AND', 'ARE', 'BACK', 'BE', 'BEFORE', 'BUT', 'CLOSE', 'COME', 'DO',
-  'DOOR', 'GET', 'GO', 'HELP', 'HELLO', 'HOME', 'I', 'IS', 'LEAVE', 'ME', 'MIDNIGHT',
-  'MOVED', 'NO', 'NOBODY', 'NOW', 'OLD', 'OPEN', 'OR', 'OUT', 'PLEASE', 'QUIET',
-  'ROAD', 'ROOM', 'RUN', 'SHE', 'SORRY', 'STOP', 'TAKE', 'THE', 'THEY', 'WAIT',
-  'WAS', 'WE', 'YES', 'YOU',
-]);
-
 const META_CHAPTER_REF_RE = /\b(?:ch|chap|chapter)\.?\s?\d{1,4}\b/i;
 const META_TIER2_RE = /第[一二三四五六七八九十百千万两0-9]+章|本章|这一章|上一章|下一章|上章|下章|前一章|后一章|前文|后文|伏笔|读者|任务描述/;
 
@@ -549,22 +539,9 @@ function maskProtectedLatin(text) {
   maskMatches(/(?<![A-Za-z0-9])(?:[^\s/\\<>"'“”‘’「」『』【】()（）,，。；;：:!！?？、]+[\\/])+[^\s/\\<>"'“”‘’「」『』【】()（）,，。；;：:!！?？、]+(?![A-Za-z0-9])/g);
   maskMatches(/(?<![A-Za-z0-9])(?:[A-Za-z0-9_-]+\.)+[A-Za-z][A-Za-z0-9]{0,11}(?![A-Za-z0-9])/g);
   maskMatches(/(?<![A-Za-z0-9])\.[A-Za-z][A-Za-z0-9]{0,11}(?![A-Za-z0-9])/g);
-  // 过敏原/菌株等科学名称的窄形态（Ara h 2），以及 A客户/B客户 这类中文分组标签。
-  maskMatches(/(?<![A-Za-z0-9])[A-Z][a-z]{2,}\s+[a-z]\s+\d+(?![A-Za-z0-9])/g);
-  maskMatches(/(?<![A-Za-z0-9])[A-Z](?=[\u3400-\u9fff])/g);
-  // 真实正文会用 A、B、C包 / A、B、C三个编号 表示已定义分组；只在后面
-  // 紧跟明确分类词时保护整段，不把任意单字母全局放行。
-  maskMatches(/(?<![A-Za-z0-9])(?:[A-Z][、,，\/／]){1,}[A-Z](?=(?:[一二三四五六七八九十百两千0-9]+(?:个)?)?(?:包|组|类|客户|方案|版本|档|编号|记录|样本|文件))/g);
-  // “一个字母：C”与“文件名后面有Q”是显式字母/后缀语境；只遮罩该单字母。
-  maskMatches(
-    /(?:字母|文件名(?:后面|末尾)|后缀|代号|编号)\s*(?:是|为|有|写着|标成|：|:)?\s*([A-Z])(?![A-Za-z0-9])/g,
-    (match) => {
-      const offset = match[0].lastIndexOf(match[1]);
-      return [match.index + offset, match.index + offset + match[1].length];
-    },
-  );
-  // 数字、含数字的字母型号、下划线标识符与 DB-40/GPT-4 一类连字符型号。
-  maskMatches(/(?<![A-Za-z0-9])(?:[A-Za-z]+\d[A-Za-z0-9_-]*|\d+[A-Za-z][A-Za-z0-9_-]*|[A-Za-z0-9]+_[A-Za-z0-9_-]+|[A-Za-z]+-\d[A-Za-z0-9-]*)(?![A-Za-z0-9])/g);
+  // 只保护纯数字。缩写、型号、科学名称、分组字母和剧情代号
+  // 都属于叙事内容，不得由检测器猜测放行；只有用户单独确认逐字保留后，
+  // 才能写入 .deslop-whitelist 精确登记。这与独立 language_gate.js 的边界一致。
   maskMatches(/(?<![A-Za-z0-9])\d+(?:[.,:/-]\d+)*%?(?![A-Za-z0-9])/g);
   return chars.join('');
 }
@@ -595,17 +572,8 @@ function latinTokens(text) {
   }));
 }
 
-function isUpperAcronym(token) {
-  return /^[A-Z]{2,}$/.test(token.replace(/['’]/g, ''));
-}
-
-function isUppercaseEnglishWord(token) {
-  return UPPERCASE_ENGLISH_WORDS.has(token.replace(/['’]/g, ''));
-}
-
 function isOrdinaryEnglishToken(token, whitelist) {
-  if (isWhitelistedToken(token.value, whitelist)) return false;
-  return !isUpperAcronym(token.value) || isUppercaseEnglishWord(token.value);
+  return !isWhitelistedToken(token.value, whitelist);
 }
 
 function isEnglishOnlySegment(text) {
@@ -666,8 +634,8 @@ function findLanguageLeak(content, whitelist) {
     const ranges = quotedRanges(trimmed);
     const covered = [];
 
-    // 完整英文台词：引号内容除标点外全为英文。单个 TitleCase 仍按“疑似专名”只提示，
-    // 全大写缩写（OK/PDF）保留；其余未精确登记的完整英文台词直接 blocking。
+    // 完整英文台词：引号内容除标点外全为英文。未精确登记的
+    // TitleCase、短词与全大写缩写同样 blocking。
     for (const range of ranges) {
       const segment = masked.slice(range.contentStart, range.contentEnd);
       if (!isEnglishOnlySegment(segment)) continue;
@@ -683,13 +651,13 @@ function findLanguageLeak(content, whitelist) {
         cover(covered, range.contentStart, range.contentEnd);
         continue;
       }
-      // 整个引号内只有英文时就是完整英文台词；“Go”即使没句号也不能被
-      // TitleCase 专名 advisory 规则放过。确属专名/引文时用精确白名单表达意图。
+      // 整个引号内只有英文时就是完整英文台词；“Go”即使没句号也不能逃逸。
+      // 确属专名/引文时用精确白名单表达意图。
       findings.push(languageFinding(
         lineNo,
         columnAt(range.contentStart),
         'blocking',
-        `完整英文台词泄漏：「${compact(original)}」未在 .deslop-whitelist 精确登记；中文项目应改成中文台词，或确认剧情需要后登记完整短句。`,
+        `完整英文台词泄漏：「${compact(original)}」未在 .deslop-whitelist 精确登记；中文项目应改成中文台词，只有用户单独确认逐字保留后才能登记完整短句。`,
         trimmed.slice(Math.max(0, range.start - 8), Math.min(trimmed.length, range.end + 8)),
       ));
       cover(covered, range.contentStart, range.contentEnd);
@@ -712,7 +680,7 @@ function findLanguageLeak(content, whitelist) {
           lineNo,
           columnAt(core.start),
           'blocking',
-          `纯英文句段泄漏：「${compact(original)}」出现在中文正文中；整句改成中文，或确认剧情需要后在 .deslop-whitelist 精确登记。`,
+          `纯英文句段泄漏：「${compact(original)}」出现在中文正文中；应整句改成中文，只有用户单独确认逐字保留后才能在 .deslop-whitelist 精确登记。`,
           original,
         ));
         cover(covered, core.start, coreEnd);
@@ -749,7 +717,7 @@ function findLanguageLeak(content, whitelist) {
     const candidates = tokens.filter((token) => !isCovered(covered, token.index, token.end));
     let run = [];
     const flushRun = () => {
-      const uppercasePhrase = run.length >= 2 && run.every((token) => isUppercaseEnglishWord(token.value));
+      const uppercasePhrase = run.length >= 2 && run.every((token) => /^[A-Z]+$/.test(token.value));
       if (run.length < LANGUAGE_PHRASE_MIN_WORDS && !uppercasePhrase) {
         run = [];
         return;
@@ -790,30 +758,50 @@ function findLanguageLeak(content, whitelist) {
     }
     flushRun();
 
-    // 剩余单词：全小写 ≥4 延续旧规则（叙述 blocking、混合中文台词 advisory）；TitleCase、
-    // mixed-case 与 1-3 字母短词统一 advisory，避免 Aiden/go 这类漏检又不强删合法专名。
+    // Unicode 外文字母先于 ASCII token 扫描：覆盖全角/扩展拉丁、希腊、西里尔、
+    // 罗马数字、带圈字母和数学字母。ASCII-only 片段留给下方既有规则处理。
+    const unicodeForeignRun = /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\u2160-\u2188\u24B6-\u24E9\u{1D400}-\u{1D7FF}]+/gu;
+    for (const match of masked.matchAll(unicodeForeignRun)) {
+      const value = match[0];
+      if (/^[\x00-\x7F]+$/.test(value)) continue;
+      const start = match.index;
+      const end = start + value.length;
+      if (isCovered(covered, start, end)) continue;
+      if (isWhitelistedToken(value, whitelist) || isWhitelistedPhrase(value, whitelist)) {
+        cover(covered, start, end);
+        continue;
+      }
+      findings.push(languageFinding(
+        lineNo,
+        columnAt(start),
+        'blocking',
+        `Unicode 外文字母泄漏：「${value}」出现在中文正文中；全角、扩展字母和常见混淆字符同样禁止，应改成中文；确需保留时必须先由用户单独确认并精确登记。`,
+        trimmed.slice(Math.max(0, start - 10), Math.min(trimmed.length, end + 14)),
+      ));
+      cover(covered, start, end);
+    }
+
+    // 剩余单词：未授权 ASCII token 全部 blocking；TitleCase、
+    // mixed-case 与 1-3 字母短词同样 blocking；合法专名只能通过精确白名单授权。
     for (const token of tokens) {
       if (isCovered(covered, token.index, token.end)) continue;
-      if (
-        isWhitelistedToken(token.value, whitelist)
-        || (isUpperAcronym(token.value) && !isUppercaseEnglishWord(token.value))
-      ) continue;
+      if (isWhitelistedToken(token.value, whitelist)) continue;
       const inDialogue = isRangeQuoted(ranges, token.index, token.value.length);
       const lowercaseLong = /^[a-z]+(?:['’][a-z]+)?$/.test(token.value) && token.letters >= 4;
       if (lowercaseLong) {
         findings.push(languageFinding(
           lineNo,
           columnAt(token.index),
-          inDialogue ? 'advisory' : 'blocking',
-          `裸英文词泄漏：「${token.value}」出现在中文正文${inDialogue ? '的中英混合台词' : '叙述层'}；改成中文称呼，确需保留则在 .deslop-whitelist 中逐词精确登记。`,
+          'blocking',
+          `裸英文词泄漏：「${token.value}」出现在中文正文${inDialogue ? '的中英混合台词' : '叙述层'}；中英混写属于 blocking，应改成中文称呼；确需逐字保留时必须先由用户单独确认并在 .deslop-whitelist 精确登记。`,
           trimmed.slice(Math.max(0, token.index - 10), Math.min(trimmed.length, token.end + 14)),
         ));
       } else {
         findings.push(languageFinding(
           lineNo,
           columnAt(token.index),
-          'advisory',
-          `英文专名/短词疑似泄漏：「${token.value}」；核对是否为已设定专名、缩写或角色有意用语，合法项可在 .deslop-whitelist 精确登记。`,
+          'blocking',
+          `英文专名/短词泄漏：「${token.value}」出现在中文正文中；不再默认豁免专名、缩写或短词，应改成中文；确需逐字保留时必须先由用户单独确认并在 .deslop-whitelist 精确登记。`,
           trimmed.slice(Math.max(0, token.index - 10), Math.min(trimmed.length, token.end + 14)),
         ));
       }
