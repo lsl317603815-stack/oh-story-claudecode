@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file.
 - `story-grill` 列入会 spawn Agent 的 skill，顶部补上与其他 skill 相同的 Spawn 版本提示，契约检查随 `agents_version` 一起校验它。
 - `story-grill` 自身版本升至 1.1.0，采访纪律不变。`story-drama-write` 只写 `剧本/`，不受这道 Hook 影响，未改。
 
+### 番茄榜单采集
+
+- `fanqie-rank-scraper.js` 默认 `--mode auto`：先用普通 HTTPS 读榜单页 SSR 状态并分页调用榜单接口，不再依赖 agent-browser 和会关掉日常 Chrome 的 CDP 调试实例；直取失败或解析不到一半书名时回退 CDP，取结果更全的一次。
+- `--top` 支持 1-100，名次取自接口；标签解析跳过促销、公告类【…】括号，两种模式输出同一套字段。报告头追加抓取方式、榜单版本与说明，列表降级或失败时退出码为 2。
+- 新增 `tests/fanqie-rank-scraper.test.mjs`（32 项），已接入统一质量门、`npm test` 与 CI。
+
 ### 发版检查
 
 - `check-release-contract-bumps.py` 不再把 `.codebuddy-plugin/plugin.json` 只变了产品版本号当成部署载荷变化。此前每次升产品版本都会被要求升 `agents_version`，与「三条版本轴互相独立」相悖，补丁版也会平白要求所有项目重新部署；清单其余字段有变仍照旧要求升级。新增两条回归测试。
