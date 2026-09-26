@@ -90,12 +90,11 @@ for (const file of options.files) {
 }
 
 if (failed) {
-  process.exit(2);
+  process.exitCode = 2;
+} else if (options.check && totalFindings > 0) {
+  process.exitCode = 1;
 }
-if (options.check && totalFindings > 0) {
-  process.exit(1);
-}
-if (!options.check) {
+if (!options.check && !failed) {
   console.log(`Done. Changed files: ${changedFiles}`);
 }
 

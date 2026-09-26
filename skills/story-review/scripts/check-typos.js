@@ -136,10 +136,11 @@ if (options.json) {
   }
 }
 
-if (failed) process.exit(2);
+// 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
+if (failed) process.exitCode = 2;
 // 本脚本所有 finding 都是 advisory（没有 blocking 分级），--fail-on=blocking 因此
 // 永远不触发失败退出码，只有默认的 --fail-on=all 会在发现疑似错别字时退出 1。
-if (options.failOn === 'all' && allFindings.length > 0) process.exit(1);
+if (options.failOn === 'all' && allFindings.length > 0) process.exitCode ||= 1;
 
 function die(message) {
   console.error(message);

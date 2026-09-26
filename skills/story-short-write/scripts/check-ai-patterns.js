@@ -324,11 +324,12 @@ if (options.json) {
   }
 }
 
-if (failed) process.exit(2);
+// 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
+if (failed) process.exitCode = 2;
 // --fail-on=blocking 只在出现 blocking finding 时退出 1（advisory 仅报告）；默认 all 沿用「有任何 finding 即 1」。
 const hasBlocking = allFindings.some((f) => f.severity === 'blocking');
 const hasActionable = allFindings.some((f) => f.severity === 'blocking' || f.severity === 'advisory');
-if (options.failOn === 'blocking' ? hasBlocking : hasActionable) process.exit(1);
+if (options.failOn === 'blocking' ? hasBlocking : hasActionable) process.exitCode ||= 1;
 
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

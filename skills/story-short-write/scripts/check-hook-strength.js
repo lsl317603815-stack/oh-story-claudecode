@@ -221,11 +221,12 @@ if (options.json) {
   }
 }
 
-if (failed) process.exit(2);
+// 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
+if (failed) process.exitCode = 2;
 const blocking = allFindings.filter((f) => f.severity === 'blocking');
 const actionable = allFindings.filter((f) => f.severity !== 'info');
-if (options.failOn === 'blocking' && blocking.length > 0) process.exit(1);
-if (options.failOn === 'all' && actionable.length > 0) process.exit(1);
+if (options.failOn === 'blocking' && blocking.length > 0) process.exitCode ||= 1;
+if (options.failOn === 'all' && actionable.length > 0) process.exitCode ||= 1;
 
 // ── 实现 ─────────────────────────────────────────────────────────────────
 function die(message) {

@@ -345,7 +345,8 @@ function main() {
       console.error('Return this chapter to the narrative writer, revise in context, then rerun the gate.');
     }
     if (!options.json && historyNotice) console.error(`NOTICE [${historyNotice.code}] ${historyNotice.message}`);
-    process.exit(rejected ? 2 : 0);
+    // exitCode 而不是 process.exit()：macOS 上写管道是异步的，立刻退出会截断 --json 输出
+    process.exitCode = rejected ? 2 : 0;
   } catch (error) {
     console.error(`dialogue_drift_gate: ${error.message}`);
     process.exit(3);

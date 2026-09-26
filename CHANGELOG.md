@@ -50,6 +50,7 @@ All notable changes to this project will be documented in this file.
 - `dialogue_drift_gate.js` 新增 `--chapter` / `--project`，跳过跨章基线时会明确提示，不再静默。
 - `check-hook-strength.js` 修复标题用中文数字（「第二章」）时直接崩溃的问题（`CN_DIGITS` 在暂时性死区里被读取）；候选稿文件名不带章号，正好走这条路。
 - `check-typos.js` 删掉会误报合法「既……也」句式的「既使」词条。
+- 各 Node 检查脚本（`check-ai-patterns`、`check-degeneration`、`check-typos`、`check-emotion-floor`、`check-hook-strength`、`check-outline-copy`、`dialogue_drift_gate`、`normalize-punctuation`）输出后改为设置 `process.exitCode`，不再立即 `process.exit()`：macOS 上 stdout 写管道是异步的，finding 多时 `--json` 输出会被截断，候选门读到的是半截 JSON。
 - 新增错别字、情绪下限、钩子强度三个检查脚本的回归测试，以及防工具回显的静态检查 `check-tool-output-leaks.py`（连续行号前缀、工具回显短语），均已接入统一质量门与 CI。
 
 ### Dashboard

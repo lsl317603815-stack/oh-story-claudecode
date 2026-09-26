@@ -267,4 +267,4 @@ function main(argv) {
   return options.failOn === 'blocking' && totalFindings > 0 ? 1 : 0;
 }
 
-process.exit(main(process.argv));
+process.exitCode = main(process.argv);

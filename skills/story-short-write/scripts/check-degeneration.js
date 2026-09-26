@@ -144,10 +144,11 @@ if (options.json) {
   }
 }
 
-if (failed) process.exit(2);
+// 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
+if (failed) process.exitCode = 2;
 // --fail-on=blocking 只在出现 blocking finding 时退出 1（advisory 仅报告）；默认 all 沿用「有任何 finding 即 1」。
 const hasBlocking = allFindings.some((f) => f.severity === 'blocking');
-if (options.failOn === 'blocking' ? hasBlocking : allFindings.length > 0) process.exit(1);
+if (options.failOn === 'blocking' ? hasBlocking : allFindings.length > 0) process.exitCode ||= 1;
 
 function die(message) {
   console.error(message);
