@@ -33,6 +33,10 @@ jobs:
         run: bash scripts/check-current-skill-contracts.sh
       - name: Current-only skill contract regression
         run: python3 scripts/test-current-skill-contracts.py
+      - name: Tool-output leak guard
+        run: |
+          python3 scripts/check-tool-output-leaks.py
+          python3 scripts/test-check-tool-output-leaks.py
       - name: Package version and archive regression
         run: |
           python3 scripts/manage-version.py check
@@ -49,6 +53,11 @@ jobs:
         run: python3 scripts/test-shared-assets.py
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Typo, emotion-floor and hook-strength checker regression
+        run: |
+          node scripts/test-typos.js
+          node scripts/test-emotion-floor.js
+          node scripts/test-hook-strength.js
       - name: Scan runtime regression
         run: node scripts/test-scan-runtime.js
       - name: Fanqie scraper regression
@@ -144,6 +153,10 @@ jobs:
         run: python scripts/test-tracking-workflow-contracts.py
       - name: Tracking transaction behavior regression
         run: python scripts/test-tracking-commit.py
+      - name: Tool-output leak guard
+        run: |
+          python scripts/check-tool-output-leaks.py
+          python scripts/test-check-tool-output-leaks.py
       - name: Workflow numbering regression
         shell: bash
         run: bash scripts/test-skill-numbering.sh
@@ -152,6 +165,11 @@ jobs:
         run: bash scripts/check-shared-files.sh
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Typo, emotion-floor and hook-strength checker regression
+        run: |
+          node scripts/test-typos.js
+          node scripts/test-emotion-floor.js
+          node scripts/test-hook-strength.js
       - name: Scan runtime regression
         run: node scripts/test-scan-runtime.js
       - name: Fanqie scraper regression
@@ -221,6 +239,11 @@ jobs:
         run: bash scripts/test-skill-numbering.sh
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Typo, emotion-floor and hook-strength checker regression
+        run: |
+          node scripts/test-typos.js
+          node scripts/test-emotion-floor.js
+          node scripts/test-hook-strength.js
       - name: Scan runtime regression
         run: node scripts/test-scan-runtime.js
       - name: Fanqie scraper regression

@@ -30,6 +30,7 @@ CONTEXT_TARGET_BYTES = 8192
 CONTEXT_MAX_BYTES = 12288
 SNAPSHOT_TARGET_BYTES = 4096
 SNAPSHOT_MAX_BYTES = 8192
+RECENT_SUMMARY_BYTES = 360
 
 CONTEXT_HEADINGS = (
     "## 当前位置",
@@ -82,6 +83,9 @@ RETIRED_TRACKING_PATHS = (
     "时间线/事件库.json",
 )
 RETIRED_ARCHIVE_DIR = "_旧追踪存档"
+CONTEXT_REVISION = re.compile(r"状态修订：(\d+)")
+OPEN_CANDIDATE_STATUSES = {"draft", "approved", "promoted"}
+RENDER_HINT = "rebuild every derived view with `tracking_commit.py render --project <book>`; never hand-edit derived views"
 
 
 class TrackingError(ValueError):
@@ -739,7 +743,9 @@ def validate_context_input(value: object, *, include_initial_fields: bool) -> di
             recent.append(
                 {
                     "chapter": as_int(item.get("chapter"), f"context.recent_chapters[{index}].chapter", minimum=1),
-                    "summary": clean_text(item.get("summary"), f"context.recent_chapters[{index}].summary", max_bytes=360),
+                    "summary": clean_text(
+                        item.get("summary"), f"context.recent_chapters[{index}].summary", max_bytes=RECENT_SUMMARY_BYTES
+                    ),
                 }
             )
         require(len(recent) <= 3, "context.recent_chapters may contain at most 3 items")
@@ -906,7 +912,9 @@ def normalize_delta(
         "character_snapshots must contain exactly the core characters changed by this transaction",
     )
     return {
-        "result": clean_text(delta.get("result"), "delta.result", max_bytes=480),
+        # 与 context.recent_chapters[].summary 同上限：result 会原样写进近章速记，
+        # 上限不一致时 361–480 字节的 result 会在合并后才以一个模型从未提交过的字段名报错。
+        "result": clean_text(delta.get("result"), "delta.result", max_bytes=RECENT_SUMMARY_BYTES),
         "character_changes": character_changes,
         "foreshadow_changes": foreshadow_changes,
         "timeline_events": timeline_events,
@@ -1487,21 +1495,27 @@ def check_project(project: Path) -> dict[str, Any]:
     expected_views = render_views(state)
     for relative, expected in expected_views.items():
         path = tracking / relative
-        require(path.exists(), f"derived view is missing: {relative}")
+        require(path.exists(), f"derived view is missing: {relative}; {RENDER_HINT}")
         require(
             path.read_text(encoding="utf-8") == expected,
-            f"derived view differs from _tracking-state.json: {relative}",
+            f"derived view differs from _tracking-state.json: {relative}; {RENDER_HINT}",
         )
     expected_character_files = {
         Path(relative).name for relative in expected_views if relative.startswith("角色状态/")
     }
     actual_character_files = {path.name for path in (tracking / "角色状态").glob("*.md")}
-    require(actual_character_files == expected_character_files, "character snapshot files differ from tracking state")
+    require(
+        actual_character_files == expected_character_files,
+        f"character snapshot files differ from tracking state; {RENDER_HINT}",
+    )
     expected_dossier_files = {
         Path(relative).name for relative in expected_views if relative.startswith("事实档案/")
     }
     actual_dossier_files = {path.name for path in (tracking / "事实档案").glob("*.md")}
-    require(actual_dossier_files == expected_dossier_files, "fact dossier files differ from tracking state")
+    require(
+        actual_dossier_files == expected_dossier_files,
+        f"fact dossier files differ from tracking state; {RENDER_HINT}",
+    )
     return state
 
 
@@ -1546,6 +1560,99 @@ def migrate_v4(project: Path, document: object) -> dict[str, Any]:
     return state
 
 
+def open_candidate_runs(tracking: Path) -> list[str]:
+    """Chapter candidates bind state_revision; bumping it under an open one strands it."""
+    root = tracking / "候选章"
+    found: list[str] = []
+    if not root.is_dir():
+        return found
+    for manifest in sorted(root.glob("第*章/*/manifest.json")):
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict) and data.get("status") in OPEN_CANDIDATE_STATUSES:
+            found.append(f"追踪/{manifest.parent.relative_to(tracking).as_posix()}（{data.get('status')}）")
+    return found
+
+
+def require_no_interrupted_commit(tracking: Path, state: dict[str, Any], *, discard_interrupted: bool) -> None:
+    """A half-written commit must be finished by re-running it, not papered over by render.
+
+    commit writes the chapter delta, then 上下文.md (already carrying the next revision),
+    then the other views, and the authority last.  Rendering over that would silently drop
+    the half-applied transaction while its delta record stays behind.
+    """
+    last = state["last_committed_chapter"]
+    for path in sorted((tracking / "逐章记录").glob("第*章.md")):
+        match = re.fullmatch(r"第(\d+)章\.md", path.name)
+        require(
+            match is None or int(match.group(1)) <= last,
+            f"逐章记录/{path.name} is ahead of last_committed_chapter={last}: an append commit was interrupted. "
+            "Re-run that same commit transaction. If the transaction file is lost, move this record out of "
+            "追踪/ and write the chapter's transaction again.",
+        )
+    context = tracking / "上下文.md"
+    if discard_interrupted or not context.is_file():
+        return
+    match = CONTEXT_REVISION.search(context.read_text(encoding="utf-8"))
+    ahead = int(match.group(1)) if match else None
+    require(
+        ahead is None or ahead <= state["state_revision"],
+        f"上下文.md carries state revision {ahead} but _tracking-state.json is at {state['state_revision']}: "
+        f"a commit was interrupted. Re-run that same commit transaction (expected_state_revision "
+        f"{state['state_revision']}). Only if the transaction file is lost, run render --discard-interrupted "
+        "to rebuild the views from the last committed state.",
+    )
+
+
+def views_match(tracking: Path, views: dict[str, str]) -> bool:
+    for relative, expected in views.items():
+        try:
+            if (tracking / relative).read_text(encoding="utf-8") != expected:
+                return False
+        except (FileNotFoundError, UnicodeError):
+            return False
+    for directory, prefix in (("角色状态", "角色状态/"), ("事实档案", "事实档案/")):
+        expected_files = {Path(relative).name for relative in views if relative.startswith(prefix)}
+        actual_files = {path.name for path in (tracking / directory).glob("*.md")} if (tracking / directory).is_dir() else set()
+        if actual_files != expected_files:
+            return False
+    return True
+
+
+def render_project(project: Path, *, discard_interrupted: bool = False) -> tuple[dict[str, Any], bool]:
+    """Re-derive every view from the authority, bumping state_revision only when something changes.
+
+    This is a projection upgrade, not a fictional chapter event: it never creates or
+    rewrites a chapter delta.  Use it after a tool upgrade changes how views render, or
+    after a derived view was edited by hand.  The authority is still written last, so an
+    interrupted render can simply be re-run.
+    """
+    tracking = tracking_root(project)
+    require_no_retired_tracking_paths(tracking)
+    raw_payload = state_path(project).read_text(encoding="utf-8") if state_path(project).exists() else ""
+    state = load_state(project)
+    require_no_interrupted_commit(tracking, state, discard_interrupted=discard_interrupted)
+    if raw_payload == json_payload(state) and views_match(tracking, render_views(state)):
+        return state, False
+    open_runs = open_candidate_runs(tracking)
+    require(
+        not open_runs,
+        "render bumps state_revision, which would make the open chapter candidate stale: "
+        + "、".join(open_runs)
+        + ". Finish it (promote → tracking commit → close) or abandon it first, then render between chapters.",
+    )
+    next_state = copy.deepcopy(state)
+    next_state["state_revision"] += 1
+    next_state = normalize_state(next_state)
+    views = render_views(next_state)
+    write_views(tracking, views)
+    atomic_write_text(state_path(project), json_payload(next_state))
+    warn_sizes(views)
+    return next_state, True
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1555,6 +1662,15 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--input", type=Path, required=True, help="UTF-8 JSON input document")
     check_parser = subparsers.add_parser("check")
     check_parser.add_argument("--project", type=Path, required=True, help="book project root containing 追踪/")
+    render_parser = subparsers.add_parser(
+        "render", help="rebuild every derived view from _tracking-state.json (bumps state_revision only on change)"
+    )
+    render_parser.add_argument("--project", type=Path, required=True, help="book project root containing 追踪/")
+    render_parser.add_argument(
+        "--discard-interrupted",
+        action="store_true",
+        help="rebuild over a half-written commit whose transaction file is lost",
+    )
     return parser
 
 
@@ -1567,20 +1683,20 @@ def main() -> int:
             result = apply_transaction(args.project, read_json(args.input))
         elif args.command == "migrate-v4":
             result = migrate_v4(args.project, read_json(args.input))
+        elif args.command == "render":
+            result, changed = render_project(args.project, discard_interrupted=args.discard_interrupted)
         else:
             result = check_project(args.project)
     except (TrackingError, OSError, UnicodeError) as exc:
         emit(f"ERROR: {exc}", error=True)
         return 2
-    emit(
-        json.dumps(
-            {
-                "last_committed_chapter": result["last_committed_chapter"],
-                "state_revision": result["state_revision"],
-            },
-            ensure_ascii=False,
-        )
-    )
+    summary: dict[str, Any] = {
+        "last_committed_chapter": result["last_committed_chapter"],
+        "state_revision": result["state_revision"],
+    }
+    if args.command == "render":
+        summary["changed"] = changed
+    emit(json.dumps(summary, ensure_ascii=False))
     return 0
 
 

@@ -14,6 +14,10 @@ step "public package version surfaces"
 python3 scripts/manage-version.py check
 python3 scripts/test-manage-version.py
 
+step "tool-output leak guard"
+python3 scripts/check-tool-output-leaks.py
+python3 scripts/test-check-tool-output-leaks.py
+
 step "package builder regression"
 python3 scripts/test-build-package.py
 python3 scripts/test-package-channel.py
@@ -43,6 +47,9 @@ bash scripts/test-ai-patterns.sh
 bash scripts/test-degeneration.sh
 bash scripts/test-language-gate.sh
 bash scripts/test-style-hygiene.sh
+node scripts/test-typos.js
+node scripts/test-emotion-floor.js
+node scripts/test-hook-strength.js
 python3 scripts/test-deslop-guard.py
 bash scripts/test-dialogue-drift-gate.sh
 python3 scripts/test-prose-metrics.py

@@ -234,9 +234,10 @@ function die(message) {
   process.exit(2);
 }
 
-const CN_DIGITS = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-
 function cnToNumber(text) {
+  // 放在函数内：主流程在文件前部就会调用本函数，模块级 const 此时仍在暂时性死区，
+  // 中文数字标题（「# 第二章」）会直接抛 ReferenceError。候选稿文件名不带章号，正好走这条路。
+  const CN_DIGITS = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
   if (/^\d+$/.test(text)) return Number(text);
   let total = 0;
   let section = 0;

@@ -183,13 +183,13 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 |------|------|
 | `追踪/_tracking-state.json` 存在且 `check` 通过 | 正常，无需处理 |
 | 缺 `_tracking-state.json` 但已有正文 | 日更停止；OpenCode / TRAE / WorkBuddy / ZCode / Codex 上写正文被 hook 直接拦截（各端静态命令解析仍以受测工具面为边界） |
-| 存在但派生视图被手改 | `check` 报 `derived view differs from _tracking-state.json` |
+| 存在但派生视图被手改，或工具升级改了视图格式 | `check` 报 `derived view differs from _tracking-state.json`；在两章之间运行一次 `tracking_commit.py render` 整份重建 |
 
 迁移**不需要重跑全书拆解**：正文、`设定/`、`大纲/`、`拆文库/` 都不受影响，只重建 `追踪/`。执行 `/story-import` 的「旧追踪项目迁移」——数出最后完整章号 `N`，从旧追踪文件与最近几章正文重建当前状态，构造 `last_chapter=N` 的初始化事务跑 `tracking_commit.py init`。旧追踪结构会被按原样整体移入 `追踪/_旧追踪存档/`，不删除、不参与解析。
 
 退役结构：`_tracking-meta.json`、`时间线/事件库.json` 及更早追踪文件不再被解析，`commit` 与 `check` 遇到会直接拒绝。
 
-日常写作的两条硬约束：所有追踪写入都走 `tracking_commit.py`；派生视图被改动后用该章的 `mode=revision` 事务整份重建，不手改。
+日常写作的两条硬约束：所有追踪写入都走 `tracking_commit.py`；派生视图被改动后用 `tracking_commit.py render` 整份重建，不手改。
 
 ## 版本变更
 

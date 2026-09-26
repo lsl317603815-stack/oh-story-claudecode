@@ -180,7 +180,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
    ```
    - `check-style-hygiene.js` 的 blocking 合并进 `prose` S2：默认出版级策略只报告表情符号、颜文字、火星文、标点堆砌和不可见字符；若项目 `设定/文风.md` 明确选择对白弹性或逐类策略，按项目配置审查，不把作者已经授权的聊天体误判为 AI 味。
    - 将 `ellipsis`、`double-hyphen`、`markdown-divider` 结果作为 `format` findings 合并进报告。`em-dash` 破折号只采用 `check-ai-patterns.js` 的语义改写建议（见下条）；`normalize-punctuation.js` 报的同一位置 `em-dash` 在合并时去重丢弃，避免同处出现「机械替换」与「按功能改写」两条相互冲突的 finding。另外人工检查标点节奏是否通篇句号化或随机堆砌，脚本不替代语气判断。
-   - `check-ai-patterns.js` 的 findings 合并进 `prose`：severity=blocking 的类别一律按 S2（当前为 `not-is-comparison` / `em-dash` / `voice-contrast` / `negation-parade` / `reverse-not-is` / `trailer-ending` / `trailer-summary`），修法直接采用检测器输出的建议（删否定铺垫/反差腔/排比否定/章尾预告腔/章尾状态总结句，直接写后项或具体动作；破折号按功能改成动作/短句/逗号/冒号）。
+   - `check-ai-patterns.js` 的 findings 合并进 `prose`：severity=blocking 的类别一律按 S2（当前为 `not-is-comparison` / `voice-contrast` / `negation-parade` / `reverse-not-is` / `trailer-ending` / `trailer-summary`），修法直接采用检测器输出的建议（删否定铺垫/反差腔/排比否定/章尾预告腔/章尾状态总结句，直接写后项或具体动作）。`em-dash` 是 advisory：按 S3 提示，破折号按功能改成动作/短句/逗号/冒号，不一律改句号；项目文风明确禁用破折号时按项目规范升为 S2。
    - 其余 prose findings 统一按 S4：只指出读感风险，不替代人工判断；功能性写法标 `[需复核]` 并保留。完整类别和修法见 `anti-ai-writing.md`。
    - `check-degeneration.js` 报告模型退化与中文正文语言泄漏，每条带 `severity: blocking|advisory`。非语言 blocking（复读/截断/tier1 工程词）作为 S1/S2 `prose` findings，修复建议是「重新生成该段，不是改写」；非语言 advisory（tier2 章节/歧义词）作为 S4。
    - 语言类 `language-leak` blocking 一律进入 `prose`：整句、整段或大范围漂移导致中文正文契约失效时标 S1，局部未授权泄漏标 S2。普通英文句/段、连续英文片段和裸英文词都要报告；URL、邮箱、Markdown 链接目标、文件路径/扩展名和行内/围栏代码等非叙事结构不是 finding，其他拉丁字母只有精确白名单命中时可保留。

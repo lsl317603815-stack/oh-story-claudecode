@@ -684,6 +684,101 @@ class TrackingCommitTests(unittest.TestCase):
         self.assertEqual(sorted((self.project / "追踪/逐章记录").glob("*.md")), before_records)
         self.run_tool("check")
 
+    # ── 近章速记上限与 render ─────────────────────────────────────────
+    def test_result_longer_than_recent_summary_cap_is_rejected_on_the_submitted_field(self) -> None:
+        self.init()
+        document = transaction(1)
+        document["delta"]["result"] = "江" * 130  # 390 字节：旧版在 delta 通过、合并进近章速记时才炸
+        before = self.read_state()
+
+        result = self.run_tool("commit", document, expect=2)
+
+        self.assertIn("delta.result exceeds 360 bytes", result.stderr)
+        self.assertNotIn("recent_chapters", result.stderr)
+        self.assertEqual(self.read_state(), before)
+        self.assertFalse((self.project / "追踪/逐章记录/第001章.md").exists())
+
+        document["delta"]["result"] = "江" * 120  # 360 字节恰好通过
+        self.run_tool("commit", document)
+        self.run_tool("check")
+
+    def test_render_is_a_no_op_on_a_consistent_project(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1, character=True, foreshadow=True))
+
+        result = self.run_tool("render")
+
+        self.assertEqual(json.loads(result.stdout), {"last_committed_chapter": 1, "state_revision": 1, "changed": False})
+        self.assertEqual(self.read_state()["state_revision"], 1)
+
+    def test_render_rebuilds_hand_edited_views_and_bumps_revision(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1, character=True, foreshadow=True))
+        tracking = self.project / "追踪"
+        (tracking / "伏笔.md").write_text("# 手改\n", encoding="utf-8")
+        (tracking / "角色状态/野生角色.md").write_text("# 孤儿文件\n", encoding="utf-8")
+        records = sorted(path.read_text(encoding="utf-8") for path in (tracking / "逐章记录").glob("*.md"))
+
+        failed = self.run_tool("check", expect=2)
+        self.assertIn("tracking_commit.py render", failed.stderr)
+
+        result = self.run_tool("render")
+
+        self.assertEqual(json.loads(result.stdout)["changed"], True)
+        self.assertEqual(self.read_state()["state_revision"], 2)
+        self.assertIn("状态修订：2", (tracking / "上下文.md").read_text(encoding="utf-8"))
+        self.assertFalse((tracking / "角色状态/野生角色.md").exists())
+        self.assertEqual(
+            sorted(path.read_text(encoding="utf-8") for path in (tracking / "逐章记录").glob("*.md")), records
+        )
+        self.run_tool("check")
+        # 渲染后 revision 前进，下一章事务要基于新 revision 构造
+        self.run_tool("commit", transaction(2, character=True))
+        self.run_tool("check")
+
+    def test_render_refuses_to_paper_over_an_interrupted_append(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1))
+        orphan = self.project / "追踪/逐章记录/第002章.md"
+        orphan.write_text("# 第002章 · 半截事务\n", encoding="utf-8")
+
+        result = self.run_tool("render", expect=2)
+
+        self.assertIn("an append commit was interrupted", result.stderr)
+        self.assertEqual(self.read_state()["state_revision"], 1)
+
+    def test_render_refuses_a_half_written_revision_unless_told_the_transaction_is_lost(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1))
+        context = self.project / "追踪/上下文.md"
+        context.write_text(context.read_text(encoding="utf-8").replace("状态修订：1", "状态修订：2"), encoding="utf-8")
+
+        result = self.run_tool("render", expect=2)
+        self.assertIn("Re-run that same commit transaction", result.stderr)
+        self.assertEqual(self.read_state()["state_revision"], 1)
+
+        args = [sys.executable, str(TOOL), "render", "--project", str(self.project), "--discard-interrupted"]
+        completed = subprocess.run(args, text=True, capture_output=True, check=False, encoding="utf-8")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.read_state()["state_revision"], 2)
+        self.run_tool("check")
+
+    def test_render_refuses_while_a_chapter_candidate_is_open(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1))
+        (self.project / "追踪/伏笔.md").write_text("# 手改\n", encoding="utf-8")
+        run = self.project / "追踪/候选章/第002章/C1"
+        run.mkdir(parents=True)
+        (run / "manifest.json").write_text(json.dumps({"status": "draft"}), encoding="utf-8")
+
+        result = self.run_tool("render", expect=2)
+        self.assertIn("候选章/第002章/C1", result.stderr)
+        self.assertEqual(self.read_state()["state_revision"], 1)
+
+        (run / "manifest.json").write_text(json.dumps({"status": "abandoned"}), encoding="utf-8")
+        self.run_tool("render")
+        self.run_tool("check")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

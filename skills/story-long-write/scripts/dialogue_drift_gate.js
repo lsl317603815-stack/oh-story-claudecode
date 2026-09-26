@@ -7,10 +7,31 @@
  * It compares the current chapter with early accepted chapters and recent
  * chapters, then rejects only clear density, repetition, or consecutive-tag
  * degeneration.
+ *
+ * The chapter number normally comes from the file name (第NNN章.md). Candidate
+ * drafts live at 追踪/候选章/第NNN章/<run-id>/candidate.md, whose name carries no
+ * number, so callers pass --chapter N; with --chapter and no --history-dir or
+ * --project, a file under <root>/追踪/候选章/ reads history from <root>/正文/.
  */
 
 const fs = require('fs');
 const path = require('path');
+
+const USAGE = [
+  'Usage: node dialogue_drift_gate.js --current <file> [--chapter N]',
+  '         [--project <root> | --history-dir <dir>] [--baseline-count N] [--recent-window N] [--json]',
+  '  --current <file>      chapter or candidate to check (a bare positional path also works)',
+  '  --chapter N           chapter number of <file> (positive integer); overrides 第NNN章 in the file name.',
+  '                        Required for candidates such as 追踪/候选章/第NNN章/<run-id>/candidate.md',
+  '  --project <root>      read history chapters from <root>/正文/',
+  '  --history-dir <dir>   read history chapters from <dir> (wins over --project).',
+  '                        Default: the file\'s own directory, or <root>/正文/ when --chapter is given',
+  '                        and the file sits under <root>/追踪/候选章/',
+  '  --baseline-count N    earliest history chapters forming the style baseline (default 3)',
+  '  --recent-window N     latest history chapters forming the recent window (default 3)',
+  '  --json                print the report as JSON',
+  'Exit codes: 0 passed (advisories allowed), 2 rejected, 3 usage or input error.',
+].join('\n');
 
 const VERBS = [
   '低声说道', '沉声说道', '冷声说道', '缓缓说道', '淡淡说道',
@@ -45,18 +66,34 @@ function extractSubject(line, verbIndex) {
   return subject;
 }
 
+function parseChapterOption(raw) {
+  const value = /^\d+$/.test(raw || '') ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(value) || value < 1) {
+    const shown = raw === undefined ? 'nothing' : JSON.stringify(raw);
+    throw new Error(`--chapter needs a positive integer chapter number, got ${shown}`);
+  }
+  return value;
+}
+
 function parseArgs(argv) {
-  const options = { json: false, baselineCount: 3, recentWindow: 3 };
+  const options = { json: false, help: false, baselineCount: 3, recentWindow: 3 };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--json') options.json = true;
+    else if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--current') options.current = argv[++index];
+    else if (arg === '--chapter') options.chapter = parseChapterOption(argv[++index]);
+    else if (arg === '--project') {
+      options.project = argv[++index];
+      if (!options.project) throw new Error('--project needs a project root directory');
+    }
     else if (arg === '--history-dir') options.historyDir = argv[++index];
     else if (arg === '--baseline-count') options.baselineCount = Number(argv[++index]);
     else if (arg === '--recent-window') options.recentWindow = Number(argv[++index]);
     else if (!arg.startsWith('--') && !options.current) options.current = arg;
     else throw new Error(`unknown argument: ${arg}`);
   }
+  if (options.help) return options;
   if (!options.current) throw new Error('missing --current <chapter-file>');
   return options;
 }
@@ -64,6 +101,35 @@ function parseArgs(argv) {
 function chapterNumber(filePath) {
   const match = path.basename(filePath).match(/第0*(\d+)章/);
   return match ? Number(match[1]) : null;
+}
+
+// <root>/追踪/候选章/第NNN章/<run-id>/candidate.md -> <root>
+function candidateProjectRoot(filePath) {
+  let dir = path.dirname(filePath);
+  for (;;) {
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    if (path.basename(dir) === '候选章' && path.basename(parent) === '追踪') return path.dirname(parent);
+    dir = parent;
+  }
+}
+
+// `optional` history dirs (derived from a project root) may not exist yet before
+// the first accepted chapter; an explicit or default directory must exist.
+function resolveHistoryDir(options, currentPath) {
+  if (options.historyDir) return { dir: path.resolve(options.historyDir), optional: false };
+  if (options.project) {
+    const root = path.resolve(options.project);
+    if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+      throw new Error(`--project is not a directory: ${root}`);
+    }
+    return { dir: path.join(root, '正文'), optional: true };
+  }
+  if (options.chapter !== undefined) {
+    const root = candidateProjectRoot(currentPath);
+    if (root) return { dir: path.join(root, '正文'), optional: true };
+  }
+  return { dir: path.dirname(currentPath), optional: false };
 }
 
 function familyOf(verb) {
@@ -141,12 +207,14 @@ function mean(items, selector) {
   return items.reduce((sum, item) => sum + selector(item), 0) / items.length;
 }
 
-function loadHistory(currentPath, historyDir) {
-  const currentNumber = chapterNumber(currentPath);
+function loadHistory(currentPath, currentNumber, history) {
   if (currentNumber === null) return [];
+  if (history.optional && !fs.existsSync(history.dir)) return [];
+  const historyDir = history.dir;
   return fs.readdirSync(historyDir)
     .filter((name) => name.endsWith('.md'))
     .map((name) => path.join(historyDir, name))
+    .filter((filePath) => filePath !== currentPath)
     .map((filePath) => ({ filePath, number: chapterNumber(filePath) }))
     .filter((item) => item.number !== null && item.number < currentNumber)
     .sort((left, right) => left.number - right.number)
@@ -208,15 +276,34 @@ function main() {
     options = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`dialogue_drift_gate: ${error.message}`);
-    console.error('Usage: node dialogue_drift_gate.js --current <file> [--history-dir <dir>] [--json]');
+    console.error(USAGE);
     process.exit(3);
+  }
+  if (options.help) {
+    console.log(USAGE);
+    process.exit(0);
   }
 
   const currentPath = path.resolve(options.current);
-  const historyDir = path.resolve(options.historyDir || path.dirname(currentPath));
   try {
     const current = analyze(fs.readFileSync(currentPath, 'utf8'));
-    const history = loadHistory(currentPath, historyDir);
+    const historySource = resolveHistoryDir(options, currentPath);
+    const currentNumber = options.chapter !== undefined ? options.chapter : chapterNumber(currentPath);
+    const history = loadHistory(currentPath, currentNumber, historySource);
+    let historyNotice = null;
+    if (currentNumber === null) {
+      historyNotice = {
+        code: 'history-baseline-skipped',
+        message: `cross-chapter baseline skipped: no chapter number in "${path.basename(currentPath)}"; `
+          + 'pass --chapter N (candidates: 追踪/候选章/第NNN章/<run-id>/candidate.md)',
+      };
+    } else if (options.chapter !== undefined && currentNumber > 1 && history.length === 0) {
+      historyNotice = {
+        code: 'history-baseline-empty',
+        message: `cross-chapter baseline empty: no chapter before 第${String(currentNumber).padStart(3, '0')}章 in ${historySource.dir}; `
+          + 'pass --project <root> or --history-dir <正文 dir>',
+      };
+    }
     const baseline = history.slice(0, options.baselineCount);
     const recent = history.slice(-options.recentWindow);
     const evaluation = evaluate(current, baseline, recent);
@@ -243,6 +330,7 @@ function main() {
           ? 'continue_with_semantic_dialogue_review'
           : 'continue_workflow',
     };
+    if (historyNotice) result.history_notice = historyNotice;
 
     if (options.json) {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -256,6 +344,7 @@ function main() {
       current.occurrences.slice(0, 12).forEach((item) => console.error(`  ${item.line}:${item.column} [${item.text}] ${item.context}`));
       console.error('Return this chapter to the narrative writer, revise in context, then rerun the gate.');
     }
+    if (!options.json && historyNotice) console.error(`NOTICE [${historyNotice.code}] ${historyNotice.message}`);
     process.exit(rejected ? 2 : 0);
   } catch (error) {
     console.error(`dialogue_drift_gate: ${error.message}`);

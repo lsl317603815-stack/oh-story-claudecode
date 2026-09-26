@@ -119,4 +119,76 @@ missing_status=$?
 set -e
 [ "$missing_status" -eq 3 ] || { echo "FAIL: unreadable input should exit 3" >&2; exit 1; }
 
-echo "OK: dialogue drift gate keeps regressions, rejects real tag runs, and avoids narrative-action false positives"
+# 候选章文件名 candidate.md 不含章号：必须由 --chapter 显式给出，跨章基线才会读取 正文/。
+PROJECT="$TMP_DIR/project"
+RUN_DIR="$PROJECT/追踪/候选章/第003章/C1"
+mkdir -p "$PROJECT/正文" "$RUN_DIR"
+cp "$HISTORY/第001章.md" "$PROJECT/正文/第001章.md"
+cat > "$PROJECT/正文/第002章.md" <<'PROSE'
+“走吧。”
+他拎起箱子。
+“等等。”
+她回头看了一眼门。
+PROSE
+cp "$HISTORY/第002章.md" "$RUN_DIR/candidate.md"
+CANDIDATE="$RUN_DIR/candidate.md"
+
+node "$SCRIPT" --current "$CANDIDATE" --json > "$TMP_DIR/candidate-noflag.json"
+node "$SCRIPT" --current "$CANDIDATE" --chapter 3 --json > "$TMP_DIR/candidate-chapter.json"
+node "$SCRIPT" --current "$CANDIDATE" --chapter 3 --project "$PROJECT" --json > "$TMP_DIR/candidate-project.json"
+cp "$CANDIDATE" "$TMP_DIR/loose-candidate.md"
+node "$SCRIPT" --current "$TMP_DIR/loose-candidate.md" --chapter 3 --json > "$TMP_DIR/candidate-loose.json"
+node - "$TMP_DIR" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const load = (name) => JSON.parse(fs.readFileSync(path.join(process.argv[2], name), 'utf8'));
+const codes = (report) => report.advisories.map((item) => item.code);
+const noflag = load('candidate-noflag.json');
+if (noflag.metrics.baseline_density !== null || noflag.metrics.recent_density !== null) throw new Error(`no-flag run must not have a baseline: ${JSON.stringify(noflag.metrics)}`);
+if (codes(noflag).includes('baseline-drift') || codes(noflag).includes('chapter-spike')) throw new Error(JSON.stringify(noflag.advisories));
+if (!noflag.history_notice || noflag.history_notice.code !== 'history-baseline-skipped' || !noflag.history_notice.message.includes('--chapter')) {
+  throw new Error(`missing history-baseline-skipped notice: ${JSON.stringify(noflag.history_notice)}`);
+}
+for (const name of ['candidate-chapter.json', 'candidate-project.json']) {
+  const report = load(name);
+  if (report.metrics.baseline_density !== 0 || report.metrics.recent_density !== 0) throw new Error(`${name}: history baseline not loaded: ${JSON.stringify(report.metrics)}`);
+  if (!codes(report).includes('baseline-drift') || !codes(report).includes('chapter-spike')) throw new Error(`${name}: ${JSON.stringify(report.advisories)}`);
+  if (report.history_notice) throw new Error(`${name}: unexpected notice ${JSON.stringify(report.history_notice)}`);
+  if (report.status !== noflag.status || report.metrics.attribution_density !== noflag.metrics.attribution_density) throw new Error(`${name}: current-chapter metrics must not change`);
+}
+const loose = load('candidate-loose.json');
+if (loose.metrics.baseline_density !== null || !loose.history_notice || loose.history_notice.code !== 'history-baseline-empty') {
+  throw new Error(`--chapter without a findable 正文/ must say the baseline is empty: ${JSON.stringify(loose)}`);
+}
+NODE
+
+# 文本模式：跳过基线时 stderr 给出一行提示，stdout 与退出码保持不变。
+node "$SCRIPT" --current "$CANDIDATE" > "$TMP_DIR/candidate-text.out" 2> "$TMP_DIR/candidate-text.err"
+[ "$(grep -c 'NOTICE \[history-baseline-skipped\].*--chapter' "$TMP_DIR/candidate-text.err")" -eq 1 ] || { echo "FAIL: text mode must print one history-baseline-skipped notice on stderr" >&2; cat "$TMP_DIR/candidate-text.err" >&2; exit 1; }
+grep -q '^PASS:' "$TMP_DIR/candidate-text.out" || { echo "FAIL: notice must not replace the PASS line" >&2; exit 1; }
+node "$SCRIPT" --current "$CANDIDATE" --chapter 3 > /dev/null 2> "$TMP_DIR/candidate-chapter.err"
+[ ! -s "$TMP_DIR/candidate-chapter.err" ] || { echo "FAIL: --chapter run must not print a notice" >&2; cat "$TMP_DIR/candidate-chapter.err" >&2; exit 1; }
+
+# 已有章号的正式正文不受影响，也不出提示。
+node "$SCRIPT" --current "$HISTORY/第002章.md" --history-dir "$HISTORY" > /dev/null 2> "$TMP_DIR/named.err"
+[ ! -s "$TMP_DIR/named.err" ] || { echo "FAIL: named chapter must not print a notice" >&2; exit 1; }
+
+# 非法 --chapter / --project 必须以非零码明确失败。
+for bad in 0 -1 abc 3.5 "" 1e3 " 3"; do
+  set +e
+  node "$SCRIPT" --current "$CANDIDATE" --chapter "$bad" > /dev/null 2> "$TMP_DIR/bad-chapter.err"
+  bad_status=$?
+  set -e
+  [ "$bad_status" -eq 3 ] || { echo "FAIL: --chapter '$bad' should exit 3, got $bad_status" >&2; exit 1; }
+  grep -q -- '--chapter needs a positive integer' "$TMP_DIR/bad-chapter.err" || { echo "FAIL: --chapter '$bad' error message" >&2; cat "$TMP_DIR/bad-chapter.err" >&2; exit 1; }
+done
+set +e
+node "$SCRIPT" --current "$CANDIDATE" --chapter > /dev/null 2>&1
+dangling_status=$?
+node "$SCRIPT" --current "$CANDIDATE" --chapter 3 --project "$TMP_DIR/没有这个项目" > /dev/null 2>&1
+project_status=$?
+set -e
+[ "$dangling_status" -eq 3 ] || { echo "FAIL: --chapter without a value should exit 3" >&2; exit 1; }
+[ "$project_status" -eq 3 ] || { echo "FAIL: missing --project root should exit 3" >&2; exit 1; }
+
+echo "OK: dialogue drift gate keeps regressions, rejects real tag runs, avoids narrative-action false positives, and baselines candidates via --chapter"

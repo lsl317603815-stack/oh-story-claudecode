@@ -23,6 +23,14 @@ node scripts/dialogue_drift_gate.js \
   --history-dir "正文"
 ```
 
+章节候选稿的文件名不带章号，必须显式传章号，否则跨章基线会被跳过（脚本会打印 `history-baseline-skipped` 提示）：
+
+```bash
+node scripts/dialogue_drift_gate.js \
+  --current "追踪/候选章/第091章/{运行ID}/candidate.md" \
+  --chapter 91 --project "{书项目根}"
+```
+
 检测器同时查看：
 
 - 本章显式归属标记占对白轮次的比例。

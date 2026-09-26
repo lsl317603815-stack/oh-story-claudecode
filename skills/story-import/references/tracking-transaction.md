@@ -22,18 +22,20 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py commit --project {书项目根} --input {逐章事务.json}
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py migrate-v4 --project {书项目根} --input {v4迁移.json}
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py check  --project {书项目根}
+{PYTHON} {当前 skill 根}/scripts/tracking_commit.py render --project {书项目根}
 ```
 
 - `init`：只在 `_tracking-state.json` 不存在时执行，绝不覆盖已初始化项目。
 - `commit`：读取唯一权威状态，在内存中完成合并、引用检查、全部视图渲染和容量检查；随后写逐章记录与派生视图，最后原子替换 `_tracking-state.json` 作为唯一提交点。
 - `migrate-v4`：只对已有 `schema_version=4` 的权威状态执行一次，升级到 schema 5 并可同时植入有证据的长期事实；不创建、不重写任何逐章记录。
 - `check`：严格验证 state schema、逐章记录连续性/规范名/体积、固定 7 栏、角色快照硬上限、派生文件集合，以及所有派生视图与 state 的逐字一致性。
+- `render`：从 `_tracking-state.json` 整份重建全部派生视图。视图已一致时什么都不写（输出 `"changed": false`）；有差异时把 `state_revision` 加一再重建，最后写权威文件。它不是章节事件，不创建、不改写任何逐章记录。两种情况用它：工具升级改变了视图渲染格式（`check` 会对每本老书报 `derived view differs`），或派生视图被手改。它会拒绝三种状态：有未闭环候选章（revision 前进会让候选稿过期，先 close 或 abandon，再在两章之间 render）；逐章记录超前于 `last_committed_chapter`；`上下文.md` 的状态修订超前于权威文件（后两种都是 commit 写到一半中断，应重跑同一份事务）。只有中断事务的 JSON 已经丢失时，才用 `render --discard-interrupted` 以最后提交的状态重建。
 
 同一本书只允许工作流串行提交，不支持多个 Agent 或终端并发写。`expected_state_revision` 用于拒绝基于旧状态构造的顺序 stale transaction，不是并发锁。
 
 事务 JSON 在成功前必须保留。若文件写入失败，`_tracking-state.json` 尚未推进；修正环境后直接重跑**同一份** `commit`。append 重跑只接受内容完全相同的既有逐章记录，不维护 `dirty/pending/repair` 状态机。
 
-校验失败与写入失败处理方式不同：校验失败（字段非法、退役结构、容量超限）要按报错改事务本身，重跑同一份结果不变。派生视图被手改或外部改动导致 `check` 报 `derived view differs from _tracking-state.json` 时，重新提交**该章**的 `mode=revision` 事务让工具整份重建，`expected_state_revision` 取 `追踪/_tracking-state.json` 的 `state_revision` 字段——`check` 失败时只往 stderr 打 ERROR，不输出 JSON；不手改派生文件，也不删 `_tracking-state.json` 重来。手写出的逐章记录会让同章 `append` 永久报 `chapter delta N already exists with different content`——删掉那个手写文件后重跑原事务即可。
+校验失败与写入失败处理方式不同：校验失败（字段非法、退役结构、容量超限）要按报错改事务本身，重跑同一份结果不变。派生视图被手改、外部改动或工具升级导致 `check` 报 `derived view differs from _tracking-state.json` 时，运行 `render` 让工具整份重建；不手改派生文件，也不删 `_tracking-state.json` 重来。`check` 失败时只往 stderr 打 ERROR，不输出 JSON；需要当前 revision 时直接读 `追踪/_tracking-state.json` 的 `state_revision` 字段。手写出的逐章记录会让同章 `append` 永久报 `chapter delta N already exists with different content`——删掉那个手写文件后重跑原事务即可。
 
 本工具不解析旧 `_tracking-meta.json`、`时间线/事件库.json` 或更早追踪结构，不提供语义兼容层。`init` 遇到这类旧文件时，先把它们按原样整体移入 `追踪/_旧追踪存档/`，再在原地建当前协议：旧内容留给作者查阅，不参与解析，当前状态完全以 init 输入为准。校验失败的 `init` 不移动任何文件。`commit` 与 `check` 仍直接拒绝旧结构——它们只在已建协议的项目上运行。
 
@@ -155,6 +157,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 约束：
 
 - 构造事务前运行 `check`，把当前 `state_revision` 原样写入 `expected_state_revision`；若状态已经变化，重新读取 state 并重构事务。
+- `delta.result` ≤360 字节（约 120 个汉字）：它会原样成为 `上下文.md` 近章速记里的本章一行，与 `recent_chapters[].summary` 同上限。
 - `context` 的允许字段随子命令不同：`init` 收 `position`、`long_term_constraints`、`active_character_names`、`continuity_risks`、`recent_chapters`、`next_chapter_commitments` 六项；`commit` 只收前四项。`recent_chapters` 与 `next_chapter_commitments` 在 commit 时由工具从当前视图和本章 `delta` 派生，手填会在任何写入前被拒（`context contains unsupported fields: ...`，exit 2）。照 init 示例套 commit 事务是最容易踩的一处。
 - `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。
 - 角色快照的四个列表不限制条数，只限制单项长度和最终文件总字节：目标 ≤4096 字节，超过警告；硬上限 8192 字节，超过则在任何写入前拒绝。
