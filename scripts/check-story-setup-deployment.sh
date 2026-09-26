@@ -69,8 +69,8 @@ write_sentinel() {
   local root="$1"
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
-setup_skill_version: 1.5.0
+agents_version: 41
+setup_skill_version: 1.5.1
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -100,6 +100,25 @@ setup_git_repo() {
   git -C "$root" config user.name story-setup-test
 }
 
+# Claude Code 只把 hookSpecificOutput.additionalContext 送进模型：PreToolUse/PostToolUse 在 exit 0
+# 时的纯文本 stdout/stderr 只进 debug log（code.claude.com/docs/en/hooks）。非阻断提醒必须是单个
+# JSON 对象、事件名正确、不带 permissionDecision（不改变放行决策）、正文 ≤ 10,000 字符。
+assert_hook_context() {
+  local out="$1" event="$2" needle="$3" label="$4"
+  printf '%s' "$out" | python3 -c '
+import json, sys
+event, needle = sys.argv[1], sys.argv[2]
+obj = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+assert list(obj) == ["hookSpecificOutput"], obj
+out = obj["hookSpecificOutput"]
+assert out.get("hookEventName") == event, out
+assert "permissionDecision" not in out, out
+ctx = out.get("additionalContext")
+assert isinstance(ctx, str) and needle in ctx and len(ctx) <= 10000, ctx
+' "$event" "$needle" >/dev/null 2>&1 \
+    || fail "$label: expected one $event additionalContext JSON containing '$needle', got: $out"
+}
+
 run_commit_hook_command() {
   local root="$1"
   local command_text="$2"
@@ -112,6 +131,7 @@ assert_commit_warns() {
   local label="$3"
   local out
   out="$(run_commit_hook_command "$root" "$command_text")"
+  assert_hook_context "$out" PreToolUse 'Story Commit Warnings' "validate-story-commit ($label)"
   echo "$out" | grep -q 'Story Commit Warnings' || fail "validate-story-commit did not warn for $label: $command_text"
   echo "$out" | grep -q '正文硬编码角色属性' || fail "validate-story-commit did not inspect staged markdown for $label"
 }
@@ -612,8 +632,8 @@ setup_git_repo "$bad_sentinel_root"
 copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
-setup_skill_version: 1.5.0
+agents_version: 41
+setup_skill_version: 1.5.1
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
@@ -637,8 +657,8 @@ printf '# ref
 ' > "$multi_refs_root/skills/story-setup/references/agent-references/ref.md"
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
-setup_skill_version: 1.5.0
+agents_version: 41
+setup_skill_version: 1.5.1
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references,skills/story-setup/references/agent-references
@@ -663,14 +683,14 @@ setup_git_repo "$stale_previous_root"
 copy_hooks "$stale_previous_root"
 cat > "$stale_previous_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 39
+agents_version: 40
 setup_skill_version: 1.2.22
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 stale_previous_out="$(run_from_nested "$stale_previous_root" session-start.sh 2>&1 || true)"
-echo "$stale_previous_out" | grep -q '低于 v40' || fail "session-start did not warn for agents_version 39 stale v40 deployment"
+echo "$stale_previous_out" | grep -q '低于 v41' || fail "session-start did not warn for agents_version 40 stale v41 deployment"
 
 newer_project_root="$TMP_DIR/newer-project"
 mkdir -p "$newer_project_root/.claude/skills/story-setup/references/agent-references"
@@ -678,14 +698,14 @@ setup_git_repo "$newer_project_root"
 copy_hooks "$newer_project_root"
 cat > "$newer_project_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.6.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 newer_project_out="$(run_from_nested "$newer_project_root" session-start.sh 2>&1 || true)"
-echo "$newer_project_out" | grep -q '高于本 hook 支持的 v40' || fail "session-start did not reject agents_version 41 downgrade"
+echo "$newer_project_out" | grep -q '高于本 hook 支持的 v41' || fail "session-start did not reject agents_version 42 downgrade"
 echo "$newer_project_out" | grep -q '不要降级覆盖' || fail "session-start did not explain future-version safety"
 
 mixed_version_root="$TMP_DIR/mixed-version"
@@ -695,7 +715,7 @@ copy_hooks "$mixed_version_root"
 touch "$mixed_version_root/.claude/skills/story-setup/references/agent-references/dummy.md"
 cat > "$mixed_version_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
+agents_version: 41
 setup_skill_version: 1.2.6
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
@@ -703,11 +723,11 @@ references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 mixed_version_out="$(run_from_nested "$mixed_version_root" session-start.sh 2>&1 || true)"
 # agents_version 是唯一运行时过期权威；setup_skill_version 落后不触发重部署（设计如此）
-if echo "$mixed_version_out" | grep -q '低于 v40'; then
-  fail "session-start incorrectly nagged '低于 v40' for current agents_version=40 just because setup_skill_version lags"
+if echo "$mixed_version_out" | grep -q '低于 v41'; then
+  fail "session-start incorrectly nagged '低于 v41' for current agents_version=41 just because setup_skill_version lags"
 fi
 if echo "$mixed_version_out" | grep -q '高于本 hook'; then
-  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=40 just because setup_skill_version lags"
+  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=41 just because setup_skill_version lags"
 fi
 
 # 多端部署的 references_dir 是逗号分隔多条路径。整串当一条路径查会每次开会话都误报缺失，
@@ -721,8 +741,8 @@ touch "$multi_end_root/.claude/skills/story-setup/references/agent-references/du
 touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dummy.md"
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
-setup_skill_version: 1.5.0
+agents_version: 41
+setup_skill_version: 1.5.1
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references
@@ -794,6 +814,7 @@ for cmd in 'echo git commit docs' 'grep "git commit" file'; do
 done
 stdin_out="$(cd "$commit_root" && unset STORY_COMMIT_COMMAND CLAUDE_TOOL_INPUT && printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m test"}}' | CLAUDE_PROJECT_DIR="$commit_root" bash .claude/hooks/validate-story-commit.sh 2>&1 || true)"
 echo "$stdin_out" | grep -q 'Story Commit Warnings' || fail "validate-story-commit did not read stdin hook payload"
+assert_hook_context "$stdin_out" PreToolUse '=== End Warnings ===' "validate-story-commit stdin payload"
 echo "$stdin_out" | grep -q 'short/正文.md' || fail "validate-story-commit did not inspect short-story 正文.md"
 echo "$stdin_out" | grep -q 'book/设定/角色.md' || fail "validate-story-commit did not inspect staged setting markdown"
 
@@ -834,15 +855,15 @@ echo "  OK TS9 settings JSON"
 # agent 模板要带住关键行为规则。原先还夹着一批「UPGRADING.md/README 必须写到某句话」
 # 的文档完整性断言——那种改一个词就红、测的是措辞不是行为，已随 check-story-long-write-contract.sh
 # 一并去掉，发版是否补 UPGRADING 由发版清单和人把关，不靠 CI 钉死措辞。
-assert_grep 'AGENTS_VERSION.*-lt 40|AGENTS_VERSION" -lt 40' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 39 under v40 deployment"
-assert_grep 'AGENTS_VERSION.*-gt 40|AGENTS_VERSION" -gt 40' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
+assert_grep 'AGENTS_VERSION.*-lt 41|AGENTS_VERSION" -lt 41' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 40 under v41 deployment"
+assert_grep 'AGENTS_VERSION.*-gt 41|AGENTS_VERSION" -gt 41' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/guard-outline-before-prose.sh" "Claude bash tracking gate must activate at agents_version 28"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/story_hook_cli.js" "Claude CLI tracking gate must activate at agents_version 28"
-assert_grep 'agents_version.*小于 `40`|版本 < 40' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 39 as stale"
-assert_grep 'agents_version.*大于 `40`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
+assert_grep 'agents_version.*小于 `41`|版本 < 41' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 40 as stale"
+assert_grep 'agents_version.*大于 `41`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
-assert_grep '大于 40 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
-assert_grep '^version:[[:space:]]*1\.5\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
+assert_grep '大于 41 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
+assert_grep '^version:[[:space:]]*1\.5\.1$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
 # 漏写一个 → 半装的包检不出；名单里多出已删除的目录 → 完好的包被判残缺，fail-closed 卡死所有部署。
@@ -964,6 +985,13 @@ PY
 [ "$(run_guard 'book/正文/第1章_开端.md')" = "2" ] || fail "guard did not BLOCK long prose when 细纲 missing"
 : > "$guard_root/book/大纲/细纲_第1章.md"
 [ "$(run_guard 'book/正文/第1章_开端.md')" = "0" ] || fail "guard wrongly blocked long prose when 细纲 present"
+# 细纲缺「收一个/变一个/开一个」只提醒不拦：必须以 PreToolUse additionalContext 送进模型
+# （旧实现写 stderr + exit 0，Claude Code 只记 debug log）。
+retention_ec=0
+retention_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"book/正文/第1章_开端.md","content":"x"}}' \
+  | CLAUDE_PROJECT_DIR="$guard_root" bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>/dev/null)" || retention_ec=$?
+[ "$retention_ec" = "0" ] || fail "retention advisory must not block (exit $retention_ec)"
+assert_hook_context "$retention_out" PreToolUse '细纲留存字段未填' "guard retention advisory"
 
 # 追踪顺序校验：OpenCode/ZCode/Codex 三端写正文前都调 core.proseBlockReason，本端早先
 # 只有纯 bash 细纲检查，「首建第 N+1 章前必须先提交第 N 章追踪事务」在 Claude Code 上
@@ -1072,12 +1100,13 @@ print(json.dumps({"tool_name": "Bash", "tool_input": {"command": "cat > book/正
 PY
 )"
   broken_ec=0
-  broken_err="$(printf '%s' "$broken_payload" \
-    | CLAUDE_PROJECT_DIR="$guard_root" bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>&1 >/dev/null)" || broken_ec=$?
+  broken_out="$(printf '%s' "$broken_payload" \
+    | CLAUDE_PROJECT_DIR="$guard_root" bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>/dev/null)" || broken_ec=$?
   mv "$guard_root/.claude/hooks/story_hook_core.js.bak" "$guard_root/.claude/hooks/story_hook_core.js"
   [ "$broken_ec" = "0" ] || fail "broken Bash guard core must preserve documented fail-open behavior"
-  printf '%s' "$broken_err" | grep -q '守卫解析失败' \
-    || fail "broken Bash guard core was silently ignored: $broken_err"
+  # 告警必须到模型：核损坏时 hook-context 仍要可用（CLI 按需加载核），以 additionalContext 输出。
+  assert_hook_context "$broken_out" PreToolUse '守卫解析失败' "broken Bash guard core fail-open warning"
+  assert_hook_context "$broken_out" PreToolUse 'broken core fixture' "broken Bash guard core error detail"
 fi
 echo "  OK TS11 outline-before-prose guard"
 
@@ -1112,6 +1141,15 @@ if ! PATH="$nonode_shim:$PATH" node -e "" >/dev/null 2>&1; then
   # 非正文目标 -> 放行
   [ "$(run_guard_nonode 'book/设定/角色.md')" = "0" ] \
     || fail "guard(no-node) wrongly blocked a non-prose file (bash 兜底)"
+  # 无 node 时提醒仍须到模型：emit_hook_context 的纯 bash 兜底把固定文案原样写成 JSON。
+  nonode_retention_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"book/正文/第123章_无纲.md","content":"x"}}' \
+    | CLAUDE_PROJECT_DIR="$guard_root" PATH="$nonode_shim:$PATH" \
+      bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>/dev/null || true)"
+  assert_hook_context "$nonode_retention_out" PreToolUse '细纲留存字段未填' "guard(no-node) retention advisory"
+  nonode_bash_out="$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat draft.md > book/正文/第8章_x.md"}}' \
+    | CLAUDE_PROJECT_DIR="$guard_root" PATH="$nonode_shim:$PATH" \
+      bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>/dev/null || true)"
+  assert_hook_context "$nonode_bash_out" PreToolUse '缺少可用 Node' "guard(no-node) Bash fail-open warning"
   echo "  OK TS11b outline guard fail-closed without node"
 else
   echo "  SKIP TS11b (假 node 垫片未能遮蔽真 node，跳过 no-node 回归)"

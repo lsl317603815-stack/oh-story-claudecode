@@ -10,6 +10,12 @@
 #   - 旧版/无 sentinel 缺 state 仍兼容放行追踪缺失本身，但上一章中文语言/毒句欠账仍走共享核
 # 非正文目标、解析不到路径一律静默放行。
 # 设计原则：宁可漏拦不可误伤——任何不确定都 exit 0。
+#
+# 输出契约（code.claude.com/docs/en/hooks）：阻断走 stderr + exit 2（PreToolUse 把 stderr 当拒绝
+# 理由交给模型），保持不变。非阻断提醒（fail-open 告警、细纲留存字段）若照旧写 stderr 再 exit 0，
+# Claude Code 只记进 debug log、模型看不到；改由 lib/common.sh emit_hook_context 打印 PreToolUse
+# 的 hookSpecificOutput.additionalContext JSON（文档化字段，不带 permissionDecision 即不改变放行
+# 决策）。提醒只在 exit 0 路径输出，不与 exit 2 混用。
 set -euo pipefail
 
 source "$(dirname "$0")/lib/common.sh"
@@ -79,7 +85,7 @@ if [ -z "$TARGET" ]; then
     COMMAND_STATUS=$?
     set -e
     if [ "$COMMAND_STATUS" -ne 0 ]; then
-      printf '%s\n' "⚠ Bash 正文写入守卫解析失败，本次按 fail-open 放行；请改用 Write/Edit 或修复 hook：${COMMAND_BLOCK:-未知错误}" >&2
+      emit_hook_context PreToolUse "⚠ Bash 正文写入守卫解析失败，本次按 fail-open 放行；请改用 Write/Edit 或修复 hook：${COMMAND_BLOCK:-未知错误}"
       exit 0
     fi
     if [ -n "$COMMAND_BLOCK" ]; then
@@ -87,7 +93,8 @@ if [ -z "$TARGET" ]; then
       exit 2
     fi
   elif printf '%s' "$HOOK_INPUT" | grep -q '正文'; then
-    printf '%s\n' "⚠ 当前环境缺少可用 Node/story_hook_cli.js，无法判定 Bash 是否写正文；本次按 fail-open 放行，请改用 Write/Edit 以启用大纲守卫。" >&2
+    # node 缺席：emit_hook_context 走纯 bash 兜底，这句固定文案不含 " \ 与控制字符，可原样成 JSON。
+    emit_hook_context PreToolUse "⚠ 当前环境缺少可用 Node/story_hook_cli.js，无法判定 Bash 是否写正文；本次按 fail-open 放行，请改用 Write/Edit 以启用大纲守卫。"
   fi
   exit 0
 fi
@@ -150,6 +157,8 @@ fi
 
 BASE="$(basename "$ABS")"
 PARENT="$(basename "$(dirname "$ABS")")"
+# 非阻断提醒先攒着，只在最终 exit 0 时送进模型；中途 exit 2 阻断时不混发。
+ADVISORY=""
 
 case "$BASE" in
   正文.md)
@@ -219,8 +228,8 @@ case "$BASE" in
       esac
     done
     if [ -n "$RET_MISSING" ]; then
-      printf '%s\n' "⚠ 细纲留存字段未填（不拦写，建议补齐后再落正文）：第 ${NUM} 章 —$RET_MISSING" >&2
-      printf '%s\n' "   跑 story-long-write 的 scripts/check-outline-retention.js 补齐「收一个/变一个/开一个」，再写正文。" >&2
+      ADVISORY="⚠ 细纲留存字段未填（不拦写，建议补齐后再落正文）：第 ${NUM} 章 —$RET_MISSING
+   跑 story-long-write 的 scripts/check-outline-retention.js 补齐「收一个/变一个/开一个」，再写正文。"
     fi
     # 欠账门（无状态）：写第 N 章（首建）前，上一章有未清毒句式时先清再写。
     # 毒句式扫描走共享核 prose-toxic 子命令（与写后网同一份规则）；node/核缺失或扫描失败一律
@@ -253,4 +262,5 @@ case "$BASE" in
     ;;
 esac
 
+emit_hook_context PreToolUse "$ADVISORY"
 exit 0

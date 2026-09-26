@@ -17,8 +17,9 @@
 # 网与字数逻辑走 node 共享核 story_hook_core.js（和 OpenCode/ZCode 同一份），只留 bash
 # 做事件路由与文件类型判定。node 天生按 UTF-8 写 stdout，免掉旧内嵌 python 的 cp936 体操。
 #
-# 非阻塞（exit 0，advisory 提醒，不挡写作）；无发现时完全静默（不污染 context）；
-# node 不可用时静默放行（兜底不能反过来卡流程）。
+# 非阻塞（exit 0，advisory 提醒，不挡写作）；有发现时以 additionalContext JSON 送进模型上下文
+# （纯文本 stdout 在 Claude Code 的 PostToolUse 上只进 debug log）；无发现时完全静默（不污染
+# context）；node 不可用时静默放行（兜底不能反过来卡流程）。
 set -euo pipefail
 
 source "$(dirname "$0")/lib/common.sh"
@@ -151,10 +152,15 @@ esac
 
 [ -z "$OUT" ] && exit 0
 
-# 必须 %s 不能 %b：${OUT} 里嵌的是作者原文切片（截断/复读/工程词摘录）。%b 会把正文里的
-# `\n`、`\b`、`\t` 当转义展开，把摘录改写成文件里不存在的内容；`\c`（Windows 路径 C:\code
-# 就带）更会直接终止整条 printf，把它后面所有硬信号静默丢掉（exit 0、stderr 空）。
-# 本 hook 自己的分隔换行由上面的 ${NL} 真实换行承担，不再依赖 %b 展开。
-printf '%s\n' "=== 正文兜底检测（${BASE}）===" "轻量确定性网自动复扫（模型无关，防主会话漏跑收尾）。按类型处理后复扫到净："
-printf '%s' "$OUT"
+# 送达模型：Claude Code 的 PostToolUse 在 exit 0 时纯文本 stdout/stderr 只进 debug log，兜底网
+# 若照旧 printf 纯文本就等于静默（exit 2 虽会把 stderr 回给模型，但走的是「阻断错误」通道，
+# advisory 不该冒充错误）。改为打印文档化的
+# {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":…}}——由 node 桥
+# story_hook_cli.js hook-context 负责 JSON 转义与 10,000 字符截断（见 lib/common.sh
+# emit_hook_context）；本 hook 走到这里时 node 与 CLI 都已探测在场。
+# 报告仍用 %s 拼、经 stdin 原样喂给 node，不能用 %b：${OUT} 里嵌的是作者原文切片（截断/复读/
+# 工程词摘录），%b 会把正文里的 `\n`、`\b`、`\t` 当转义展开、把摘录改写成文件里不存在的内容，
+# `\c`（Windows 路径 C:\code 就带）更会直接截断整段报告。分隔换行由上面的 ${NL} 真实换行承担。
+REPORT="=== 正文兜底检测（${BASE}）===${NL}轻量确定性网自动复扫（模型无关，防主会话漏跑收尾）。按类型处理后复扫到净：${NL}${OUT}"
+emit_hook_context PostToolUse "$REPORT"
 exit 0

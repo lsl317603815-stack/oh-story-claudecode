@@ -12,7 +12,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > 运行环境兼容性：Claude Code / OpenCode / TRAE Code / WorkBuddy（CodeBuddy Code）/ Codex / ZCode / OpenClaw 是内置适配目标；NarraFork、Web AI、自定义 Agent 等能读取项目文件的环境，可按本 skill 执行长篇流程。先识别当前运行时，只检查对应的专业 agent 定义：Claude `.claude/agents/{agent}.md`、OpenCode `.opencode/agents/{agent}.md`、TRAE Code `.trae/agents/{agent}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{agent}.md`、Codex `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 智能体与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不凭磁盘文件猜注册名：只有当前 Agent registry 真实返回 `oh-story:{agent}` 时，才使用该精确命名空间值；未返回则按本 Skill 的 solo/direct fallback，不拿 plugin manifest 或另一端残留文件冒充 registry。Codex 使用同名 `agent_type`，Claude/OpenCode 保留 `subagent_type`。找不到当前运行时定义、当前运行时未暴露对应 Agent registry/tool，或 Codex 返回 `unknown agent_type` 时，直接 solo/direct 执行并报告 fallback。只有**当前运行时确实是 ZCode**时，才因 ZCode 3.3.4 不执行项目 custom agents 而强制 solo/direct；项目磁盘上仅仅并存 `.zcode/` 不是其他运行时降级的依据。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 40` 不一致时（标记缺失、字段缺失/非整数、小于或大于 40）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 40）` 并提示重新运行 `/story-setup` 后新开会话；大于 40 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 **中文正文范围**：本 skill 只交付中文长篇正文。用户要求英文小说、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -169,12 +169,14 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 ├── 追踪/
 │   ├── _tracking-state.json        ← 唯一结构化权威状态
 │   ├── 上下文.md                  ← 派生续写状态卡（固定 7 栏），≤12KB
-│   ├── 逐章记录/第NNN章.md          ← 未来相关紧凑记录，≤3072 字节
+│   ├── 逐章记录/第NNN章.md          ← 未来相关紧凑记录（含出场名单与章回顾），≤4096 字节
 │   ├── 角色状态/{角色名}.md         ← 派生核心角色当前快照
 │   ├── 伏笔.md                    ← 派生伏笔当前视图
 │   ├── 时间线/{作者真相.md,读者已知.md}
 │   ├── 候选章/第NNN章/{id}/         ← 隔离候选；未接纳不进正史
 │   ├── 章节提交/第NNN章.json        ← 已接纳正文摘要与追踪闭环凭证
+│   ├── 质检回执/第NNN章/            ← 接纳前门禁报告与去味/一致性审查回执
+│   ├── 质检进度.md                 ← 由回执生成的逐章质检表，不手改
 │   ├── 投影日志.jsonl              ← 正文摘要、状态修订和派生投影事件
 │   ├── 文风/                       ← 已接纳正文声音画像、摘要与盲测包
 │   └── 冷读/{run-id}/              ← 卷末顺序冷读账本与追加式问题日志
@@ -194,6 +196,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 大纲/推演/{forecast-id}/selected-plan.md | 临时决策 | 用户明确选择分支后由脚本生成 | 作为后续改纲输入；仍需用户另行授权映射到总纲/卷纲/剧情单元/细纲 |
 | 追踪/候选章/第NNN章/{id}/ | 章候选 | Phase 4 每章写作前 | `chapter_candidate.py` 唯一管理；默认先给用户审阅，不作为正文或事实 |
 | 追踪/章节提交/第NNN章.json | 章提交 | 用户接纳并写入正式正文后 | 绑定正文 SHA、授权说明和追踪修订；手改正文会让 doctor 失败 |
+| 追踪/质检回执/第NNN章/ | 章质检 | `promote` 时从候选运行目录复制 | 门禁报告与两份审查回执的存档；doctor 核对摘要，`close` 据此重建 `质检进度.md` |
 | 追踪/投影日志.jsonl | 提交事件 | 每章追踪闭环或合法修订同步后 | `story_doctor.py` 复核最新同修订号投影；不得手改 |
 | 追踪/文风/accepted-voice-profile.{json,md} | 本书派生声音基线 | 至少 5 章可信接纳正文后；新接纳/合法修订后更新 | 候选写前/写后对照早期与近期范围；只作 advisory，哈希过期会被 doctor 阻断 |
 | 追踪/文风/golden-voice-profile.{json,md} | 作者精选黄金声线 | 从 fresh 已接纳基线中明确选择至少 5 章，建议 8—12 章 | 候选冷读质量方向；不自动吸收新章，不覆盖场景功能 |
@@ -208,7 +211,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 追踪/伏笔.md | 全书当前视图 | Phase 3 初始化 | 续写状态卡缺项时按 ID 定点查询；每 ID 只一行 |
 | 追踪/时间线/{作者真相.md,读者已知.md} | 全书当前事实/认知派生视图 | Phase 3 初始化 | 按作者真相或读者认知的实际问题选择视图 |
 | 对标/{书名}/拆文报告.md | 对标书 | 用户手动+analyze | Phase 2 核心设定、Phase 3 大纲、Phase 4 写作 |
-| 追踪/逐章记录/第NNN章.md | 章 | Phase 4 每章事务 | 日更不读；目标 ≤1536 字节、硬上限 3072 字节，按需查询历史原因 |
+| 追踪/逐章记录/第NNN章.md | 章 | Phase 4 每章事务 | 日更不读；目标 ≤2560 字节、硬上限 4096 字节；章回顾滑出状态卡后在这里按需回查 |
 | 追踪/上下文.md（续写状态卡，≤12KB） | 全书当前状态 | Phase 3 初始化 | 日更每章整份读；由事务工具整份重建，固定 7 栏 |
 | 参考资料/{topic}.md | 按需 | Phase 4（story-researcher 输出） | Phase 4 后续章节写作时复用 |
 | 追踪/角色状态/{角色名}.md | 核心角色 | 首次进入正文或导入初始化 | 久别角色按名读取一个小快照；目标 ≤4096 字节、硬上限 8192 字节；静态人设仍读 `设定/角色/` |
@@ -317,15 +320,15 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
    - 不把本文件整套规则复制进 prompt；细节以已加载 references 和 narrative-writer 模板为准。
    - agent 输出写入本次候选运行目录中的候选正文文件。如 agent 未部署，由主线程直接写候选稿；不得直接写 `正文/`。
 8. **字数验证**（写作完成后的第一件事）：用跨平台 Python 字符统计本章实际字数，探测顺序 `python3/python/py`；不要用 `wc -c` 或模型估算，Windows 不直接假定 `python3` 命令可用。macOS/Linux 可用 `wc -m` 备选。
-	- 同轮运行 `"$PYBIN" scripts/prose_metrics.py <候选正文>`，把短/中/长句占比、平均/中位句长、段落均长与句段比作为**唯一实测值**写入候选 Gate 报告；这些统计只用于定位读感复核，不设跨题材配额。narrative-writer 的口头估算不得替代脚本结果。
+	- `chapter_candidate.py check` 会自动运行 `prose_metrics.py`，把短/中/长句占比、平均/中位句长、段落均长与句段比作为**唯一实测值**写入候选运行目录的 `gate-report.json`；这些统计只用于定位读感复核，不设跨题材配额。narrative-writer 的口头估算不得替代脚本结果。
    - 字数 < 细纲目标 90%：对照情节点预算找欠账点。密点（爽点/打脸/反转）被写薄时，重写到对应预算；低压/关系/信息整理章则补细纲内已有铺垫、互动或表演节拍，不硬塞爽点。若现有细纲没有足够可展开内容，停止并输出 `outline_underfilled` 欠账点，先补纲/确认，不能让正文自造新剧情。
    - 字数 > 章目标×1.1：压过场、合并疏点、删多余过渡，不删主线爽点凑数。
 	- 90% 只是放行下限，目标仍是 `[章目标, 章目标×1.1]`；重写后重新统计，落进区间再进入步骤 9。
-   - **细纲照搬 Gate**：运行 `node scripts/check-outline-copy.js --outline <本章细纲> --fail-on=blocking <候选正文>`。归一化后连续 16 字及以上重合而未被细纲 `复沓锚句` 精确登记时，回到命中场景改成动作、对话、物件和角色感知，再复扫；脚本只提供证据，不自动改写。锚句只登记确需逐字回环的誓言、系统提示、案卷引文等，不得用整段概括语扩大豁免。
+   - **细纲照搬 Gate**：`check` 自动运行 `check-outline-copy.js`。归一化后连续 16 字及以上重合而未被细纲 `复沓锚句` 精确登记时，回到命中场景改成动作、对话、物件和角色感知，再复扫；脚本只提供证据，不自动改写。锚句只登记确需逐字回环的誓言、系统提示、案卷引文等，不得用整段概括语扩大豁免。
 9. **检查**：先做“收一个、变一个、开一个”三问：本章兑现了哪笔期待或付了什么利息？七类状态哪项发生可见变化？章尾留下了什么可真实承接的下一步？低压/过场章可用决定、行动、关系变化、阶段目标或情绪余势，不强求硬悬念/爽点。再查爽点是否到位（按章节定位，高压/推进章必查）及钩子诚信（下一章不得撤回、误会化或切线逃债）。两条可证伪核对（不达标→修复）：① 爽点出手前是否有可指认的危机/期待段落（指到具体情节点）？指不出=空洞 → 回步骤 8 补铺垫情节点（plot-emotion-system 倒推法）；② 装逼/打脸/揭露章，在场配角是否写出差异化反应（集体震惊/各异），还是只写主角动作？没有 → 补在场配角反应（plot-core-methods）
 10. **元信息扫描**：检查标题行以外的正文，命中 `第[一二三四五六七八九十百千万两0-9]+章|上一章|上章|前一章|本章|这一章|前文|后文|伏笔|细纲|读者` 时必须改写为场景内表达；只有角色在故事世界内真实阅读/讨论“第X章”文本，或真实身为作者/读者并谈论读者身份时例外。
 	11. **禁用词扫描**：先过**最毒句式速查**（实测最易漏，命中即改）：①「不是A，(而)是B」全家族——含「没有X，没有Y(，只是Z)」排比否定、「是B，不是A」反序、「他没X，也没有Y。他只是Z」先抑后扬，；②声线反差「声音不大/不高…却…」；③「，带着……」万能状语；④预告/总结收尾「没人知道…」「(这)才刚刚开始/开头」「正朝着…压过去」「即将拉开序幕」「这一刻…」；⑤叙述里短词加引号强调（他是被请来"把关"的）。再复核 detector 的 `formulaic-parallelism` advisory：跨段「不是A。/也不是B。/只是C。」、`至于X不X，怎么X`、同动词 `不V A，不V B` 即使写在台词里也不能跳过，确属人物当场的功能性表达才保留。然后对照 `references/banned-words.md` 全表：一级词（高频AI腔）命中即替换；二级词（低频/语境相关）高频出现时替换，偶发可参考 `references/anti-ai-writing.md` 定性裁定
-12. **候选 Gate、接纳与追踪**：先运行 `scripts/chapter_candidate.py check`；该命令会自动实测句段分布、核对本章细纲连续照搬，在画像可用时加入已接纳/黄金声线双向漂移 advisory，并生成近六章结构指纹冷读卡。主 Agent 必须回答结构五问并把具体证据纳入候选报告；相似度本身不阻断接纳，也不授权自动改文。`review` 模式向用户报告候选标题、字数、关键变化、Gate 结果和路径后停止；用户明确接纳后，或本次任务已有有效 `auto` 授权时，才依次执行 `approve --confirm ACCEPT` 与 `promote --confirm PROMOTE`。正式正文写入后，按 workflow-daily 构造本章唯一追踪事务并执行 `scripts/tracking_commit.py commit`；成功复检后依次运行 `chapter_candidate.py close`、`voice_profile.py update --project`（未配置画像时安全跳过）和 `story_doctor.py --project`。任一步失败都保留候选/事务现场，不手改派生文件、不写下一章。不能先把候选吸收进画像再检查自己；黄金集合也不得自动吸收新章。本章首次引入会复用的具名角色/势力时，仍按 `references/workflow-setup.md` Phase 3 规则补建静态 `设定/` 档案。
+12. **接纳前流水线、接纳与追踪**：候选稿写完后不再手工逐个跑脚本，按下方 Phase 5「全部在接纳前完成」循环运行 `scripts/chapter_candidate.py next --project {项目目录}`，只执行它打印的那一步。`check` 一次跑完 14 道确定性门禁并写入候选运行目录的 `gate-report.json`（句段实测、细纲照搬、声音画像双向 advisory、近六章结构证据包都在其中）；主 Agent 仍须回答结构五问并把具体证据纳入候选报告，相似度本身不阻断接纳，也不授权自动改文。门禁全过、去味与一致性两份审查回执齐全后，`review` 模式向用户报告候选标题、字数、关键变化、门禁提示和候选路径后停止；用户明确接纳后，或本次任务已有有效 `auto` 授权时，才依次执行 `approve --confirm ACCEPT` 与 `promote --confirm PROMOTE`。正式正文写入后，按 workflow-daily 构造本章唯一追踪事务（`delta.appeared_characters` 必填，`delta.recap` 建议填）并执行 `scripts/tracking_commit.py commit`；成功复检后依次运行 `chapter_candidate.py close`、`voice_profile.py update --project`（未配置画像时安全跳过）和 `story_doctor.py --project`。任一步失败都保留候选/事务现场，不手改派生文件、不写下一章。不能先把候选吸收进画像再检查自己；黄金集合也不得自动吸收新章。本章首次引入会复用的具名角色/势力时，仍按 `references/workflow-setup.md` Phase 3 规则补建静态 `设定/` 档案。
 13. **中途快照**（长篇写作安全网）：每连续写完 3 章，在继续前执行以下快照操作：
    - 执行 `scripts/tracking_commit.py check`，确认 `_tracking-state.json` 有效、逐章记录连续且未超限、所有派生视图一致、续写状态卡恰好 7 栏且 ≤12288 字节
    - 用 `ls -la 正文/` 确认最近 3 个章节文件已成功写入磁盘且大小正常（>100 bytes）
@@ -358,7 +361,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 #### 追踪文件体积
 
-`追踪/_tracking-state.json` 是唯一结构化权威；`上下文.md`、核心角色快照、`伏笔.md`、作者真相与读者已知时间线都由它确定性派生，程序不反向解析 Markdown。`上下文.md` 固定 7 栏且 ≤12KB。`逐章记录/第NNN章.md` 每章只记录会影响后续连续性的紧凑变化，目标 ≤1536 字节、硬上限 3072 字节，不承诺单独重放出全部当前状态。阶段/卷级回看按需查询逐章记录或正文，不维护另一套长期摘要。所有追踪写入都通过 `scripts/tracking_commit.py`，禁止手改派生文件。
+`追踪/_tracking-state.json` 是唯一结构化权威；`上下文.md`、核心角色快照、`伏笔.md`、作者真相与读者已知时间线都由它确定性派生，程序不反向解析 Markdown。`上下文.md` 固定 7 栏且 ≤12KB；章回顾和在场角色的知情/关系是可选补充，在 8KB 目标内按固定顺序填充，放不下的计数写在卡尾。`逐章记录/第NNN章.md` 每章只记录会影响后续连续性的紧凑变化，目标 ≤2560 字节、硬上限 4096 字节，不承诺单独重放出全部当前状态。阶段/卷级回看按需查询逐章记录或正文，不维护另一套长期摘要。所有追踪写入都通过 `scripts/tracking_commit.py`，禁止手改派生文件；工具升级改了视图格式时，在两章之间运行一次 `tracking_commit.py render`。
 
 ---
 
@@ -368,46 +371,60 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 **正文元信息扫描**：质量检查必须覆盖标题行以外的正文，发现 `第[一二三四五六七八九十百千万两0-9]+章|上一章|上章|前一章|本章|这一章|前文|后文|伏笔|细纲|读者` 这类写作工程词时，先改成角色当下可感知的事件、物件、动作或相对时间，再进入其他检查；故事内真实阅读/讨论“第X章”或真实读者身份语境除外。
 
-**写后同轮清零**：正文落盘不是汇报时机——每章落盘后必须在**同一轮**内跑完 Phase 4 步骤 10-11 扫描、下方确定性收尾脚本与 narrative-writer 审查，blocking 清零才算本章完成；不得先汇报"已写完"再等指示。写后 hook 会对落盘正文自动扫描确定性毒句式并把命中推回——那是兜底网不是替代，hook 报出的命中当轮清零。**正文内不设去味豁免标记**：不得添加 HTML 注释绕过检查；blocking 必须结合剧情功能改写并复扫清零。
+**全部在接纳前完成**：Phase 5 的每一项都作用于候选稿，在作者看到并接纳之前跑完；接纳之后正文只能走大修流程（`references/workflow-revision.md`）。顺序由 `scripts/chapter_candidate.py` 强制，主会话反复运行 `chapter_candidate.py next --project {项目目录}`，只执行它打印的那一步：
 
-**错别字校验（独立语言门通过后，先于其他风格检查）**：主会话对实际落盘文件运行 `node scripts/check-typos.js --check --fail-on=all 正文/第XXX章_*.md`。这一步专查错别字/形近字/音近字误用，跟风格/AI味/一致性是完全不同维度的问题。词典只收高置信度的固定搭配误写，找到的每一条都是 advisory，脚本从不自动改写；命中后先判断是不是项目里有意为之的风格化用词（例如呼应某条设定的专属措辞），确认是真错字才改，不是无脑替换。
+```text
+写候选稿 → check（不过就改稿；标点问题 fix）→ 去味审查（review-packet → narrative-writer → attest，改动由 attest 写回）
+→ check → 一致性审查（review-packet → consistency-checker → attest）
+→ review 模式：向作者展示后停下 ｜ auto 模式：approve → promote → 追踪事务 → close → voice_profile update → story_doctor
+```
 
-**情绪落地下限（错别字校验之后、AI 味检查之前）**：主会话运行 `node scripts/check-emotion-floor.js --check 正文/第XXX章_*.md`；对峙/摊牌/生死/揭穿等高压章加 `--pressure=high`，过场/信息整理章加 `--pressure=low`。这一步和 check-ai-patterns.js 是相反方向的闸口——那个查「不该有的东西」，这个查「必须有却缺席的东西」。禁止情绪标签的规则只有上限没有下限，最省力的通关解会变成干脆不写情绪，正文因此没有体温、读者判为平淡；本步给「转译」补下限，让删除不能冒充转译。blocking 必须回到本章压力最高的 2-3 个节点补落点再复扫，advisory 按 [references/emotion-landing.md](references/emotion-landing.md) 的转译表处理，不要靠堆「心口一沉」刷密度。
+写后 hook 仍会扫描落盘正文，那是兜底网，不是替代；hook 报出的命中当轮清零。**正文内不设去味豁免标记**：不得添加 HTML 注释绕过检查；blocking 必须结合剧情功能改写并复扫清零。
 
-**确定性收尾**：本批正文写完后，主会话对实际落盘文件运行 `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文/第XXX章_*.md`。blocking 命中先回正文改写并复扫；advisory 逐条读原文判断，确属问题才改，功能性写法标 `[需复核]`。其中 `formulaic-parallelism` 必须连同对话一起复核，不能因为 hook 不阻断台词就略过。
-随后运行 `node scripts/normalize-punctuation.js 正文/第XXX章_*.md` 做确定性格式收尾；默认保留停顿标点与引号风格，只清理 Markdown 分隔线等格式问题。仅当本书文风或发布平台明确禁用停顿标点时，才加 `--pause-mode normalize` 清理 `……`、破折号和双连字符；盐言「」不受影响。narrative-writer agent 不运行这些脚本。
+**确定性门禁**（`check` 一次跑完，结果连同候选稿和每个脚本的 SHA-256 写入 `gate-report.json`）：
 
-**退化/语言泄漏防护**：正文落盘后先运行 `node scripts/language_gate.js 正文/第XXX章_*.md`；独立语言门返回零后，运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文/第XXX章_*.md`，再运行 `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文/第XXX章_*.md`。文风卫生 blocking 按 `设定/文风.md` 的项目策略处理；退化 blocking（未授权外语、HTML 标记、复读、截断、拒绝语、tier1 工程词泄漏）只重写受影响句/段或章节，最多 2 次；修复后复扫，仍失败就报告证据让用户定夺。URL、邮箱、代码、路径和文件名只机械保护明确非叙事结构；其他外语只有在用户单独确认并精确登记时才可保留。
-非语言 advisory 只提示可疑处，先看脚本给出的例外；故事内系统/界面用语、弹幕刷屏、重复台词等有功能则优先用中文表达。语言与标记门的 blocking 不得因去味跳过而降级。
+| 门禁 | 脚本 | 级别 |
+|---|---|---|
+| 写作方法 | `style_method.py check` | 拦截 |
+| 中文语言锁 | `language_gate.js` | 拦截；不过则立即停下，其余门禁不跑 |
+| 标点格式 | `normalize-punctuation.js --check` | 拦截；`fix` 自动修正并登记 |
+| 文风卫生 | `check-style-hygiene.js` | 拦截 |
+| AI 句式 | `check-ai-patterns.js` | blocking 拦截，advisory 进报告 |
+| 中文退化 | `check-degeneration.js` | 拦截 |
+| 句段实测 | `prose_metrics.py` | 实测值进报告 |
+| 细纲照搬 | `check-outline-copy.js` | 拦截 |
+| 本书声音 | `voice_profile.py check` | 画像过期拦截，漂移 advisory |
+| 近章结构 | `chapter_shape_gate.py` | 证据包，五问语义复核 |
+| 对白漂移 | `dialogue_drift_gate.js --chapter N` | 拦截；启发式 |
+| 情绪落地下限 | `check-emotion-floor.js` | 拦截；启发式 |
+| 钩子强度 | `check-hook-strength.js` | 黄金三章拦截，其余 advisory；启发式 |
+| 错别字 | `check-typos.js` | 只记录 |
 
-#### Agent 调用：consistency-checker（硬性必须，非可选）
+- **情绪落地下限**：压力档自动取本章细纲「章节定位」（高压→high；低压/信息整理/过场→low；其余与留空→normal）。它和 AI 句式检查方向相反，查「必须有却缺席的东西」：blocking 回到本章压力最高的 2-3 个节点补落点再复扫，advisory 按 [references/emotion-landing.md](references/emotion-landing.md) 的转译表处理，不靠堆「心口一沉」刷密度。细纲定位写错时用 `pressure --level … --note …` 覆盖并留痕；auto 模式只能调高。
+- **启发式门禁误报**（对白漂移、情绪下限、钩子强度）：review 模式先问作者，作者确认后 `waive --gate … --reason "{作者原话}" --confirm WAIVE`；auto 模式不允许豁免，只能改稿。整本书的题材确实不适用时，由作者在 `设定/门禁配置.json` 把该门降为 advisory（见 [章节候选协议](references/chapter-acceptance-and-doctor.md)）。
+- **错别字**：词典只收高置信度固定搭配误写，每条都是 advisory；先判断是不是项目有意的风格化用词，确认是真错字才改。
+- **退化/语言泄漏**：未授权外语、HTML 标记、复读、截断、拒绝语、tier1 工程词泄漏只重写受影响句/段或章节，最多 2 次；仍失败就报告证据让用户定夺。URL、邮箱、代码、路径和文件名只机械保护明确非叙事结构；其他外语只有在用户单独确认并精确登记时才可保留。语言与标记门的 blocking 不得因去味跳过而降级。
+- advisory 逐条读原文判断，确属问题才改，功能性写法标 `[需复核]`；`formulaic-parallelism` 必须连同对话一起复核。标点默认保留停顿符号与引号风格，只有本书文风或发布平台明确禁用时，才在 `设定/门禁配置.json` 设 `punctuation.pause_mode=normalize`。
 
-> 历史教训：本节曾写作"如果项目已部署...可以 spawn"，软性措辞导致执行者在写完多章后反复自行判断"要不要跑"，实际结果是连续数章漏跑却无人发现，直到用户主动追问"是否严格按工具流程"才暴露。现改为无条件必须执行，唯一的分支是"谁来执行"，不是"要不要执行"。
+#### 去AI味独立审查（接纳前，硬性必须）
 
-质量检查阶段**必须**执行一致性检查，检测事实冲突、伏笔断线、角色属性不一致，覆盖范围至少含本次新写的章节。执行方式二选一，不存在"跳过"选项：
-- 当前运行时已部署 consistency-checker（Claude `.claude/agents/consistency-checker.md`、OpenCode `.opencode/agents/consistency-checker.md`、TRAE Code `.trae/agents/consistency-checker.md`、WorkBuddy 项目模式 `.codebuddy/agents/consistency-checker.md`、Codex `.codex/agents/consistency-checker.toml`）：调用同名 agent 获取 S1-S4 分级报告。TRAE Code 只用内置 `Agent` 按 `.trae/agents/consistency-checker.md` 的名称选择同名 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "consistency-checker", prompt: ...)`，plugin-only 仅在 registry 真实返回 `oh-story:consistency-checker` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`；任务正文为 `项目目录：{dir}\n检查范围：{本次写作的章节}\n检查类型：事实冲突+伏笔断线+角色属性不一致`。
-- agent 不可用：由主线程参照 quality-checklist.md 手动执行同等深度的检查，不得以"agent 未部署"为由整项跳过。
+> 历史教训：「可 spawn」的软性措辞曾让这一步被反复跳过。它是**独立于写作时脚本检测**的语义级复审（解释腔、上帝视角、精致戏剧反应堆叠只有通读才能判断），现在由回执强制：没有有效回执，`approve` 直接拒绝。
 
-执行完成后，在 `追踪/质检进度.md`（若项目已部署此文件，见 story-setup 2.5）对应章节行的「consistency-checker」列打 `✓`（无未解决问题）或 `○`（有 advisory/S3 待复核）；文件不存在不阻塞写作，但下次有 story-setup 部署机会时应补建。
+`review-packet --kind deslop` 把候选稿复制成工作副本，并生成带一次性校验码的任务 prompt。把 prompt 原样交给 narrative-writer（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`；TRAE Code 只用内置 `Agent` 按名称选择同名 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 registry 真实返回 `oh-story:narrative-writer` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`）。它只改工作副本，在回复末尾给出 JSON 报告；主会话把回复原样存到审查包写明的 `report_path`，再运行 `attest --kind deslop --report …`。`attest` 校验校验码和逐字引文后把工作副本写回候选稿，随后必须重新 `check`。agent 不可用时由主线程按同一 prompt 执行并照样出报告，不得省略。
 
-#### Agent 调用：narrative-writer（去AI味独立审查，硬性必须，非可选）
+review 模式和 auto 批次末章（`init --batch-last`）必须全文审；auto 模式可在 `init` 时选 `--review-policy lean`，只审门禁标记的段落与开头结尾。去味之后若主会话再改动约四分之一以上的正文，去味回执失效，需要重审。
 
-> 历史教训：与 consistency-checker 同源问题——"可 spawn"的软性措辞导致这一步被反复跳过，且这是一次**独立于写作时脚本检测**的语义级复审（脚本抓不住的解释腔/上帝视角/精致戏剧反应堆叠，只有通读才能判断），不能用写作时顺带的自检替代。
+#### 一致性审查（接纳前，硬性必须）
 
-质量检查阶段**必须**对本次新写的章节执行一次独立于写作过程的去AI味审查，不是写作 agent 顺手做的自检，是另开一次专门审查：
-- 当前运行时已部署 narrative-writer（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent 执行文字质量审查和去AI味检查。TRAE Code 只用内置 `Agent` 按 `.trae/agents/narrative-writer.md` 的名称选择同名 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 registry 真实返回 `oh-story:narrative-writer` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`；任务正文为 `项目目录：{dir}\n任务描述：审查+去AI味\n检查范围：{本次写作的章节}\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式（含跨段‘不是A/也不是B/只是C’），发现后直接改成后项或动作细节；对话也检查‘至于X不X，怎么X’和同动词‘不V A，不V B’工整清单，不能因脚本豁免台词而跳过；检查正文是否把细纲多个字段里重复的同一要求逐项复述，重复字段只算一个语义点；检查作者解释总结/意义尾巴（他意识到/这意味着/真正重要的是/这次成长），优先删掉或落回场内动作、对话、物件状态；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉，且同一生理反应词跨多章重复出现时视为模板化指纹，收窄到专属语境或替换为其他生理反应；已有手机/屏幕/公告/门牌/表单/账单/物证/规则行信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能卡出信息/关系/代价/选择/伏笔变化时使用，不为自然感或字数补流程`。
-- agent 不可用：由主线程直接执行，同样按上述检查项逐条通读，不得省略。
+> 历史教训：本节曾写作"如果项目已部署...可以 spawn"，结果连续数章漏跑却无人发现。现在唯一的分支是"谁来执行"，不是"要不要执行"。
 
-执行完成后，在 `追踪/质检进度.md` 对应章节行的「去AI味独立审查」列打 `✓`/`○`。
+去味回执有效且 `check` 通过后，`review-packet --kind consistency` 发出审查包，交给 consistency-checker（部署路径与调用方式同上，文件名换成 `consistency-checker`）。它按「候选审查模式」只读检查：以第 N-1 章及以前的正文和 `追踪/` 派生视图为正史，只审候选稿与它们的事实冲突、伏笔断线、角色属性和跨章位置/持有物漂移。回复原样存档后 `attest --kind consistency`。agent 不可用时由主线程参照 quality-checklist.md 执行同等深度的检查，照样出报告。
 
-检查后更新 `追踪/质检进度.md`（若已部署）对应章节行：三个脚本、元信息扫描、consistency-checker、去AI味独立审查、字数核实、对话密度实测（读 check-ai-patterns.js 的 `dialogue-density-stat` info 输出，不必手写脚本现算）逐列打勾。伏笔与时间线不再手改派生文件，统一走下面的追踪事务。
+S1/S2 或 REJECT 阻止 `approve`；改稿会让一致性回执失效（`fix` 除外），改完重新 `check` 并复审。
 
-检查后若正文修订改变了连续性事实，必须构造 `mode=revision` 的同章追踪事务并执行 `scripts/tracking_commit.py commit`：
-- 伏笔变化用 `foreshadow_changes` 更新同一 ID 的当前行，不追加重复历史；
-- 时间线变化写入 `timeline_events`，由 `_tracking-state.json` 统一派生 `作者真相.md` 与 `读者已知.md`，不得把作者秘密泄露到读者视图；
-- 核心角色状态变化同时提交该角色截至当前章的完整快照；
-- 身世、血缘、亲属、婚姻、传承、所有权、权限、世界规则或不可逆状态用 `fact_changes` 更新稳定 ID，由工具派生 `长期事实.md`、`关系清单.md` 和 `事实档案/{实体}.md`；
-- 事务失败后保留原事务 JSON，修正写入环境并重跑同一 `commit`；成功后执行 `check`，确认 state 与全部派生视图一致再继续写作。
+`approve` 在门禁未过、任一回执缺失或过期、存在未解决 S1/S2 时拒绝执行。`promote` 把门禁报告和两份审查回执复制到 `追踪/质检回执/第NNN章/`，`close` 据此重建 `追踪/质检进度.md`（不要手改，旧的手工表会被原样改名存档）；`story_doctor.py` 核对回执摘要，旧协议章节只合并提示一次。
+
+接纳后才发现的问题一律走大修（`references/workflow-revision.md`），不在 Phase 5 回改正式正文。
 
 ---
 
@@ -538,7 +555,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ## 去味保护协议 v1.1
 
-本轮新写章节进入去AI味独立审查前，先读 [小说保护账本](references/fiction-protection-ledger.md)、[模式治理](references/pattern-governance.md) 和 [结构审计](references/structural-audit.md)，再对章节工作区里的候选正文使用 [本 Skill 自带的保真脚本](scripts/deslop_guard.py) 创建 `standard + bounded` 去味候选并补全小说保护账本。narrative-writer 只编辑候选稿，完成现有 Gate 后先做保真审计，再只对改动区做残留味审计；保护检查通过后写回的仍是章节候选，不得绕过用户接纳门直接写正式正文。不得修改追踪派生文件，也不得因脚本命中自动扩大到整章结构重写。
+本轮新写章节进入去AI味独立审查前，先读 [小说保护账本](references/fiction-protection-ledger.md)、[模式治理](references/pattern-governance.md) 和 [结构审计](references/structural-audit.md)；需要保真比对时，对 `review-packet --kind deslop` 给出的工作副本使用 [本 Skill 自带的保真脚本](scripts/deslop_guard.py) 创建 `standard + bounded` 去味候选并补全小说保护账本。narrative-writer 只编辑工作副本，先做保真审计，再只对改动区做残留味审计；由 `chapter_candidate.py attest` 写回章节候选，写回后重新过全部确定性门禁，不得绕过用户接纳门直接写正式正文。不得修改追踪派生文件，也不得因脚本命中自动扩大到整章结构重写。
 
 ## 中文正文英文零容忍门
 
@@ -546,15 +563,15 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ## 本章语言验收 Gate（强制）
 
-每章候选初稿完成后立即首先运行 `node scripts/language_gate.js "{候选稿文件}"`。返回非零时，把报告中的行号、原片段和所在行退回本章正文写作者修改，并重复检查；在返回码为零前，禁止运行后续检测、候选接纳、正式写入、追踪提交和下一章写作。不得用自动翻译、简单删除或未经用户单独确认的白名单代替正文修改。
+每章候选初稿完成后由 `chapter_candidate.py check` 首先运行 `language_gate.js`（单独排查时可直接 `node scripts/language_gate.js "{候选稿文件}"`）。返回非零时，把报告中的行号、原片段和所在行退回本章正文写作者修改，并重复检查；在返回码为零前，禁止运行后续检测、候选接纳、正式写入、追踪提交和下一章写作。不得用自动翻译、简单删除或未经用户单独确认的白名单代替正文修改。
 
 ## 本章文风卫生 Gate（强制）
 
-语言门返回零后立即运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{候选稿文件}"`。默认出版级策略清除表情符号、颜文字、火星文、标点堆砌和不可见字符；本书若确需聊天体，只能按 [正文文风卫生门](references/style-hygiene.md) 在 `设定/文风.md` 选择对白弹性或逐类配置。此 Gate 只改命中表达，不得借机改剧情、人物声线或扩大白名单。
+语言门返回零后，`check` 接着运行 `check-style-hygiene.js --check --fail-on=blocking`（存在 `设定/文风.md` 时带 `--style`）。默认出版级策略清除表情符号、颜文字、火星文、标点堆砌和不可见字符；本书若确需聊天体，只能按 [正文文风卫生门](references/style-hygiene.md) 在 `设定/文风.md` 选择对白弹性或逐类配置。此 Gate 只改命中表达，不得借机改剧情、人物声线或扩大白名单。
 
 ## 适度对白技巧与漂移 Gate（强制）
 
-重要对白场景先按 [适度对白技巧](references/dialogue-craft-moderate.md) 建立轻量对白卡，并以 [对白卡 schema](references/dialogue-scene-card.schema.json) 约束字段；长程退化边界见 [对白归属标记漂移](references/dialogue-attribution-drift.md)。中文语言 Gate 通过后运行 `node scripts/dialogue_drift_gate.js --current "{正文文件}" --history-dir "{正文目录}"`；明确的连续逐句报幕必须退回，密度和动词集中预警只进入语义审查，不机械判坏。
+重要对白场景先按 [适度对白技巧](references/dialogue-craft-moderate.md) 建立轻量对白卡，并以 [对白卡 schema](references/dialogue-scene-card.schema.json) 约束字段；长程退化边界见 [对白归属标记漂移](references/dialogue-attribution-drift.md)。中文语言 Gate 通过后，`check` 以 `dialogue_drift_gate.js --current "{候选稿文件}" --chapter {N} --project "{项目目录}"` 运行本门：候选稿文件名不带章号，必须显式传章号才有跨章基线。明确的连续逐句报幕必须退回，密度和动词集中预警只进入语义审查，不机械判坏。
 
 ## 已接纳正文声音画像（足量样本后强制接入）
 

@@ -285,8 +285,8 @@ def test_versions(project: Path) -> None:
     cases = (
         ("target_cli: workbuddy\n", "缺失或无效"),
         ("agents_version: invalid\ntarget_cli: workbuddy\n", "缺失或无效"),
-        ("agents_version: 39\ntarget_cli: workbuddy\n", "低于当前要求的 40"),
-        ("agents_version: 41\ntarget_cli: workbuddy\n", "高于当前适配器支持的 40"),
+        ("agents_version: 40\ntarget_cli: workbuddy\n", "低于当前要求的 41"),
+        ("agents_version: 42\ntarget_cli: workbuddy\n", "高于当前适配器支持的 41"),
     )
     for payload, expected in cases:
         sentinel.write_text(payload, encoding="utf-8")
@@ -302,7 +302,7 @@ def test_versions(project: Path) -> None:
     # setup_skill_version has an independent lifecycle. It must not be compared
     # to the agent bundle number or turn a current agents_version into a stale warning.
     sentinel.write_text(
-        "agents_version: 40\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
+        "agents_version: 41\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     output, _ = run_hook(
@@ -311,7 +311,7 @@ def test_versions(project: Path) -> None:
         {"hook_event_name": "SessionStart", "source": "startup"},
         runner=runner,
     )
-    require(output == "", f"agents=40 with old setup_skill_version must not warn: {output}")
+    require(output == "", f"agents=41 with old setup_skill_version must not warn: {output}")
 
 
 def test_plugin_runner_ignores_project_sentinel(project: Path) -> None:
@@ -352,7 +352,7 @@ def test_project_hook_commands_cross_shell(temp: Path) -> None:
     shutil.copy2(RUNNER, hook_dir / RUNNER.name)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 40\ntarget_cli: workbuddy\n",
+        "agents_version: 41\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     config = json.loads((WB / "hooks/project-hooks.json").read_text(encoding="utf-8"))
@@ -407,7 +407,7 @@ def test_guarded_outer_fail_closed(temp: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 40\ntarget_cli: workbuddy\n",
+        "agents_version: 41\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
 
@@ -474,7 +474,7 @@ def test_historical_copy_discovery(project: Path) -> None:
         (old / "正文").mkdir(parents=True)
         (old / "正文/第1章.md").write_text("历史副本。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 40\nsetup_skill_version: 1.5.0\n"
+        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -493,6 +493,70 @@ def test_historical_copy_discovery(project: Path) -> None:
         require("_tracking-state.json 缺失" not in context, f"historical copy produced continuity debt: {context}")
 
 
+def test_tracking_advisories(project: Path) -> None:
+    """共享核的追踪提醒经 WorkBuddy runner 送达：伏笔排期、派生视图漂移按方向给 render /
+    重跑 commit、更新版 schema 提示升级而非重新 import。"""
+    book = project / "book"
+    (book / "正文").mkdir(parents=True)
+    (book / "正文/第1章.md").write_text("正文。\n", encoding="utf-8")
+    (project / ".story-deployed").write_text(
+        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
+        "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
+        "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
+        encoding="utf-8",
+    )
+    tracking = book / "追踪"
+    tracking.mkdir(parents=True)
+    # 首建下一章（第7章）：已提交章的改写会先被 revision 门拦下，测不到追踪检查点。
+    (book / "大纲").mkdir(parents=True)
+    (book / "大纲/细纲_第7章.md").write_text("细纲。\n", encoding="utf-8")
+
+    def write_state(document: dict[str, object], context_revision: int) -> None:
+        (tracking / "_tracking-state.json").write_text(json.dumps(document, ensure_ascii=False) + "\n", encoding="utf-8")
+        (tracking / "上下文.md").write_text(f"> 状态修订：{context_revision}\n", encoding="utf-8")
+
+    def session_context() -> str:
+        output, _ = run_hook(project, "session-start", {"hook_event_name": "SessionStart", "source": "startup"})
+        return additional_context(output, "SessionStart")
+
+    def guard_reason(label: str) -> str:
+        output, _ = run_hook(
+            project,
+            "pre-tool-prose-guard",
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Write",
+                "tool_input": {"file_path": "book/正文/第7章_新章.md", "content": "正文"},
+            },
+        )
+        return denied(output, label)
+
+    foreshadow = {
+        "F007": {"id": "F007", "summary": "玉佩", "planted_chapter": 1, "planned_resolution_chapter": 4,
+                 "status": "已埋", "importance": "高", "updated_chapter": 1},
+        "F008": {"id": "F008", "summary": "旧信", "planted_chapter": 1, "planned_resolution_chapter": 8,
+                 "status": "已埋", "importance": "中", "updated_chapter": 1},
+    }
+    write_state({"schema_version": 5, "state_revision": 0, "last_committed_chapter": 6, "foreshadow": foreshadow}, 0)
+    context = session_context()
+    require("1 条伏笔已过计划回收章（F007 逾期 3 章）" in context, f"overdue foreshadow advisory missing: {context}")
+    require("另有 1 条将在 3 章内到期" in context, f"due-soon foreshadow clause missing: {context}")
+
+    write_state({"schema_version": 5, "state_revision": 1, "last_committed_chapter": 6}, 0)
+    context = session_context()
+    require("tracking_commit.py render --project <书>" in context, f"lagging derived views must point at render: {context}")
+    require("mode=revision" not in context, f"derived-view drift still points at mode=revision: {context}")
+
+    write_state({"schema_version": 5, "state_revision": 1, "last_committed_chapter": 6}, 2)
+    reason = guard_reason("interrupted commit")
+    require("重新运行同一份 commit 事务" in reason, f"interrupted commit must re-run the same commit: {reason}")
+
+    write_state({"schema_version": 6, "state_revision": 1, "last_committed_chapter": 6}, 1)
+    reason = guard_reason("newer schema")
+    require("重新运行 /story-setup" in reason and "不要重新 /story-import" in reason,
+            f"newer schema must ask to refresh hooks, never re-import: {reason}")
+
+
 def test_removed_target_runner_gate(project: Path) -> None:
     hook_dir = project / ".codebuddy/hooks"
     hook_dir.mkdir(parents=True)
@@ -500,7 +564,7 @@ def test_removed_target_runner_gate(project: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 40\nsetup_skill_version: 1.5.0\n"
+        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
         "target_cli: generic\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -759,7 +823,7 @@ def main() -> int:
         version_project = temp / "versions"
         version_project.mkdir()
         test_versions(version_project)
-        print("  OK SessionStart agents_version invalid/<40/=40/>40 cases")
+        print("  OK SessionStart agents_version invalid/<41/=41/>41 cases")
         test_plugin_runner_ignores_project_sentinel(temp / "plugin-sentinel")
         print("  OK plugin-only runner ignores non-WorkBuddy/stale project sentinel diagnostics")
         test_project_hook_commands_cross_shell(temp / "cross-shell")
@@ -771,6 +835,8 @@ def main() -> int:
         print("  OK historical 备份/归档/archive copies are excluded from active/all-book discovery")
         test_removed_target_runner_gate(temp / "removed-target")
         print("  OK stale project runner yields silently after target_cli removes workbuddy")
+        test_tracking_advisories(temp / "tracking-advisories")
+        print("  OK shared-core tracking advisories: foreshadow schedule, render vs re-run commit, newer schema")
 
         hook_project = temp / "hooks"
         hook_project.mkdir()

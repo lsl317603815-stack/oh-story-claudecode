@@ -64,6 +64,7 @@ python3 -m unittest discover -s skills/story-data-analyze/tests -p 'test_*.py' -
 step "tracking and deployment contracts"
 python3 scripts/test-tracking-workflow-contracts.py
 python3 scripts/test-tracking-commit.py
+python3 scripts/test-tracking-audit.py
 python3 scripts/test-outline-forecast.py
 python3 scripts/test-style-method.py
 python3 scripts/test-chapter-candidate.py

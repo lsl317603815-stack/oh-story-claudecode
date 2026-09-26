@@ -12,6 +12,38 @@ if [ -n "${TRAE_PROJECT_DIR:-}" ]; then
   exit 0
 fi
 
+# emit_hook_context <HookEventName> <text> — 把「写给模型看」的非阻断提醒按 Claude Code 文档化的
+# JSON 契约打到 stdout：{"hookSpecificOutput":{"hookEventName":…,"additionalContext":…}}。
+# 依据 code.claude.com/docs/en/hooks：PreToolUse/PostToolUse 在 exit 0 时的纯文本 stdout 与
+# stderr 只进 debug log，模型永远看不到；additionalContext 才会以 system reminder 贴在工具结果旁。
+# （SessionStart 的纯文本 stdout 本身就进上下文，session-start/detect-story-gaps 不需要本函数。）
+# JSON 转义与 10,000 字符截断交给 node 桥 story_hook_cli.js hook-context，文案走 stdin，
+# 不经 argv（免长度上限与 Windows MSYS 路径改写）。调用方自己 exit 0；exit 2 阻断路径照旧走
+# stderr，不要混用。本函数始终 return 0，不会因 set -e / pipefail 打断调用方。
+# node/桥缺席（只有 guard-outline 的纯 bash 路径会走到）时的兜底只接受调用方固定文案 + 数字：
+# 不含 " 与 \ 与控制字符（换行除外），仅把换行写成 \n——不做任何 shell 侧 JSON 转义；
+# 不满足就退回 stderr（仍只进 debug log），宁可哑也不输出坏 JSON。
+emit_hook_context() {
+  local event="$1" text="$2" cli
+  [ -n "$text" ] || return 0
+  cli="$(dirname "${BASH_SOURCE[0]}")/../story_hook_cli.js"
+  if node -e "" >/dev/null 2>&1 && [ -f "$cli" ]; then
+    if printf '%s' "$text" | node "$cli" hook-context "$event" 2>/dev/null; then
+      return 0
+    fi
+  fi
+  (
+    # 按字节判定（GBK 区域下 UTF-8 中文的尾字节会被误拼成含 \ 的双字节字符）。
+    export LC_ALL=C
+    case "${text//$'\n'/}" in
+      *'"'*|*'\'*|*[[:cntrl:]]*) printf '%s\n' "$text" >&2; exit 0 ;;
+    esac
+    printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' \
+      "$event" "${text//$'\n'/\\n}"
+  ) || true
+  return 0
+}
+
 # project_root — 稳定解析项目根目录
 # 优先使用 Claude Code 注入的 CLAUDE_PROJECT_DIR；其次使用 git root；最后退回当前目录。
 # 输出绝对路径，避免 hook 从嵌套 cwd 执行时误读/误写。

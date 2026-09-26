@@ -132,8 +132,35 @@ try {
         { tool: "edit" },
         { args: { filePath: "book/正文/第002章_续写.md" } }
       ),
-    /mode=revision 事务重建派生视图/,
-    "existing prose revision must be blocked while derived state is inconsistent"
+    /状态修订 0 与 _tracking-state\.json 的 1 不一致.*tracking_commit\.py render --project <书>/,
+    "existing prose revision must be blocked while derived state lags, pointing at render"
+  );
+  // 上下文.md 修订号高于 state = commit 中途中断：只能重跑同一份 commit 事务，render 会拒绝。
+  fs.writeFileSync("book/追踪/上下文.md", "> 状态修订：2\n", "utf8");
+  await assert.rejects(
+    () =>
+      hooks["tool.execute.before"](
+        { tool: "edit" },
+        { args: { filePath: "book/正文/第002章_续写.md" } }
+      ),
+    /状态修订 2 高于.*commit 中途中断.*重新运行同一份 commit 事务/,
+    "an interrupted commit must ask to re-run the same commit transaction"
+  );
+  // 更高的整数 schema 是更新版 oh-story 写的：升级 + 重跑 /story-setup，不许重新 import。
+  fs.writeFileSync(
+    "book/追踪/_tracking-state.json",
+    JSON.stringify({ schema_version: 6, state_revision: 1, last_committed_chapter: 0 }) + "\n",
+    "utf8"
+  );
+  fs.writeFileSync("book/追踪/上下文.md", "> 状态修订：1\n", "utf8");
+  await assert.rejects(
+    () =>
+      hooks["tool.execute.before"](
+        { tool: "edit" },
+        { args: { filePath: "book/正文/第002章_续写.md" } }
+      ),
+    /schema_version=6，由更新版 oh-story 写入.*重新运行 \/story-setup.*不要重新 \/story-import/,
+    "a newer tracking schema must ask to update oh-story and refresh hooks, never re-import"
   );
   writeCleanState("book", 3);
 

@@ -41,7 +41,12 @@ def add(items: list[dict[str, str]], code: str, message: str, path: Path | None 
     items.append(row)
 
 
-def run_tracking_check(project: Path, errors: list[dict[str, str]], checks: list[dict[str, Any]]) -> dict[str, Any] | None:
+def run_tracking_check(
+    project: Path,
+    errors: list[dict[str, str]],
+    warnings: list[dict[str, str]],
+    checks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
     tool = Path(__file__).resolve().parent / "tracking_commit.py"
     completed = subprocess.run(
         [sys.executable, str(tool), "check", "--project", str(project)],
@@ -58,7 +63,13 @@ def run_tracking_check(project: Path, errors: list[dict[str, str]], checks: list
     except json.JSONDecodeError:
         add(errors, "tracking-check-output-invalid", "tracking_commit.py check 未返回有效 JSON")
         return None
-    return result if isinstance(result, dict) else None
+    if not isinstance(result, dict):
+        return None
+    # 到期伏笔、久别角色、搁置线程、状态卡预算：只提醒，不阻止下一章
+    for advisory in result.get("advisories", []):
+        if isinstance(advisory, dict) and advisory.get("code") and advisory.get("message"):
+            add(warnings, str(advisory["code"]), str(advisory["message"]), project / "追踪")
+    return result
 
 
 def check_writing_method(project: Path, errors: list[dict[str, str]], checks: list[dict[str, Any]]) -> None:
@@ -138,6 +149,60 @@ def check_receipts(project: Path, errors: list[dict[str, str]], checks: list[dic
                     target,
                 )
     checks.append({"name": "accepted_prose_receipts", "status": "pass" if not any(item["code"].startswith(("chapter-receipt", "accepted-prose")) for item in errors) else "fail", "count": count})
+
+
+def check_quality_receipts(
+    project: Path,
+    errors: list[dict[str, str]],
+    warnings: list[dict[str, str]],
+    checks: list[dict[str, Any]],
+) -> None:
+    """接纳前质检回执：gated-v2 章逐文件核对摘要，旧协议章只合并提示一次。"""
+    root = project / "追踪" / "章节提交"
+    gated = 0
+    legacy: list[str] = []
+    failed = False
+    for path in sorted(root.glob("第*章.json")) if root.is_dir() else []:
+        try:
+            data = load_json(path)
+        except DoctorError:
+            continue  # check_receipts 已报
+        if data.get("protocol") != "gated-v2":
+            legacy.append(path.stem)
+            continue
+        gated += 1
+        entries = data.get("quality_receipts")
+        if not isinstance(entries, list) or not entries:
+            add(errors, "quality-receipts-missing", "gated-v2 章节缺少质检回执登记", path)
+            failed = True
+            continue
+        for entry in entries:
+            target = project / str(entry.get("path", "")) if isinstance(entry, dict) else None
+            if target is None or not target.is_file():
+                add(errors, "quality-receipt-missing", "接纳前质检回执文件缺失", target or path)
+                failed = True
+            elif sha256_file(target) != entry.get("sha256"):
+                add(errors, "quality-receipt-digest-mismatch", "接纳前质检回执在入库后被改动", target)
+                failed = True
+        report_path = project / "追踪" / "质检回执" / path.stem / "gate-report.json"
+        try:
+            report = load_json(report_path)
+        except DoctorError:
+            continue  # 上面已按缺失或摘要不符报过
+        if report.get("candidate_sha256") != data.get("gated_prose_sha256") or report.get("status") != "pass":
+            add(errors, "quality-gate-report-mismatch", "门禁报告与接纳正文摘要不符或未通过", report_path)
+            failed = True
+    if legacy:
+        span = legacy[0] if len(legacy) == 1 else f"{legacy[0]}–{legacy[-1]}"
+        add(
+            warnings,
+            "quality-receipts-legacy",
+            f"{len(legacy)} 章（{span}）按旧协议接纳，没有接纳前质检回执；需要补查时用 story-review 审已写正文",
+            root,
+        )
+    checks.append(
+        {"name": "quality_receipts", "status": "fail" if failed else "pass", "gated": gated, "legacy": len(legacy)}
+    )
 
 
 def check_voice_profile(
@@ -335,10 +400,11 @@ def cmd_check(args: argparse.Namespace) -> int:
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     checks: list[dict[str, Any]] = []
-    tracking = run_tracking_check(project, errors, checks)
+    tracking = run_tracking_check(project, errors, warnings, checks)
     check_writing_method(project, errors, checks)
     check_candidate_workspaces(project, errors, checks)
     check_receipts(project, errors, checks)
+    check_quality_receipts(project, errors, warnings, checks)
     check_voice_profile(project, errors, warnings, checks)
     check_latest_projection(project, tracking, errors, warnings, checks)
     check_revision_gate(project, errors, checks)

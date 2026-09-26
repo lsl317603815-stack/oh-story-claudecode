@@ -136,6 +136,12 @@ function trackingCheckpointIssue(book, requireState = false, expectedLastCommitt
   if (document && typeof document === "object" && !Array.isArray(document) && document.schema_version === 4) {
     return `追踪/_tracking-state.json 仍是 schema_version=4；停止写正文，用 tracking_commit.py migrate-v4 升级并植入长期事实后再 check`
   }
+  // 前向兼容：更高的整数 schema 是更新版 oh-story 写的合法状态，不是损坏——重新 /story-import
+  // 会拿旧协议覆盖掉新版追踪。只能升级 oh-story 并重跑 /story-setup 刷新 hooks。
+  if (document && typeof document === "object" && !Array.isArray(document)
+      && Number.isInteger(document.schema_version) && document.schema_version > 5) {
+    return `追踪/_tracking-state.json 是 schema_version=${document.schema_version}，由更新版 oh-story 写入（本 hook 只认 5）；停止写正文，先更新 oh-story 再重新运行 /story-setup 刷新 hooks，不要重新 /story-import，也不要手改降级该文件`
+  }
   if (!document || typeof document !== "object" || Array.isArray(document) || document.schema_version !== 5) {
     return `追踪/_tracking-state.json 不是当前 schema_version=5；停止写正文并重新 /story-import，不保留旧结构兼容路径`
   }
@@ -148,9 +154,16 @@ function trackingCheckpointIssue(book, requireState = false, expectedLastCommitt
     const match = fs.readFileSync(context, "utf8").match(/状态修订：(\d+)/)
     if (match) contextRevision = Number(match[1])
   } catch {}
+  // 按方向分治（与 tracking_commit.py require_no_interrupted_commit 同一判据）：commit 先写
+  // 上下文.md（已带下一修订号）、最后才写权威 state，所以「上下文高于 state」= commit 中途中断，
+  // 只能重跑同一份 commit 事务补完，render 会拒绝；「上下文落后/缺失」= 派生视图过期或被手改，
+  // render 从权威 state 重建即可。
+  if (contextRevision !== null && contextRevision > document.state_revision) {
+    return `追踪/上下文.md 状态修订 ${contextRevision} 高于 _tracking-state.json 的 ${document.state_revision}：上次 tracking_commit.py commit 中途中断；重新运行同一份 commit 事务（expected_state_revision 仍为 ${document.state_revision}）补完，不要 render 覆盖；仅当事务文件已丢失才用 tracking_commit.py render --project <书> --discard-interrupted`
+  }
   if (contextRevision !== document.state_revision) {
     const shown = contextRevision === null ? "缺失" : contextRevision
-    return `追踪/上下文.md 状态修订 ${shown} 与 _tracking-state.json 的 ${document.state_revision} 不一致；重新提交该章的 mode=revision 事务重建派生视图（expected_state_revision 取 追踪/_tracking-state.json 的 state_revision 字段（check 失败时不输出 JSON））`
+    return `追踪/上下文.md 状态修订 ${shown} 与 _tracking-state.json 的 ${document.state_revision} 不一致（派生视图落后或被手改）；运行 tracking_commit.py render --project <书> 从 _tracking-state.json 重建全部派生视图，check 通过后再继续`
   }
   if (expectedLastCommitted !== null) {
     if (!Number.isInteger(document.last_committed_chapter)) {
@@ -164,6 +177,48 @@ function trackingCheckpointIssue(book, requireState = false, expectedLastCommitt
     }
   }
   return null
+}
+
+// 伏笔回收排期提醒（会话起点 advisory，永不阻断）：读权威 _tracking-state.json 的 foreshadow
+// 映射（ID → {id, summary, planted_chapter, planned_resolution_chapter, status, importance,
+// updated_chapter}）。下一章 N = last_committed_chapter + 1；status=已埋 且整数计划回收章 < N
+// 为逾期（最久的排前，最多列 5 个 ID），N ≤ 计划章 ≤ N+2 为三章内到期（只计数）。口径对齐
+// tracking_commit.py 续写状态卡的伏笔到期排序；state 缺失/非 schema 5/结构不对一律静默。
+const FORESHADOW_DUE_SOON_CHAPTERS = 3
+const FORESHADOW_OVERDUE_LISTED = 5
+
+function foreshadowScheduleFinding(book) {
+  let document
+  try {
+    document = JSON.parse(fs.readFileSync(path.join(book, "追踪", "_tracking-state.json"), "utf8"))
+  } catch {
+    return null
+  }
+  if (!document || typeof document !== "object" || Array.isArray(document) || document.schema_version !== 5) return null
+  if (!Number.isInteger(document.last_committed_chapter)) return null
+  const rows = document.foreshadow
+  if (!rows || typeof rows !== "object" || Array.isArray(rows)) return null
+  const next = document.last_committed_chapter + 1
+  const overdue = []
+  let dueSoon = 0
+  for (const [key, row] of Object.entries(rows)) {
+    if (!row || typeof row !== "object" || Array.isArray(row) || row.status !== "已埋") continue
+    const planned = row.planned_resolution_chapter
+    if (!Number.isInteger(planned)) continue
+    const id = typeof row.id === "string" && row.id ? row.id : key
+    if (planned < next) overdue.push({ id, planned })
+    else if (planned < next + FORESHADOW_DUE_SOON_CHAPTERS) dueSoon += 1
+  }
+  if (!overdue.length && !dueSoon) return null
+  if (!overdue.length) {
+    return `${dueSoon} 条伏笔将在 ${FORESHADOW_DUE_SOON_CHAPTERS} 章内（第${next}～${next + FORESHADOW_DUE_SOON_CHAPTERS - 1}章）到计划回收章；排细纲时安排回收，或在追踪事务里改计划章`
+  }
+  overdue.sort((left, right) => left.planned - right.planned || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+  const listed = overdue.slice(0, FORESHADOW_OVERDUE_LISTED).map((item) => `${item.id} 逾期 ${next - item.planned} 章`).join("、")
+  const more = overdue.length > FORESHADOW_OVERDUE_LISTED ? "…" : ""
+  let message = `${overdue.length} 条伏笔已过计划回收章（${listed}${more}）；本章回收、改计划章，或在追踪事务里标 已过期/放弃`
+  if (dueSoon) message += `；另有 ${dueSoon} 条将在 ${FORESHADOW_DUE_SOON_CHAPTERS} 章内到期`
+  return message
 }
 
 function continuityFindings(root) {
@@ -193,15 +248,20 @@ function continuityFindings(root) {
       } catch {}
     }
 
-    // 续写状态卡预算：上下文.md 由事务工具整份重建，硬上限 12288 字节。
+    // 续写状态卡预算：上下文.md 由事务工具整份重建，硬上限 12288 字节。tracking_commit.py
+    // 渲染时自己就拒绝超预算的卡，所以超预算必是手改/手工追加；mode=revision 事务缩不了手工
+    // 膨胀，只有 render 从权威 state 整份重建才能收回。
     if (fs.existsSync(context)) {
       try {
         const contextSize = fs.statSync(context).size
         if (contextSize > 12288) {
-          messages.push(`[continuity] ${safeRelative(root, book)}：追踪/上下文.md 已 ${contextSize} 字节，超出续写状态卡预算 12288 字节——提交一份 mode=revision 事务让 tracking_commit.py 整份重建，不要手改也不要继续追加。`)
+          messages.push(`[continuity] ${safeRelative(root, book)}：追踪/上下文.md 已 ${contextSize} 字节，超出续写状态卡预算 12288 字节——tracking_commit.py 渲染时会拒绝超预算的卡，这份卡被手改或手工追加过；运行 tracking_commit.py render --project <书> 从 _tracking-state.json 整份重建，不要手改也不要继续追加。`)
         }
       } catch {}
     }
+
+    const foreshadow = foreshadowScheduleFinding(book)
+    if (foreshadow) messages.push(`[continuity] ${safeRelative(root, book)}：${foreshadow}。`)
 
     const titles = new Map()
     for (const chapter of chapters) {
@@ -1625,6 +1685,7 @@ module.exports = {
   discoverActiveBook,
   discoverAllBooks,
   trackingCheckpointIssue,
+  foreshadowScheduleFinding,
   continuityFindings,
   extractProseTargets,
   extractPatchTargets,

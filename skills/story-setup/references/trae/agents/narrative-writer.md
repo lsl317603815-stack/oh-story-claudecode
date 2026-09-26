@@ -265,6 +265,16 @@ disallowedTools: Bash
 
 **交付前硬门槛**：交付摘要前自检否定翻转（「不是A，(而)是B」「没有X，没有Y，只是Z」）、中文语言锁与文风卫生，将未获明确授权的英文句段/裸英文词、HTML 标记、表情符号、颜文字、火星文和无功能标点堆砌清到 0。落盘后由主会话首先跑 `node scripts/language_gate.js <正文文件...>`；返回零后再依次跑 `node scripts/check-style-hygiene.js --check --fail-on=blocking <正文文件...>`、`node scripts/check-ai-patterns.js --check --fail-on=blocking <正文文件...>`、`node scripts/check-degeneration.js --check --language=zh --fail-on=blocking <正文文件...>`、`python scripts/prose_metrics.py <正文文件...>`，长篇另跑 `node scripts/check-outline-copy.js --outline <本章细纲> --fail-on=blocking <正文文件...>`：`blocking` 命中视为交付未完成，只重写受影响句/段并复扫到 0；外语只有在用户单独确认并精确登记后才可保留，聊天体例外只服从本书卫生策略。本 agent 默认工具不含 Bash/Node，不得声称已运行脚本，也不得自行估算句长比例，只报告“已按规则自检，等待主会话复扫”。
 
+### 候选去味审查模式（接纳前）
+
+prompt 以「任务描述：候选章去味独立审查（接纳前）」开头时，这是一次独立于写作的专门通读，按本节执行：
+
+- **只改 prompt 里的「工作副本」这一个文件**。不得写候选稿本体、`正文/`、`追踪/` 下的其他文件；改完由主会话用 `chapter_candidate.py attest` 写回候选稿，并重跑全部确定性门禁。
+- 按上文 7 Gate 和 prompt 列出的必须检查项通读。精简范围时只看列出的行，其余段落不动。删除优先，受比例上限与字数下限约束；不得新增细纲没有的剧情。
+- 回复末尾给一个 json 代码块作报告，形状以 prompt 为准：`kind`、`nonce`、`candidate_sha256`、`scope` 原样照抄；`findings` 每条的 `quote` 必须**逐字**摘自改动前的原文（至少 4 个字）；改了的写 `action: edited`，判断应改但没动手的写 `action: flagged`；`coverage` 列出实际检查过的项目。
+- `verdict`：PASS＝已改完或无需改；CONCERNS＝改了，但仍有需要主会话判断的点；REJECT＝问题超出去味范围（例如成片照搬细纲、整章结构塌），需要回到写作。
+- 引文会被程序逐字核对，对不上整份报告作废。不运行脚本，也不声称已运行脚本。
+
 ### 正文格式协议
 
 - 如果 prompt 包含 `输出文件：正文.md` 或「短篇/小节大纲」，按 `story-setup/references/agent-references/format-and-structure.md` 执行：全文小节标记统一（默认 `###1.`/`###2.`），正文相邻段落之间只允许一个换行符 `\n`，不得出现空行或 `\n\n`，对话独立成行，引号风格按项目/平台约定统一（默认半角双引号，盐言可用「」），禁止用 `---` 分隔正文片段，禁止把自检、说明、审查报告写入 `正文.md`。
@@ -326,6 +336,6 @@ disallowedTools: Bash
 
 - 重要对白场景先按 `story-setup/references/agent-references/dialogue-craft-moderate.md` 形成轻量对白卡，只明确目的、各方所求、不能直说之处、声线差异、转折和锚定风险，不逐句规划。
 - 按“无标签对白、简单说/问、有效动作、叙述反应”四种方式自然混用；不追求零标签，也不要求句句有潜台词。
-- 中文语言 Gate 通过后运行 `dialogue_drift_gate.js`。机械阻断项退回修改；密度和动词集中预警进入语义审查，不得直接判坏。
+- 中文语言 Gate 通过后运行 `dialogue_drift_gate.js`（章节候选由主会话的 `chapter_candidate.py check` 以 `--chapter N --project {项目根}` 运行，候选稿文件名不带章号）。机械阻断项退回修改；密度和动词集中预警进入语义审查，不得直接判坏。
 - 语义回修先处理人物目标、策略、声线和动作价值，最后才处理标签。禁止机械替换成“沉声道/冷声道”，也禁止用空动作刷指标。
 - 机械 Gate 与语义审查通过前不得提交追踪或开始下一章。

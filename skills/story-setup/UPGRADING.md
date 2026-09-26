@@ -2,12 +2,22 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.5.0`
-- `agents_version: 40`
+- `setup_skill_version: 1.5.1`
+- `agents_version: 41`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `40`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `40`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `41`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `41`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+
+## v41（接纳前流水线、状态卡补强）
+
+- **长篇接纳前流水线**：每章的确定性门禁（14 道）、去AI味审查和一致性审查都在作者接纳之前对候选稿完成，由 `chapter_candidate.py` 按顺序强制执行；两份审查用绑定候选稿摘要的回执证明做过，缺回执 `approve` 拒绝。主会话反复运行 `chapter_candidate.py next` 按提示走。
+- **Agent**：consistency-checker 新增「候选审查模式」并改用 sonnet；narrative-writer 新增「候选去味审查模式」（只改工作副本，由 `attest` 写回）；story-explorer 的 `context_load` 按细纲限量读取本书 `设定/世界观/`，并带上状态卡的到期伏笔、久别角色、知情 / 关系与章回顾；chapter-extractor 增加追踪完整性审计这一调用方。
+- **Hooks**：Claude Code 上写后兜底、提交提醒和写前守卫的非阻断提示改用 `hookSpecificOutput.additionalContext` JSON 送达模型（此前的纯文本只进调试日志）；`上下文.md` 修订号与权威状态不一致时，按方向提示「重跑中断的同一份事务」或「运行 `tracking_commit.py render`」；`_tracking-state.json` 的 schema 高于本 hook 认识的版本时提示更新 oh-story 并重跑 `/story-setup`，不再误导去重新导入；会话开始时提示已逾期和 3 章内到期的伏笔。
+- **模板**：`追踪/质检进度.md` 模板改为由接纳回执生成的占位表；项目说明模板写明接纳前流水线。
+- **每本在写的长篇**：状态卡栏目「近三章速记」改名「近章速记」、角色快照头部改版，重新部署后在两章之间运行一次 `tracking_commit.py render --project {书}`，否则 `check` 会报派生视图不一致；有未闭环候选章时先 close 或 abandon。此后 append 追踪事务必须带 `delta.appeared_characters`。数据格式仍是 schema 5，不需要迁移命令。
+
+升级动作：重新运行 `/story-setup` 并新开会话；每本在写的长篇 render 一次。
 
 ## v40（合流：上游 v0.9.0 + story-grill / story-drama-write）
 
@@ -157,10 +167,10 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 40` 与 `setup_skill_version: 1.5.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 41` 与 `setup_skill_version: 1.5.1`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
-5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。
+5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
 6. 若已有拆文库或细纲不满足当前契约，先重新拆解/导入或补齐细纲，再继续写作。
 
 ## 导入项目的自对标清理（v23）
@@ -193,7 +203,12 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 
 ## 版本变更
 
-### v40（当前）
+### v41（当前）
+
+- `.story-deployed` 的 `agents_version` 升级到 `41`，`setup_skill_version` 升级到 `1.5.1`；产品版本升级到 v0.12.0。
+- 长篇接纳前流水线（门禁 + 两份审查回执）、consistency-checker 改用 sonnet 并新增候选审查模式、narrative-writer 候选去味审查模式、story-explorer 本书世界观加载；Claude hooks 的提示改用 `additionalContext` JSON，新增伏笔到期提醒、前向兼容的 schema 提示和 `render` 修复指引。
+
+### v40
 
 - `.story-deployed` 的 `agents_version` 升级到 `40`，`setup_skill_version` 升级到 `1.5.0`；产品版本升级到 v0.11.0。
 - 本线与上游合流：canonical 中文主包由 18 个扩为 20 个 Skill（并入 `story-grill`、`story-drama-write`），TRAE / WorkBuddy 同步两者的 Commands 与路由；安装与更新入口指向本仓库。

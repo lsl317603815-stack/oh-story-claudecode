@@ -92,7 +92,7 @@ def test_state_card_and_compact_delta_limits_are_explicit() -> None:
     require_all(
         protocol,
         (
-            "目标 ≤1536 字节，硬上限 3072 字节",
+            "目标 ≤2560 字节，硬上限 4096 字节",
             "目标 ≤4096 字节，超过警告；硬上限 8192 字节",
             "四个列表不限制条数",
             "≤12288 字节",
@@ -100,12 +100,40 @@ def test_state_card_and_compact_delta_limits_are_explicit() -> None:
             "## 长期约束",
             "## 核心角色状态",
             "## 活跃伏笔",
-            "## 近三章速记",
+            "## 近章速记",
             "## 下一章承诺",
             "## 连贯性风险",
+            "近章保留 5 章",
+            "【逾期k章】",
+            "8192 字节目标内填充",
         ),
         "bounded tracking protocol",
     )
+    tool = read("skills/story-long-write/scripts/tracking_commit.py")
+    require('"## 近章速记"' in tool, "tracking_commit.py must render the documented recap heading")
+    require("DELTA_MAX_BYTES = 4096" in tool, "tracking_commit.py delta cap must match the documented limit")
+
+
+def test_appearances_recap_and_render_are_documented() -> None:
+    protocol = read("skills/story-long-write/references/tracking-transaction.md")
+    require_all(
+        protocol,
+        (
+            "`delta.appeared_characters`：`append` 必填",
+            "`delta.recap`（可选，≤900 字节",
+            "tracking_commit.py render",
+            "--discard-interrupted",
+            "--appearances",
+            "foreshadow-overdue",
+            "character-absent",
+            "thread-dormant",
+        ),
+        "appearance, recap and render protocol",
+    )
+    daily = read("skills/story-long-write/references/workflow-daily.md")
+    require_all(daily, ("delta.appeared_characters", "tracking_commit.py render"), "daily tracking upkeep")
+    explorer = read("skills/story-setup/references/templates/agents/story-explorer.md")
+    require_all(explorer, ("近章速记", "world_rules", "设定/世界观/"), "story-explorer context load")
 
 
 def test_import_records_a_cutoff_without_fabricated_old_deltas() -> None:
@@ -241,12 +269,25 @@ def test_hooks_fail_closed_on_invalid_tracking_checkpoints() -> None:
                 "schema_version=5",
                 "migrate-v4",
                 "state_revision",
-                "mode=revision 事务重建派生视图",
+                # 派生视图漂移按方向给动作：落后/缺失 → render 重建；超前 = commit 中断 → 重跑同一份 commit。
+                "tracking_commit.py render --project <书> 从 _tracking-state.json 重建全部派生视图",
+                "commit 中途中断",
+                "重新运行同一份 commit 事务",
+                "--discard-interrupted",
+                # 状态卡超预算是手改膨胀，mode=revision 事务缩不回来，只能 render 整份重建。
+                "运行 tracking_commit.py render --project <书> 从 _tracking-state.json 整份重建",
+                # 前向兼容：更新版 schema 提示升级 + 重跑 /story-setup，绝不重新 import。
+                "由更新版 oh-story 写入",
+                "重新运行 /story-setup 刷新 hooks，不要重新 /story-import",
                 "重新 /story-import",
                 "last_committed_chapter",
                 "必须先提交",
             ),
             label,
+        )
+        require(
+            "mode=revision 事务重建派生视图" not in text and "提交一份 mode=revision 事务" not in text,
+            f"{label} still routes derived-view drift through a mode=revision transaction",
         )
 
 
@@ -389,9 +430,29 @@ def test_chapter_acceptance_projection_and_cold_read_are_gated() -> None:
             "已接纳正文的 SHA-256",
             "追踪/投影日志.jsonl",
             "revision_guard.py",
+            "chapter_candidate.py next",
+            "review-packet",
+            "attest",
+            "追踪/质检回执/第NNN章/",
+            "gated-v2",
+            "设定/门禁配置.json",
+            "--confirm WAIVE",
         ),
         "chapter acceptance protocol",
     )
+    require_all(
+        skill,
+        ("全部在接纳前完成", "chapter_candidate.py next", "review-packet --kind deslop", "review-packet --kind consistency"),
+        "long-form pre-acceptance pipeline",
+    )
+    require("逐列打勾" not in skill, "SKILL.md must not ask for hand-ticked quality columns any more")
+    checker = read("skills/story-setup/references/templates/agents/consistency-checker.md")
+    require_all(checker, ("候选审查模式（接纳前）", "model: sonnet"), "consistency-checker candidate mode")
+    writer = read("skills/story-setup/references/templates/agents/narrative-writer.md")
+    require("候选去味审查模式（接纳前）" in writer, "narrative-writer must document the candidate deslop review mode")
+    tool = read("skills/story-long-write/scripts/chapter_candidate.py")
+    for command in ("review-packet", "attest", "waive", "pressure", "progress", "next", "fix"):
+        require(f'sub.add_parser("{command}"' in tool, f"chapter_candidate.py must implement documented command {command}")
     cold_read = read("skills/story-long-write/references/sequential-cold-read.md")
     require_all(cold_read, ("clock", "promises", "knowledge", "props", "S1/S2"), "cold-read protocol")
 

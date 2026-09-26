@@ -26,6 +26,33 @@ printf '## 第5章\n按照细纲，作为AI我无法继续。\n' > "$TMP/游离/
 printf '他' > "$TMP/某书/正文/第001章_截断.md"                            # 真正文，极短 → 落盘触发
 
 run() { CLAUDE_PROJECT_DIR="$TMP" CLAUDE_TOOL_INPUT="{\"tool_input\":{\"file_path\":\"$1\"}}" bash "$HOOK" 2>/dev/null; }
+CLI="$(dirname "$HOOK")/story_hook_cli.js"
+
+# Claude Code 的 PostToolUse 在 exit 0 时纯文本 stdout 只进 debug log，模型看不到；兜底网必须输出
+# 单个 JSON 对象 {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":…}}，
+# 且 additionalContext 不超过文档上限 10,000 字符。context_of 校验形状后只打印 additionalContext
+# （解码后的正文，UTF-8 直写），形状不对则非零退出。
+context_of() {
+  node -e '
+    let raw = ""
+    process.stdin.setEncoding("utf8")
+    process.stdin.on("data", (chunk) => { raw += chunk })
+    process.stdin.on("end", () => {
+      const expected = process.argv[1]
+      let obj
+      try { obj = JSON.parse(raw) } catch (error) { console.error(`not JSON: ${error.message}`); process.exit(3) }
+      const keys = Object.keys(obj || {})
+      const out = obj && obj.hookSpecificOutput
+      if (keys.length !== 1 || keys[0] !== "hookSpecificOutput" || !out || typeof out !== "object") {
+        console.error("top level must be exactly {hookSpecificOutput}"); process.exit(3)
+      }
+      if (out.hookEventName !== expected) { console.error(`hookEventName=${out.hookEventName}`); process.exit(3) }
+      if (typeof out.additionalContext !== "string" || !out.additionalContext) { console.error("empty additionalContext"); process.exit(3) }
+      if (out.additionalContext.length > 10000) { console.error(`additionalContext ${out.additionalContext.length} > 10000`); process.exit(3) }
+      process.stdout.write(out.additionalContext)
+    })
+  ' "${1:-PostToolUse}"
+}
 
 fails=0
 expect_silent() {
@@ -34,7 +61,11 @@ expect_silent() {
 }
 expect_fire() {
   local out; out="$(run "$1")"
-  if [ -z "$out" ]; then echo "FAIL: backstop did not fire on real 正文: $1" >&2; fails=$((fails+1)); fi
+  if [ -z "$out" ]; then echo "FAIL: backstop did not fire on real 正文: $1" >&2; fails=$((fails+1)); return; fi
+  if ! printf '%s' "$out" | context_of PostToolUse | grep -q '正文兜底检测'; then
+    echo "FAIL: backstop output is not a PostToolUse additionalContext JSON carrying the report: $1" >&2
+    printf '%s\n' "$out" | head -2 >&2; fails=$((fails+1))
+  fi
 }
 
 # ① 绝不捕获这些非正文文件（含工程词/复读/拒绝语文本，证明确实没被扫）
@@ -50,9 +81,12 @@ expect_fire "$TMP/某书/正文/第001章_截断.md"
 
 # ③ 内容网：真正文里的硬信号必须被抓，且抓对类型；干净正文（排比+AI角色对话+悬念收尾）静默。
 expect_fire_kw() {
-  local out; out="$(run "$1")"
-  if ! printf '%s' "$out" | grep -q "$2"; then
-    echo "FAIL: 内容网未抓到「$2」: $1" >&2; printf '%s\n' "$out" | head -4 >&2; fails=$((fails+1))
+  local out ctx; out="$(run "$1")"
+  if ! ctx="$(printf '%s' "$out" | context_of PostToolUse)"; then
+    echo "FAIL: 兜底输出不是 PostToolUse additionalContext JSON: $1" >&2; printf '%s\n' "$out" | head -2 >&2; fails=$((fails+1)); return
+  fi
+  if ! printf '%s' "$ctx" | grep -q "$2"; then
+    echo "FAIL: 内容网未抓到「$2」: $1" >&2; printf '%s\n' "$ctx" | head -4 >&2; fails=$((fails+1))
   fi
 }
 # bash 字符串重复填充正文（不走 python stdout：Windows runner 上 python<3.15 的文本 stdout
@@ -110,6 +144,31 @@ printf '%s\n' 'watcher' > "$TMP/.deslop-whitelist"
 expect_silent "$TMP/某书/正文/第017章_白名单.md"
 rm -f "$TMP/.deslop-whitelist"
 expect_fire_kw "$TMP/某书/正文/第017章_白名单.md" 裸外文字母泄漏
+
+# 摘录里的反斜杠/引号/`\c` 必须原样进 additionalContext（旧 printf %b 会吞掉 \c 后的全部报告；
+# JSON 由 node 桥转义，bash 不拼 JSON）。
+{ printf '# 第18章\n\n'; PAD; printf '\n他在纸上写下备份\\新稿\\"终章\\c然后停在'; } > "$TMP/某书/正文/第018章_转义.md"
+ESC_CTX="$(run "$TMP/某书/正文/第018章_转义.md" | context_of PostToolUse || true)"
+if ! printf '%s' "$ESC_CTX" | grep -qF '新稿\"终章\c然后停在'; then
+  echo "FAIL: 反斜杠/引号摘录没有原样进入 additionalContext" >&2; printf '%s\n' "$ESC_CTX" | head -4 >&2; fails=$((fails+1))
+fi
+
+# node 桥 hook-context：超过 10,000 字符截到上限内并带截断标记；空文案静默；未知事件拒绝且不写 stdout。
+LONG_CTX="$(python3 -c 'import sys; sys.stdout.buffer.write(("甲" * 12000).encode("utf-8"))' | node "$CLI" post-tool-context | context_of PostToolUse || true)"
+LONG_LEN="$(printf '%s' "$LONG_CTX" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(s.length)))')"
+if [ "$LONG_LEN" != "10000" ] || ! printf '%s' "$LONG_CTX" | grep -q '…(已截断)$'; then
+  echo "FAIL: hook-context 未按 10,000 字符上限截断（len=$LONG_LEN）" >&2; fails=$((fails+1))
+fi
+PRE_CTX="$(printf '%s' '细纲留存字段提醒' | node "$CLI" hook-context PreToolUse | context_of PreToolUse || true)"
+[ "$PRE_CTX" = '细纲留存字段提醒' ] || { echo "FAIL: hook-context PreToolUse 未原样输出: $PRE_CTX" >&2; fails=$((fails+1)); }
+EMPTY_OUT="$(printf '  \n' | node "$CLI" post-tool-context)"
+[ -z "$EMPTY_OUT" ] || { echo "FAIL: 空文案不应输出 JSON: $EMPTY_OUT" >&2; fails=$((fails+1)); }
+set +e
+BAD_OUT="$(printf 'x' | node "$CLI" hook-context Notification 2>/dev/null)"; BAD_RC=$?
+set -e
+if [ "$BAD_RC" -ne 2 ] || [ -n "$BAD_OUT" ]; then
+  echo "FAIL: 不支持的事件应 exit 2 且不写 stdout（rc=$BAD_RC out=$BAD_OUT）" >&2; fails=$((fails+1))
+fi
 
 if [ "$fails" -ne 0 ]; then
   echo "Prose backstop hook tests FAILED ($fails)." >&2

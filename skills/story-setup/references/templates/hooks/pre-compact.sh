@@ -1,5 +1,8 @@
 #!/bin/bash
 # pre-compact.sh — compact 前记录写作状态摘要（不 dump 内容）
+# 送达边界（code.claude.com/docs/en/hooks）：PreCompact 只支持 decision:block，不收
+# additionalContext，exit 0 的 stdout 只进 debug log——摘要是日志，不是给模型的提醒；
+# 压缩后的上下文回灌由 SessionStart（source=compact）的 session-start.sh 承担。
 set -euo pipefail
 
 # 加载公共函数库

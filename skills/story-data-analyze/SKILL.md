@@ -6,7 +6,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 # story-data-analyze：指标体系驱动的小说数据诊断工作流
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 40` 不一致时（标记缺失、字段缺失/非整数、小于或大于 40）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 40）` 并提示重新运行 `/story-setup` 后新开会话；大于 40 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。本 Skill 的具体落点仍按 lane 降级矩阵映射为 `degraded` / `solo`；当前运行时定义 malformed 与 registry 缺失同样视为 agent 不可用。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。本 Skill 的具体落点仍按 lane 降级矩阵映射为 `degraded` / `solo`；当前运行时定义 malformed 与 registry 缺失同样视为 agent 不可用。
 
 ## 目标
 

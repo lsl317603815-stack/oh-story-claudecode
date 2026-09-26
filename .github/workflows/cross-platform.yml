@@ -76,6 +76,8 @@ jobs:
         run: python3 scripts/test-tracking-workflow-contracts.py
       - name: Tracking transaction behavior regression
         run: python3 scripts/test-tracking-commit.py
+      - name: Tracking completeness audit regression
+        run: python3 scripts/test-tracking-audit.py
       - name: Check story-setup deployment
         run: bash scripts/check-story-setup-deployment.sh
       - name: Check Claude Code adapter
@@ -153,6 +155,8 @@ jobs:
         run: python scripts/test-tracking-workflow-contracts.py
       - name: Tracking transaction behavior regression
         run: python scripts/test-tracking-commit.py
+      - name: Tracking completeness audit regression
+        run: python scripts/test-tracking-audit.py
       - name: Tool-output leak guard
         run: |
           python scripts/check-tool-output-leaks.py
@@ -235,6 +239,8 @@ jobs:
         run: python3 scripts/test-tracking-workflow-contracts.py
       - name: Tracking transaction behavior regression
         run: python3 scripts/test-tracking-commit.py
+      - name: Tracking completeness audit regression
+        run: python3 scripts/test-tracking-audit.py
       - name: Workflow numbering regression
         run: bash scripts/test-skill-numbering.sh
       - name: Punctuation normalizer regression

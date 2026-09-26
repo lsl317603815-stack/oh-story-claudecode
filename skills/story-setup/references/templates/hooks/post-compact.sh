@@ -1,5 +1,9 @@
 #!/bin/bash
 # post-compact.sh — compact 后提醒恢复上下文
+# 送达边界（code.claude.com/docs/en/hooks）：PostCompact 没有 decision control，也不收
+# additionalContext，exit 0 的 stdout 只进 debug log——这句提示在 Claude Code 上到不了模型，
+# 改 JSON 也没用。真正的压缩后回灌由 SessionStart（source=compact，settings 里未设 matcher 即覆盖）
+# 的 session-start.sh 注入「当前位置」摘要承担；本脚本的输出只是 debug log 记录。
 set -euo pipefail
 
 # 加载公共函数库

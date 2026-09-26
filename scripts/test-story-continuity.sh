@@ -1,8 +1,11 @@
 #!/bin/bash
 # test-story-continuity.sh — detect-story-gaps.sh 的跨批连续性兜底回归测试
 # 保证：① 追踪 staleness（正文更新到第N章但 上下文.md 更早）→ 提示续写状态卡滞后；
-#       ② 章节标题去重（两章撞名）→ 提示改名；③ missing/mismatched/malformed state → 明确警告；
-#       ④ 干净项目（state/上下文 revision 一致、上下文新于正文、标题唯一）静默。
+#       ② 章节标题去重（两章撞名）→ 提示改名；③ missing/mismatched/malformed state → 明确警告，
+#       派生视图漂移按方向给动作（上下文落后 → tracking_commit.py render；上下文超前 = commit 中断 →
+#       重跑同一份 commit），更新版 schema → 升级 oh-story + 重跑 /story-setup（不重新 import），
+#       状态卡超 12288 字节 → render 整份重建；伏笔逾期/三章内到期 → 会话起点提醒；
+#       ④ 干净项目（state/上下文 revision 一致、上下文新于正文、标题唯一、无到期伏笔）静默。
 # 与 codex story_codex_hook.py 的 continuity_findings 同触发条件（codex 侧由 test-codex-hooks.sh 覆盖）。
 set -euo pipefail
 
@@ -44,20 +47,29 @@ printf '%s' "$out" | grep -q '标题重复' || { echo "FAIL: 标题去重 未触
 rm -rf "$T1"
 
 # ③ mismatched/malformed/missing state 都必须告警
-for kind in mismatch malformed missing; do
+for kind in mismatch ahead newer oversize foreshadow malformed missing; do
   T_META="$(mktemp -d)"; make_book "$T_META"
   printf '# 第1章 开端\n正文。\n' > "$T_META/某书/正文/第001章_开端.md"
   case "$kind" in
     mismatch) printf '%s\n' '{"schema_version":5,"state_revision":1,"last_committed_chapter":0}' > "$T_META/某书/追踪/_tracking-state.json" ;;
+    ahead) printf '%s\n' '> 状态修订：3' > "$T_META/某书/追踪/上下文.md" ;;
+    newer) printf '%s\n' '{"schema_version":6,"state_revision":0,"last_committed_chapter":0}' > "$T_META/某书/追踪/_tracking-state.json" ;;
+    oversize) { printf '%s\n' '> 状态修订：0'; i=0; while [ "$i" -lt 800 ]; do printf '%s\n' '手工追加的状态行'; i=$((i+1)); done; } > "$T_META/某书/追踪/上下文.md" ;;
+    foreshadow) printf '%s\n' '{"schema_version":5,"state_revision":0,"last_committed_chapter":6,"foreshadow":{"F007":{"id":"F007","summary":"玉佩","planted_chapter":1,"planned_resolution_chapter":4,"status":"已埋","importance":"高","updated_chapter":1},"F011":{"id":"F011","summary":"旧信","planted_chapter":2,"planned_resolution_chapter":9,"status":"已埋","importance":"中","updated_chapter":2}}}' > "$T_META/某书/追踪/_tracking-state.json" ;;
     malformed) printf '%s\n' '{not-json' > "$T_META/某书/追踪/_tracking-state.json" ;;
     missing) rm -f "$T_META/某书/追踪/_tracking-state.json" ;;
   esac
   out="$(run "$T_META")"
   case "$kind" in
-    mismatch) printf '%s' "$out" | grep -q '状态修订' || { echo "FAIL: mismatched state 未触发"; echo "$out" >&2; fails=$((fails+1)); } ;;
+    mismatch) printf '%s' "$out" | grep -q '状态修订 0 与 _tracking-state.json 的 1 不一致.*tracking_commit.py render --project <书>' || { echo "FAIL: mismatched state 未指向 render"; echo "$out" >&2; fails=$((fails+1)); } ;;
+    ahead) printf '%s' "$out" | grep -q '状态修订 3 高于.*重新运行同一份 commit 事务' || { echo "FAIL: commit 中断未要求重跑同一份 commit"; echo "$out" >&2; fails=$((fails+1)); } ;;
+    newer) printf '%s' "$out" | grep -q 'schema_version=6，由更新版 oh-story 写入.*重新运行 /story-setup' || { echo "FAIL: 更新版 schema 未提示升级 + /story-setup"; echo "$out" >&2; fails=$((fails+1)); } ;;
+    oversize) printf '%s' "$out" | grep -q '超出续写状态卡预算 12288 字节.*tracking_commit.py render --project <书>' || { echo "FAIL: 状态卡超预算未指向 render"; echo "$out" >&2; fails=$((fails+1)); } ;;
+    foreshadow) printf '%s' "$out" | grep -q '1 条伏笔已过计划回收章（F007 逾期 3 章）；本章回收、改计划章，或在追踪事务里标 已过期/放弃；另有 1 条将在 3 章内到期' || { echo "FAIL: 伏笔逾期提醒未触发"; echo "$out" >&2; fails=$((fails+1)); } ;;
     malformed) printf '%s' "$out" | grep -q '无法解析' || { echo "FAIL: malformed state 未触发"; echo "$out" >&2; fails=$((fails+1)); } ;;
     missing) printf '%s' "$out" | grep -q '_tracking-state.json 缺失' || { echo "FAIL: missing state 未触发"; echo "$out" >&2; fails=$((fails+1)); } ;;
   esac
+  if printf '%s' "$out" | grep -q 'mode=revision'; then echo "FAIL: $kind 仍指向 mode=revision 事务"; echo "$out" >&2; fails=$((fails+1)); fi
   rm -rf "$T_META"
 done
 

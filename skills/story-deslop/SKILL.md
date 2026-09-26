@@ -18,7 +18,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 40` 不一致时（标记缺失、字段缺失/非整数、小于或大于 40）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 40）` 并提示重新运行 `/story-setup` 后新开会话；大于 40 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 ## 核心哲学
 
@@ -110,6 +110,8 @@ AI味不按语法错误处理，也不需要"修正"。它属于风格问题：�
 - 本轮刚生成的网文章节默认 `standard + bounded`。
 - 只有用户明确要求大改、回炉，或结构问题无法局部修复时，才使用 `aggressive + structural`。
 - 命中数量多只能提高 `issue_density`，不能自动扩大 `edit_scope`。
+
+长篇章节在作者接纳前的去味审查不走下面的文件模式：由 story-long-write 的 `chapter_candidate.py review-packet --kind deslop` 发审查包，工作副本在该章候选运行目录里，审完用 `attest` 写回并重跑全部门禁（见 story-long-write 的章节候选协议）。本文件模式用于作者自己的已成稿和独立去味请求。
 
 文件模式必须先创建候选运行：
 
@@ -539,7 +541,7 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 
 ## 适度对白技巧与退化检查（强制）
 
-重要对白场景写作前先按 `references/dialogue-craft-moderate.md` 形成轻量对白卡，结构参考 `references/dialogue-scene-card.schema.json`。正文混用无标签对白、简单“说/问”、有效动作和叙述反应，不追求零标签或句句潜台词。中文语言 Gate 通过后运行 `scripts/dialogue_drift_gate.js`：连续逐句报幕等明确退化可阻断，标签密度、动词集中和跨章偏移只作预警并进入语义审查。语义审查确认人物声线可区分、动作有独立价值、潜台词适量且多人场景清楚后，才可继续后续验收。
+重要对白场景写作前先按 `references/dialogue-craft-moderate.md` 形成轻量对白卡，结构参考 `references/dialogue-scene-card.schema.json`。正文混用无标签对白、简单“说/问”、有效动作和叙述反应，不追求零标签或句句潜台词。中文语言 Gate 通过后运行 `scripts/dialogue_drift_gate.js`（输入文件名不带章号时，例如本 skill 的 `.story-deslop/runs/` 候选稿，加 `--chapter N --project {项目根}` 才有跨章基线）：连续逐句报幕等明确退化可阻断，标签密度、动词集中和跨章偏移只作预警并进入语义审查。语义审查确认人物声线可区分、动作有独立价值、潜台词适量且多人场景清楚后，才可继续后续验收。
 
 ## 本书声音画像 Gate（有足量接纳样本时）
 

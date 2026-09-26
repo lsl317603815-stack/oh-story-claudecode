@@ -1,5 +1,6 @@
 #!/bin/bash
 # validate-story-commit.sh — 在 git commit 时检查格式问题（WARNING only, no BLOCKING）
+# 警告以 PreToolUse additionalContext JSON 输出（纯文本 stdout 在 Claude Code 上只进 debug log）。
 set -euo pipefail
 
 source "$(dirname "$0")/lib/common.sh"
@@ -106,12 +107,15 @@ while IFS= read -r -d '' file; do
 done < <(git -C "$ROOT" -c core.quotepath=false diff --cached --relative --name-only --diff-filter=ACM -z -- . 2>/dev/null || true)
 
 if [ -n "$WARNINGS" ]; then
-  echo "=== Story Commit Warnings（advisory only）==="
-  # 必须 %s 不能 %b：$WARNINGS 里嵌着 grep -n 抓出的作者正文原文。%b 会把正文里的 `\n`、`\b`
-  # 当转义展开，`\c`（Windows 路径 C:\code 就带）更会直接终止 printf，把后面所有文件的警告
-  # 连同收尾框线一起吞掉。分隔换行由上面拼接时的 ${NL} 真实换行承担。
-  printf '%s\n' "$WARNINGS"
-  echo "=== End Warnings ==="
+  # 送达模型：本 hook 挂 PreToolUse(Bash)，Claude Code 在 exit 0 时把纯文本 stdout/stderr 只写进
+  # debug log，模型看不到；PreToolUse 文档化支持不带 permissionDecision 的
+  # hookSpecificOutput.additionalContext（贴在工具结果旁、不改变放行决策），经 lib/common.sh
+  # emit_hook_context → node 桥做 JSON 转义与 10,000 字符截断。文案/框线与 JS core
+  # stagedMarkdownWarnings 同形（Codex 的 pre-tool-commit-advisory 走同一个 additionalContext）。
+  # 必须 %s 拼接、不能 %b：$WARNINGS 里嵌着 grep -n 抓出的作者正文原文。%b 会把正文里的 `\n`、`\b`
+  # 当转义展开，`\c`（Windows 路径 C:\code 就带）更会截断后面所有文件的警告。分隔换行由上面拼接
+  # 时的 ${NL} 真实换行承担（$WARNINGS 以 ${NL} 开头）。
+  emit_hook_context PreToolUse "=== Story Commit Warnings（advisory only）===${WARNINGS}${NL}=== End Warnings ==="
 fi
 
 # Always exit 0 — 写作流程不能被 hook 卡住

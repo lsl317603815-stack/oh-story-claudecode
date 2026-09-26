@@ -818,16 +818,24 @@ JS
     return 3
   fi
 
-  # E3: 追踪状态判定 parity。覆盖缺失、坏 JSON、旧 schema、派生 revision 不一致、
-  #     缺修订号、缺章号、提交落后和有效 state 放行，避免 Codex Python 与三端 JS core 漂移。
+  # E3: 追踪状态判定 parity。覆盖缺失、坏 JSON、旧 schema、更新版 schema（前向兼容，不许叫人
+  #     重新 import）、非整数 schema、派生 revision 双向不一致（上下文落后/缺失 → render；上下文
+  #     超前 = commit 中断 → 重跑同一份 commit）、缺修订号、缺章号、提交落后和有效 state 放行，
+  #     避免 Codex Python 与三端 JS core 漂移。
   local cp="$tmp/checkpoints"
-  mkdir -p "$cp"/{missing,malformed,old,mismatch,norevision,nolast,behind,valid,revised}/追踪
-  for name in malformed old mismatch norevision nolast behind valid revised; do
+  mkdir -p "$cp"/{missing,malformed,old,newer,newerfloat,strschema,mismatch,ctxmissing,ahead,norevision,nolast,behind,valid,revised}/追踪
+  for name in malformed old newer newerfloat strschema mismatch norevision nolast behind valid revised; do
     printf '%s\n' '> 状态修订：0' > "$cp/$name/追踪/上下文.md"
   done
   printf '%s\n' '{not-json' > "$cp/malformed/追踪/_tracking-state.json"
   printf '%s\n' '{"schema_version":3,"state_revision":0,"last_committed_chapter":7}' > "$cp/old/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":6,"state_revision":0,"last_committed_chapter":7}' > "$cp/newer/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":7.0,"state_revision":0,"last_committed_chapter":7}' > "$cp/newerfloat/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":"6","state_revision":0,"last_committed_chapter":7}' > "$cp/strschema/追踪/_tracking-state.json"
   printf '%s\n' '{"schema_version":5,"state_revision":1,"last_committed_chapter":7}' > "$cp/mismatch/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":5,"state_revision":1,"last_committed_chapter":7}' > "$cp/ctxmissing/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":5,"state_revision":1,"last_committed_chapter":7}' > "$cp/ahead/追踪/_tracking-state.json"
+  printf '%s\n' '> 状态修订：2' > "$cp/ahead/追踪/上下文.md"
   printf '%s\n' '{"schema_version":5,"last_committed_chapter":7}' > "$cp/norevision/追踪/_tracking-state.json"
   printf '%s\n' '{"schema_version":5,"state_revision":0}' > "$cp/nolast/追踪/_tracking-state.json"
   printf '%s\n' '{"schema_version":5,"state_revision":0,"last_committed_chapter":6}' > "$cp/behind/追踪/_tracking-state.json"
@@ -842,7 +850,7 @@ spec = importlib.util.spec_from_file_location("ch", sys.argv[1]); m = importlib.
 root = Path(sys.argv[2])
 # 同 B/C 段：Windows runner 上 python<3.15 的文本 stdout 是 cp1252，
 # 含中文的 issue 直接 print 会 UnicodeEncodeError，必须走 stdout.buffer 直写 UTF-8。
-for name, expected in [("missing", None), ("malformed", None), ("old", None), ("mismatch", None), ("norevision", None), ("nolast", 7), ("behind", 7), ("valid", 7), ("revised", 7)]:
+for name, expected in [("missing", None), ("malformed", None), ("old", None), ("newer", None), ("newerfloat", None), ("strschema", None), ("mismatch", None), ("ctxmissing", None), ("ahead", None), ("norevision", None), ("nolast", 7), ("behind", 7), ("valid", 7), ("revised", 7)]:
     issue = m.tracking_checkpoint_issue(root / name, require_state=True, expected_last_committed=expected)
     sys.stdout.buffer.write((f"{name} :: {issue or '-'}" + "\n").encode("utf-8"))
 PY
@@ -850,7 +858,7 @@ PY
 const path = require("node:path")
 const core = require(process.argv[2])
 const root = process.argv[3]
-for (const [name, expected] of [["missing", null], ["malformed", null], ["old", null], ["mismatch", null], ["norevision", null], ["nolast", 7], ["behind", 7], ["valid", 7], ["revised", 7]]) {
+for (const [name, expected] of [["missing", null], ["malformed", null], ["old", null], ["newer", null], ["newerfloat", null], ["strschema", null], ["mismatch", null], ["ctxmissing", null], ["ahead", null], ["norevision", null], ["nolast", 7], ["behind", 7], ["valid", 7], ["revised", 7]]) {
   const issue = core.trackingCheckpointIssue(path.join(root, name), true, expected)
   console.log(`${name} :: ${issue || "-"}`)
 }
@@ -863,7 +871,21 @@ JS
   grep -q 'missing :: .*_tracking-state.json 缺失' "$tmp/cpy.txt" || { echo "FAIL: 缺失 state 未 fail closed" >&2; return 3; }
   grep -q 'malformed :: .*无法解析' "$tmp/cpy.txt" || { echo "FAIL: 坏 JSON 未 fail closed" >&2; return 3; }
   grep -q 'old :: .*schema_version=5' "$tmp/cpy.txt" || { echo "FAIL: 旧 schema 未 fail closed" >&2; return 3; }
-  grep -q 'mismatch :: .*状态修订.*mode=revision 事务重建派生视图' "$tmp/cpy.txt" || { echo "FAIL: 派生 revision 不一致未给 mode=revision 重建动作" >&2; return 3; }
+  grep -q 'newer :: .*schema_version=6.*更新版 oh-story.*重新运行 /story-setup' "$tmp/cpy.txt" || { echo "FAIL: 更新版 schema 未提示升级 oh-story + 重跑 /story-setup" >&2; return 3; }
+  grep -q 'newerfloat :: .*schema_version=7，' "$tmp/cpy.txt" || { echo "FAIL: 整数值浮点 schema 未按整数前向兼容处理" >&2; return 3; }
+  local newer_lines drift_lines
+  newer_lines="$(grep -E '^(newer|newerfloat) :: ' "$tmp/cpy.txt" || true)"
+  case "${newer_lines//不要重新 \/story-import/}" in
+    *'/story-import'*) echo "FAIL: 更新版 schema 被要求重新 /story-import（会覆盖新版追踪）" >&2; return 3 ;;
+  esac
+  grep -q 'strschema :: .*不是当前 schema_version=5.*重新 /story-import' "$tmp/cpy.txt" || { echo "FAIL: 非整数 schema 未保留原 fail-closed 文案" >&2; return 3; }
+  grep -q 'mismatch :: .*状态修订 0 与.*的 1 不一致.*tracking_commit.py render --project <书>' "$tmp/cpy.txt" || { echo "FAIL: 派生视图落后未给 render 重建动作" >&2; return 3; }
+  grep -q 'ctxmissing :: .*状态修订 缺失 与.*tracking_commit.py render --project <书>' "$tmp/cpy.txt" || { echo "FAIL: 上下文.md 缺失未给 render 重建动作" >&2; return 3; }
+  grep -q 'ahead :: .*状态修订 2 高于.*commit 中途中断.*重新运行同一份 commit 事务' "$tmp/cpy.txt" || { echo "FAIL: 上下文超前（commit 中断）未要求重跑同一份 commit" >&2; return 3; }
+  drift_lines="$(grep -E '^(mismatch|ctxmissing|ahead) :: ' "$tmp/cpy.txt" || true)"
+  case "$drift_lines" in
+    *'mode=revision'*) echo "FAIL: 派生视图漂移仍指向 mode=revision 事务（它修不了派生视图）" >&2; return 3 ;;
+  esac
   grep -q 'norevision :: .*缺少整数 state_revision' "$tmp/cpy.txt" || { echo "FAIL: 缺 state_revision 未 fail closed" >&2; return 3; }
   grep -q 'nolast :: .*缺少整数 last_committed_chapter' "$tmp/cpy.txt" || { echo "FAIL: 缺 last_committed 未 fail closed" >&2; return 3; }
   grep -q 'behind :: .*必须先提交第7章追踪事务' "$tmp/cpy.txt" || { echo "FAIL: 落后章号未 fail closed" >&2; return 3; }
@@ -898,6 +920,81 @@ JS
     return 3
   fi
   grep -q '超出续写状态卡预算 12288 字节' "$tmp/hpy.txt" || { echo "FAIL: 热上下文超预算未告警" >&2; return 3; }
+  grep -q '超出续写状态卡预算 12288 字节.*tracking_commit.py render --project <书>' "$tmp/hpy.txt" || { echo "FAIL: 热上下文超预算未指向 render 整份重建" >&2; return 3; }
+  if grep -q 'mode=revision' "$tmp/hpy.txt"; then echo "FAIL: 热上下文超预算仍指向 mode=revision 事务" >&2; return 3; fi
+
+  # E5: 伏笔回收排期提醒 parity（会话起点 advisory）。下一章 N = last_committed_chapter + 1：
+  #     已埋且整数计划章 < N 为逾期（最久在前、最多列 5 个、超出加 …），N..N+2 为三章内到期（计数）；
+  #     已回收/放弃/无计划章/非整数计划章不计；无 id 字段回落用映射键；非 schema 5 静默。
+  local fs="$tmp/foreshadow"
+  mkdir -p "$fs"/{mixed,many,soon,quiet,oldschema}/追踪
+  for name in mixed many soon quiet oldschema; do
+    printf '%s\n' '> 状态修订：0' > "$fs/$name/追踪/上下文.md"
+  done
+  cat > "$fs/mixed/追踪/_tracking-state.json" <<'JSON'
+{"schema_version":5,"state_revision":0,"last_committed_chapter":10,"foreshadow":{
+"F003":{"id":"F003","status":"已埋","planned_resolution_chapter":10},
+"F012":{"id":"F012","status":"已埋","planned_resolution_chapter":7},
+"F001":{"id":"F001","status":"已回收","planned_resolution_chapter":2},
+"F009":{"id":"F009","status":"放弃","planned_resolution_chapter":3},
+"F020":{"id":"F020","status":"已埋","planned_resolution_chapter":12.0},
+"F021":{"status":"已埋","planned_resolution_chapter":13},
+"F022":{"id":"F022","status":"已埋","planned_resolution_chapter":14},
+"F023":{"id":"F023","status":"已埋","planned_resolution_chapter":null},
+"F024":{"id":"F024","status":"已埋","planned_resolution_chapter":"5"},
+"F025":"not-an-object"}}
+JSON
+  cat > "$fs/many/追踪/_tracking-state.json" <<'JSON'
+{"schema_version":5,"state_revision":0,"last_committed_chapter":20,"foreshadow":{
+"B":{"id":"B","status":"已埋","planned_resolution_chapter":5},
+"A":{"id":"A","status":"已埋","planned_resolution_chapter":3},
+"D":{"id":"D","status":"已埋","planned_resolution_chapter":9},
+"C":{"id":"C","status":"已埋","planned_resolution_chapter":5},
+"F":{"id":"F","status":"已埋","planned_resolution_chapter":20},
+"E":{"id":"E","status":"已埋","planned_resolution_chapter":10}}}
+JSON
+  cat > "$fs/soon/追踪/_tracking-state.json" <<'JSON'
+{"schema_version":5,"state_revision":0,"last_committed_chapter":0,"foreshadow":{
+"F1":{"id":"F1","status":"已埋","planned_resolution_chapter":1},
+"F2":{"id":"F2","status":"已埋","planned_resolution_chapter":3},
+"F3":{"id":"F3","status":"已埋","planned_resolution_chapter":4}}}
+JSON
+  printf '%s\n' '{"schema_version":5,"state_revision":0,"last_committed_chapter":4,"foreshadow":{"F1":{"id":"F1","status":"已埋","planned_resolution_chapter":9}}}' > "$fs/quiet/追踪/_tracking-state.json"
+  printf '%s\n' '{"schema_version":4,"state_revision":0,"last_committed_chapter":9,"foreshadow":{"F1":{"id":"F1","status":"已埋","planned_resolution_chapter":1}}}' > "$fs/oldschema/追踪/_tracking-state.json"
+  python3 - "$CODEX" "$fs" > "$tmp/fpy.txt" <<'PY'
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+root = Path(sys.argv[2])
+# 同上：Windows 文本 stdout 是 cp1252，必须走 buffer 直写 UTF-8。
+for name in ["mixed", "many", "soon", "quiet", "oldschema"]:
+    sys.stdout.buffer.write((f"{name} :: {m.foreshadow_schedule_finding(root / name) or '-'}" + "\n").encode("utf-8"))
+for finding in m.continuity_findings(root):
+    sys.stdout.buffer.write((finding + "\n").encode("utf-8"))
+PY
+  node - "$CLAUDE_CORE" "$fs" > "$tmp/fjs.txt" <<'JS'
+const path = require("node:path")
+const core = require(process.argv[2])
+const root = process.argv[3]
+for (const name of ["mixed", "many", "soon", "quiet", "oldschema"]) {
+  console.log(`${name} :: ${core.foreshadowScheduleFinding(path.join(root, name)) || "-"}`)
+}
+for (const finding of core.continuityFindings(root)) console.log(finding)
+JS
+  if ! diff "$tmp/fpy.txt" "$tmp/fjs.txt" >/dev/null; then
+    echo "FAIL: 伏笔排期提醒 parity 不一致（codex python vs JS core）：" >&2
+    diff "$tmp/fpy.txt" "$tmp/fjs.txt" >&2 || true
+    return 3
+  fi
+  grep -qx 'mixed :: 2 条伏笔已过计划回收章（F012 逾期 4 章、F003 逾期 1 章）；本章回收、改计划章，或在追踪事务里标 已过期/放弃；另有 2 条将在 3 章内到期' "$tmp/fpy.txt" \
+    || { echo "FAIL: 逾期伏笔提醒文案/排序/三章内计数不对" >&2; grep '^mixed' "$tmp/fpy.txt" >&2; return 3; }
+  grep -qx 'many :: 6 条伏笔已过计划回收章（A 逾期 18 章、B 逾期 16 章、C 逾期 16 章、D 逾期 12 章、E 逾期 11 章…）；本章回收、改计划章，或在追踪事务里标 已过期/放弃' "$tmp/fpy.txt" \
+    || { echo "FAIL: 逾期伏笔未按最久在前列满 5 个并标 …" >&2; grep '^many' "$tmp/fpy.txt" >&2; return 3; }
+  grep -qx 'soon :: 2 条伏笔将在 3 章内（第1～3章）到计划回收章；排细纲时安排回收，或在追踪事务里改计划章' "$tmp/fpy.txt" \
+    || { echo "FAIL: 仅三章内到期时的提醒不对" >&2; grep '^soon' "$tmp/fpy.txt" >&2; return 3; }
+  grep -qx 'quiet :: -' "$tmp/fpy.txt" || { echo "FAIL: 无逾期/临近伏笔时未静默" >&2; return 3; }
+  grep -qx 'oldschema :: -' "$tmp/fpy.txt" || { echo "FAIL: 非 schema 5 的 state 不应给伏笔排期提醒" >&2; return 3; }
+  grep -q '^\[continuity\] mixed：2 条伏笔已过计划回收章' "$tmp/fpy.txt" || { echo "FAIL: 伏笔排期提醒未进 continuity 会话起点输出" >&2; return 3; }
   return 0
 }
 

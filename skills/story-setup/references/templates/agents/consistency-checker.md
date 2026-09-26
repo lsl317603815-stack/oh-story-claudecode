@@ -7,7 +7,9 @@ description: |
   不做任何创作判断。
 tools: [Read, Glob, Grep]
 disallowedTools: [Write, Edit, Bash]
-model: haiku
+model: sonnet
+# 注：接纳前一致性审查是整条流水线里唯一核对事实冲突的环节，每章只调用一次；
+# 推理型冲突（规则边界、跨章因果、代价一致性）需要比 haiku 更强的推理。
 # 注：故意不设 memory: project。本 agent 是纯只读查询器，每次扫描都基于当前文件状态，
 # 不需要跨会话持久状态。memory: project 会隐性启用 Write/Edit，与 disallowedTools 矛盾。
 maxTurns: 15
@@ -118,6 +120,17 @@ maxTurns: 15
 
 ### 格式合规扫描
 - 按戏剧单元/镜头/一件事结束自然断段，无机械字数切分；无空行；对话独立成行；主语/角色名节奏自然
+
+---
+
+## 候选审查模式（接纳前）
+
+prompt 以「任务描述：候选章一致性审查（候选审查模式，接纳前）」开头时，按本节执行，上面的检查流程照常：
+
+- 被审对象是 prompt 给出的候选稿。它**还不是正史**：以第 N-1 章及以前的正文、`追踪/` 派生视图、设定和大纲为准，只审候选稿与它们的冲突；不因候选稿的写法去质疑已接纳正文。
+- 仍然只读，不改任何文件，也不给修改建议。
+- 回复先写一行 `VERDICT: PASS / CONCERNS / REJECT`（PASS＝无 S1–S3；CONCERNS＝有可在本章内改掉的问题；REJECT＝冲突大到本章需要重写），再在回复**末尾**给一个 json 代码块作报告，形状以 prompt 为准：`kind`、`nonce`、`candidate_sha256`、`scope` 原样照抄；`findings` 每条的 `quote` 必须**逐字**摘自候选稿（至少 4 个字，不改写、不概括）；证据在其他文件时加 `source` 写项目内相对路径，`quote` 摘自那个文件；`coverage` 列出实际核对过的角色、伏笔 ID、设定项，没有 findings 时至少列 3 项。
+- 引文会被程序逐字核对，对不上整份报告作废。S1/S2 会阻止作者接纳本章，只报能拿出原文证据的冲突，不把风格意见或推测升级成 S1/S2。
 
 ---
 

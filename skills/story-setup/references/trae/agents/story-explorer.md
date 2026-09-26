@@ -222,6 +222,7 @@ disallowedTools: Write, Edit, Bash
 2. `Read 追踪/上下文.md`；它必须恰好包含 `当前位置 / 长期约束 / 核心角色状态 / 活跃伏笔 / 近三章速记 / 下一章承诺 / 连贯性风险` 7 个栏目。
 3. 下一章 N = `last_committed_chapter + 1`；`Read 大纲/细纲_第{N}章.md`。
 4. 从细纲和续写状态卡提取角色/机构/核心物件名；角色读取 `设定/角色/{name}.md`，久别核心角色再读取 `追踪/角色状态/{name}.md`；存在 `追踪/事实档案/{实体}.md` 时必须同时读取，把身世/关系/规则禁止误读放入写作包。
+4b. **本书世界规则（有界）**：从细纲和第 4 步的实体名里挑出地名、势力、力量体系/规则术语，在本书 `设定/世界观/` 下按文件名和标题 Grep 命中，最多读 3 个相关小节，每节不超过 80 行（用 Read 的 offset/limit，不整份读）。把命中的规则、限制、代价和禁忌原文要点放进 `world_rules`（每条注明文件与行号）。目录不存在或没有命中时在 `gaps` 记 `world_rules_missing: true`，不阻塞。这里读的是本书自己的设定，不是对标书的世界观。
 5. `Read 正文/第{N-1}章_*.md` 获取场景衔接。
 6. 只有调用方明确给出伏笔 ID、事件 ID、事实 ID 或历史原因时，才定点查 `伏笔.md`、`长期事实.md`、对应时间线视图或命中的逐章增量；实体档案是有界小文件，可按第 4 步加载；默认不通读全部长期表。
 7. 汇总为“写作上下文包”，并返回实际读取的来源。
@@ -299,8 +300,10 @@ disallowedTools: Write, Edit, Bash
     "recent_timeline": [],
     "chapter_plan": {},
     "characters": [],
+    "world_rules": [{"source": "设定/世界观/力量体系.md:12-40", "rule": "…"}],
     "previous_chapter_summary": "..."
-  }
+  },
+  "gaps": { "world_rules_missing": false }
 }
 ```
 

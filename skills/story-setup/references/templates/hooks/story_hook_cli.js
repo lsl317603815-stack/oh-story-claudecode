@@ -7,7 +7,8 @@
 // 保证字节相同。归核（单份实现在 core）的面：正文网/字数（prose-net）、路径抽取
 // （extract-target）、Bash 正文写入前置门（prose-command-guard）、毒句式扫描
 // （prose-toxic）、大纲/追踪阻断判定（prose-block-reason）、git commit 侦测
-// （is-git-commit）、连续性（continuity）。
+// （is-git-commit）、连续性（continuity）；另有 hook-context / post-tool-context 把 bash 壳的
+// advisory 包成 Claude Code 能送进模型的 additionalContext JSON（转义 + 10,000 字符截断）。
 // 尚未归核、各端独立实现的面：
 //   - Write/Edit/MultiEdit 的无 Node 兜底：Claude 仍由 guard-outline-before-prose.sh
 //     保留纯 bash 细纲检查；Bash 命令必须先区分真正写入和只读提及，故经本 CLI 复用
@@ -21,7 +22,10 @@
 
 const fs = require("node:fs")
 const path = require("node:path")
-const core = require("./story_hook_core.js")
+// 共享核按需加载：hook-context 是 bash 壳向模型报告「守卫解析失败 / 共享核损坏」的唯一通道，
+// 若在文件顶层 require 核，核一坏连这条告警都发不出去。其余子命令首次访问 core.* 时才加载，
+// 核损坏时的表现与原先一致（抛错非零退出，或在各自 try 里降级）。
+const core = new Proxy({}, { get: (_target, key) => require("./story_hook_core.js")[key] })
 
 function readStdin() {
   try {
@@ -149,6 +153,38 @@ function deploymentAwareProseBlockReason(root, absolute) {
   const reason = core.proseBlockReason(root, absolute)
   if (!reason || !reason.includes(MISSING_TRACKING_STATE)) return reason
   return legacyProseDebtReason(root, target)
+}
+
+// 非阻断提醒进模型的文档化通道（code.claude.com/docs/en/hooks）：PreToolUse / PostToolUse 在
+// exit 0 时的纯文本 stdout 与 stderr 只进 debug log，模型看不到；要进模型上下文必须打印
+// {"hookSpecificOutput":{"hookEventName":"<事件>","additionalContext":"…"}}（exit 2 走的是阻断/
+// 错误通道，不给 advisory 用）。additionalContext 上限 10,000 字符，超出会被落盘成文件、只给
+// 模型路径 + 前 2,000 字符预览（Claude Code 不会让模型去读），所以在这里按 UTF-16 码元（比码点
+// 计数更保守）截到上限内，并留出截断标记的位置。bash 壳只管把文案从 stdin 喂进来，JSON 转义与
+// 截断都在这里做。
+const HOOK_CONTEXT_MAX_CHARS = 10000
+const HOOK_CONTEXT_TRUNCATED = "…(已截断)"
+const HOOK_CONTEXT_EVENTS = new Set(["PreToolUse", "PostToolUse", "PostToolUseFailure", "UserPromptSubmit", "SessionStart"])
+
+function capHookContext(text) {
+  if (text.length <= HOOK_CONTEXT_MAX_CHARS) return text
+  let kept = text.slice(0, HOOK_CONTEXT_MAX_CHARS - HOOK_CONTEXT_TRUNCATED.length)
+  // 不把代理对劈成半个字符（孤立高位代理会让 JSON 消费方按坏 UTF-16 处理）。
+  const last = kept.charCodeAt(kept.length - 1)
+  if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1)
+  return kept + HOOK_CONTEXT_TRUNCATED
+}
+
+function emitHookContext(event, text) {
+  if (!HOOK_CONTEXT_EVENTS.has(event)) {
+    process.stderr.write(`[story-hook] hook-context 不支持的事件：${event || "(空)"}`)
+    process.exit(2)
+  }
+  const body = String(text || "").replace(/\s+$/, "")
+  if (!body.trim()) return
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: event, additionalContext: capHookContext(body) },
+  }) + "\n")
 }
 
 const [command, ...args] = process.argv.slice(2)
@@ -297,6 +333,14 @@ if (command === "extract-target") {
   const root = args[0]
   const out = core.continuityFindings(root)
   if (out.length) process.stdout.write(out.join("\n") + "\n")
+} else if (command === "hook-context" || command === "post-tool-context") {
+  // 把给模型看的 advisory 包成 Claude Code 文档化的 additionalContext JSON（见 emitHookContext）。
+  // 用法：hook-context <HookEventName> [文案]；post-tool-context [文案] 等价 hook-context PostToolUse。
+  // 文案给了 argv 就用 argv（便于手工调用），否则读 stdin——hook 壳走 stdin，免 argv 长度上限与
+  // Windows MSYS 的 argv 改写。空文案静默；不支持的事件 exit 2 且不写 stdout。
+  const event = command === "post-tool-context" ? "PostToolUse" : args[0]
+  const inline = command === "post-tool-context" ? args : args.slice(1)
+  emitHookContext(event, inline.length ? inline.join(" ") : readStdin())
 } else {
   process.exit(2)
 }
