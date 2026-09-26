@@ -16,9 +16,9 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 
 | 版本轴 | 当前权威 | 用途 | 何时变更 |
 |---|---|---|---|
-| 产品 SemVer | `skills/story/VERSION`，当前 `0.11.1` | GitHub Release、安装包和各 plugin manifest 的公开版本 | 每次正式发版；用 `scripts/manage-version.py` 同步所有公开版本面 |
-| `setup_skill_version` | `scripts/current-contract.json`，当前 `1.5.0` | `story-setup` 部署流程/哨兵协议的版本 | 只在该部署协议本身需要新版识别时改 |
-| `agents_version` | `scripts/current-contract.json`，当前 `40` | 已部署 hooks / agents / rules / references 是否过期的唯一运行时权威 | 只在部署包行为变更、需要用户重跑 `story-setup` 时改 |
+| 产品 SemVer | `skills/story/VERSION`，当前 `0.12.0` | GitHub Release、安装包和各 plugin manifest 的公开版本 | 每次正式发版；用 `scripts/manage-version.py` 同步所有公开版本面 |
+| `setup_skill_version` | `scripts/current-contract.json`，当前 `1.5.1` | `story-setup` 部署流程/哨兵协议的版本 | 只在该部署协议本身需要新版识别时改 |
+| `agents_version` | `scripts/current-contract.json`，当前 `41` | 已部署 hooks / agents / rules / references 是否过期的唯一运行时权威 | 只在部署包行为变更、需要用户重跑 `story-setup` 时改 |
 
 三条轴互相独立。发一个产品 patch 不代表必须改 `setup_skill_version` 或 `agents_version`；只改文档/打包管道时不要顺手 bump 后两者。
 
@@ -30,28 +30,28 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 - MAJOR：进入稳定主版后的破坏性改动。
 - dev 包由构建器在内存中派生 `X.Y.Z-dev.<UTC>+g<SHA>`，不回写源树，也不占用公开版本号。
 
-`v0.11.0` 及更早版本已经是历史发布身份，不得移动、重打或用新资产覆盖。本手册当前对应 **`v0.11.1`** 候选；后续版本继续按上述 SemVer 规则递增。
+`v0.11.1` 及更早版本已经是历史发布身份，不得移动、重打或用新资产覆盖。本手册当前对应 **`v0.12.0`** 候选；后续版本继续按上述 SemVer 规则递增。
 
 ## 发版前准备
 
 1. 从当前 `main` 准备发版候选提交，确保工作树干净。下一版执行：
 
    ```bash
-   python3 scripts/manage-version.py set 0.11.1
+   python3 scripts/manage-version.py set 0.12.0
    ```
 
    该命令只同步六个公开产品版本面（含 `.codebuddy-plugin/plugin.json`），不改 `setup_skill_version` 或 `agents_version`。
 
-2. 在 `CHANGELOG.md` 新增顶层 `v0.11.1` 条目，并检查版本一致性：
+2. 在 `CHANGELOG.md` 新增顶层 `v0.12.0` 条目，并检查版本一致性：
 
    ```bash
    python3 scripts/manage-version.py check --require-changelog
    ```
 
-   当前 `v0.11.1` 候选是补丁版：story-grill 在已建追踪的书里改写旧内容时接入修改影响门（revision-governor + `revision_guard.py`），番茄榜单采集改走 HTTPS 直取并支持最多 100 名，以及发版检查不再把只改产品版本号的 `.codebuddy-plugin/plugin.json` 当部署载荷。`setup_skill_version`（`1.5.0`）与 `agents_version`（`40`）不变。提交候选后用下列门禁确认；门禁会按实际 diff 判断，不要求无关发版乱 bump：
+   当前 `v0.12.0` 候选是 MINOR 版：长篇每章的质量检查挪到作者接纳之前、由 `chapter_candidate.py` 强制执行并留回执；续写状态卡补强（到期伏笔、知情 / 关系、最近出场、章回顾）；新增 `tracking_commit.py render`、追踪完整性审计和 Dashboard 项目状态面板。部署载荷（agents、hooks、模板）有变，`setup_skill_version` 升至 `1.5.1`、`agents_version` 升至 `41`，已部署项目需重跑 `/story-setup`。提交候选后用下列门禁确认；门禁会按实际 diff 判断，不要求无关发版乱 bump：
 
    ```bash
-   python3 scripts/check-release-contract-bumps.py --base-tag v0.11.0
+   python3 scripts/check-release-contract-bumps.py --base-tag v0.11.1
    ```
 
 3. 提交发版候选改动后，在还未 push 的该精确 commit 上构建 dev 包：

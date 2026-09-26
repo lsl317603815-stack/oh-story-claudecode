@@ -34,6 +34,8 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
+> **v0.12.0 起：** 长篇每章的质量检查全部在作者接纳**之前**完成：14 道确定性门禁、去AI味审查和一致性审查由 `chapter_candidate.py` 按顺序强制执行，审查结论用绑定候选稿摘要的回执证明做过，缺回执不能接纳；`追踪/质检进度.md` 改为按回执自动生成。续写状态卡补上逾期 / 临近到期的伏笔、在场角色的知情与关系、角色最近出场和最近两章回顾；新增 `tracking_commit.py render`、追踪完整性审计 `tracking_audit.py` 和 Dashboard 项目状态面板。部署契约为 `setup_skill_version: 1.5.1` / `agents_version: 41`；升级后重新运行 `/story-setup`、新开会话，并对每本在写的长篇在两章之间运行一次 `tracking_commit.py render`。
+>
 > **v0.11.0 起：** 合入另一条线的 v0.8.0 / v0.9.0：长篇续写默认先出候选章，作者接纳后才进正文；已建追踪的书修改既有正文、大纲或设定前，先由 revision-governor 出影响计划；新增声线保护、文风卫生门、`A-standard` / `B-distilled` 写作方法，`story-explore`、`story-research`、`story-release-package`、`story-publish` 四个 Skill，以及 TRAE Code、WorkBuddy / CodeBuddy Code 原生适配。中文主包的 canonical 固定名字集扩为 20 个 Skill（含本线的 `story-grill`、`story-drama-write`）；部署契约为 `setup_skill_version: 1.5.0` / `agents_version: 40`，升级后需重新运行 `/story-setup` 并新开会话。
 >
 > **v0.9.0（另一条线，经 v0.11.0 合入）：** 该版新增 `A-standard` / `B-distilled` 长篇写作方法治理，并新增 TRAE Code 与 WorkBuddy / CodeBuddy Code 的原生发现与项目部署适配。中文主包在 TRAE 实际注册 13 个 Agent（8 个通用角色 + 5 个数据分析精确角色）；WorkBuddy 实际注册 10 个 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）。其中 `story-data-readonly-runner` 可按任务承担其余四种只读数据分析职责，这四种职责不分别注册 Agent、不额外占用 registry 名额。CodeBuddy agentic registry 共有 20 个槽位，oh-story 项目最多注册 19 个 Agent；这是平台容量边界，中文主包实际注册 10 个。TRAE 另处理兼容读取 `.claude/settings*.json` 时的 Hook 去重；WorkBuddy 同时支持命名空间 `/oh-story:story-*` 的 plugin 模式和裸 `/story-*` 的项目模式。两端升级后都需重新部署并新开会话；部署契约为 `setup_skill_version: 1.2.22` / `agents_version: 39`。
