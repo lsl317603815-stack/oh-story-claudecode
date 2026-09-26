@@ -48,8 +48,8 @@ const MAX_SEARCH_DEPTH = 20;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const FILE_MUTATION_TAILS = new Map();
 
-// 长篇项目状态卡（只读）。口径与 story-long-write/scripts/tracking_commit.py、
-// chapter_candidate.py 保持一致：下一章 N = last_committed_chapter + 1，
+// 长篇项目状态卡（只读）。口径与长篇写作的追踪事务工具（tracking_commit.py）和
+// 章节候选工具（chapter_candidate.py）保持一致：下一章 N = last_committed_chapter + 1，
 // 「临近」= N ≤ 计划回收章 ≤ N+2，久别 ≥15 章，搁置线程 ≥30 章。
 const TRACKING_DIRECTORY = "追踪";
 const TRACKING_STATE_FILE = "_tracking-state.json";
