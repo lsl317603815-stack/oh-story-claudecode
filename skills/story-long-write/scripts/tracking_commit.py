@@ -24,20 +24,30 @@ from typing import Any
 
 INPUT_SCHEMA_VERSION = 1
 TRACKING_SCHEMA_VERSION = 5
-DELTA_TARGET_BYTES = 1536
-DELTA_MAX_BYTES = 3072
+DELTA_TARGET_BYTES = 2560
+DELTA_MAX_BYTES = 4096
 CONTEXT_TARGET_BYTES = 8192
 CONTEXT_MAX_BYTES = 12288
 SNAPSHOT_TARGET_BYTES = 4096
 SNAPSHOT_MAX_BYTES = 8192
 RECENT_SUMMARY_BYTES = 360
+RECAP_BYTES = 900
+RECENT_CHAPTER_WINDOW = 5
+RECAP_WINDOW = 2
+# 知情/关系补充行每项截断长度：卡片只提示「他知道什么、和谁什么关系」，原文在快照文件
+CONTEXT_DETAIL_BYTES = 72
+ACTIVE_FORESHADOW_LIMIT = 8
+FORESHADOW_DUE_SOON_CHAPTERS = 3
+APPEARANCE_HISTORY = 8
+LONG_ABSENCE_CHAPTERS = 15
+DORMANT_THREAD_CHAPTERS = 30
 
 CONTEXT_HEADINGS = (
     "## 当前位置",
     "## 长期约束",
     "## 核心角色状态",
     "## 活跃伏笔",
-    "## 近三章速记",
+    "## 近章速记",
     "## 下一章承诺",
     "## 连贯性风险",
 )
@@ -306,15 +316,26 @@ def normalize_snapshots(value: object, label: str = "character_snapshots") -> di
     return normalized
 
 
-def render_snapshot(name: str, snapshot: dict[str, Any], through_chapter: int, revision: int) -> str:
+def chapter_label(chapter: int | None) -> str:
+    return f"第{chapter}章" if chapter else "未记录"
+
+
+def render_snapshot(
+    name: str, snapshot: dict[str, Any], appearance: dict[str, Any] | None, revision: int
+) -> str:
     def section(title: str, values: list[str]) -> list[str]:
         return [f"## {title}", *(f"- {item}" for item in values or ["无"]), ""]
 
+    # 快照只在角色变化时才重交；一律写「截至最新章」会让读者以为久别角色的状态是刚核对过的。
+    appearance = appearance or {}
+    seen = appearance.get("seen", [])
     lines = [
         f"# {name}｜当前状态",
         "",
         f"- 状态修订：{revision}",
-        f"- 截至章节：第{through_chapter}章",
+        f"- 快照更新：{chapter_label(appearance.get('snapshot_chapter'))}",
+        f"- 最近出场：{chapter_label(seen[-1] if seen else None)}"
+        + (f"（近{len(seen)}次：{'、'.join(str(chapter) for chapter in seen)}）" if len(seen) > 1 else ""),
         f"- 身份：{snapshot['identity']}",
         f"- 位置：{snapshot['location']}",
         f"- 当前目标：{snapshot['goal']}",
@@ -739,16 +760,22 @@ def validate_context_input(value: object, *, include_initial_fields: bool) -> di
         recent: list[dict[str, Any]] = []
         for index, raw_item in enumerate(as_list(context.get("recent_chapters", []), "context.recent_chapters")):
             item = as_mapping(raw_item, f"context.recent_chapters[{index}]")
-            require_known_keys(item, {"chapter", "summary"}, f"context.recent_chapters[{index}]")
-            recent.append(
-                {
-                    "chapter": as_int(item.get("chapter"), f"context.recent_chapters[{index}].chapter", minimum=1),
-                    "summary": clean_text(
-                        item.get("summary"), f"context.recent_chapters[{index}].summary", max_bytes=RECENT_SUMMARY_BYTES
-                    ),
-                }
-            )
-        require(len(recent) <= 3, "context.recent_chapters may contain at most 3 items")
+            require_known_keys(item, {"chapter", "summary", "recap"}, f"context.recent_chapters[{index}]")
+            entry = {
+                "chapter": as_int(item.get("chapter"), f"context.recent_chapters[{index}].chapter", minimum=1),
+                "summary": clean_text(
+                    item.get("summary"), f"context.recent_chapters[{index}].summary", max_bytes=RECENT_SUMMARY_BYTES
+                ),
+            }
+            if item.get("recap") is not None:
+                entry["recap"] = clean_text(
+                    item.get("recap"), f"context.recent_chapters[{index}].recap", max_bytes=RECAP_BYTES
+                )
+            recent.append(entry)
+        require(
+            len(recent) <= RECENT_CHAPTER_WINDOW,
+            f"context.recent_chapters may contain at most {RECENT_CHAPTER_WINDOW} items",
+        )
         normalized["recent_chapters"] = recent
         normalized["next_chapter_commitments"] = clean_string_list(
             context.get("next_chapter_commitments", []), "context.next_chapter_commitments", maximum=5
@@ -756,71 +783,191 @@ def validate_context_input(value: object, *, include_initial_fields: bool) -> di
     return normalized
 
 
-def active_foreshadow_lines(rows: dict[str, dict[str, Any]]) -> list[str]:
+def foreshadow_urgency(row: dict[str, Any], next_chapter: int) -> tuple[int, int]:
+    """0 已逾期（越久越前）、1 三章内到期、2 其余。"""
+    planned = row["planned_resolution_chapter"]
+    if planned is not None and planned < next_chapter:
+        return (0, planned)
+    if planned is not None and planned < next_chapter + FORESHADOW_DUE_SOON_CHAPTERS:
+        return (1, planned)
+    return (2, 0)
+
+
+def active_foreshadow_lines(rows: dict[str, dict[str, Any]], next_chapter: int) -> list[str]:
+    # 到期的次要伏笔比远期的重要伏笔更需要出现在下一章的视野里：只按重要度排，
+    # 第 8 条以外的「下一章就该回收」会被挤出卡片，写作端根本不知道它到期了。
     importance = {value: index for index, value in enumerate(FORESHADOW_IMPORTANCE)}
     candidates = [row for row in rows.values() if row["status"] == "已埋"]
     candidates.sort(
-        key=lambda row: (importance[row["importance"]], row["planned_resolution_chapter"] or 10**12, row["id"])
+        key=lambda row: (
+            foreshadow_urgency(row, next_chapter),
+            importance[row["importance"]],
+            row["planned_resolution_chapter"] or 10**12,
+            row["id"],
+        )
     )
     result = []
-    for row in candidates[:8]:
-        planned = f"第{row['planned_resolution_chapter']}章" if row["planned_resolution_chapter"] else "回收章未定"
-        result.append(f"{row['id']}｜{row['summary']}｜埋第{row['planted_chapter']}章｜{planned}｜{row['importance']}")
+    for row in candidates[:ACTIVE_FORESHADOW_LIMIT]:
+        planned_chapter = row["planned_resolution_chapter"]
+        planned = f"第{planned_chapter}章" if planned_chapter else "回收章未定"
+        urgency = foreshadow_urgency(row, next_chapter)[0]
+        tag = (
+            f"【逾期{next_chapter - planned_chapter}章】" if urgency == 0 else "【临近】" if urgency == 1 else ""
+        )
+        result.append(f"{tag}{row['id']}｜{row['summary']}｜埋第{row['planted_chapter']}章｜{planned}｜{row['importance']}")
+    hidden = len(candidates) - ACTIVE_FORESHADOW_LIMIT
+    if hidden > 0:
+        result.append(f"另有 {hidden} 条已埋伏笔未列出，见 伏笔.md")
     return result
+
+
+def last_seen(state: dict[str, Any], name: str) -> int | None:
+    seen = state.get("appearances", {}).get(name, {}).get("seen", [])
+    return seen[-1] if seen else None
 
 
 def render_context(state: dict[str, Any]) -> str:
     context = state["context"]
     position = context["position"]
-    current_chapter = (
-        "尚未开篇" if state["last_committed_chapter"] == 0 else f"第{state['last_committed_chapter']}章"
-    )
+    last_committed = state["last_committed_chapter"]
+    current_chapter = "尚未开篇" if last_committed == 0 else f"第{last_committed}章"
+    # 每个区块是若干条目；条目 = 必选行 + 可选补充行。必选行与改版前完全一致，
+    # 补充行（章回顾、知情/关系）按固定顺序在目标预算内填充，放不下的计数写在卡尾。
+    # 顺序固定才能让 check 的逐字节比对稳定。
+    entries: dict[str, list[dict[str, Any]]] = {heading: [] for heading in CONTEXT_HEADINGS}
+    extras: list[tuple[int, int, str, int, str]] = []
+
+    def entry(heading: str, line: str) -> int:
+        entries[heading].append({"line": line, "extras": []})
+        return len(entries[heading]) - 1
+
+    for line in (
+        f"当前章：{current_chapter}",
+        f"卷：{position['volume']}（始于第{position['volume_start_chapter']}章）",
+        f"故事时间：{position['story_time']}",
+        f"场景：{position['scene']}",
+    ):
+        entry("## 当前位置", line)
+    for line in context["long_term_constraints"]:
+        entry("## 长期约束", line)
     # 位置与持有物必须进热上下文。它们此前只存在快照文件里，而日更规则是
     # 「核心复用角色若不在本节，才去读 角色状态/{名}.md」——主角必然在本节，
     # 那条分支永不触发，于是写下一章时模型看不到人在哪、手里有什么。
     # 实测后果：上一章写住校宿舍，下一章骑车从家出发；上一章娘摆针线摊，
     # 下一章变卖菜摊。这两类是跨章连续性最高频的崩法。
-    character_lines = []
-    for name in context["active_character_names"]:
+    for order, name in enumerate(context["active_character_names"]):
         snapshot = state["characters"][name]
         held = "；".join(snapshot["abilities_resources"][:2]) or "无"
-        character_lines.append(
+        seen = last_seen(state, name)
+        absent = last_committed - seen if seen else 0
+        index = entry(
+            "## 核心角色状态",
             f"{name}｜{snapshot['identity']}｜{snapshot['state']}｜"
             f"位置：{clip_bytes(snapshot['location'], CONTEXT_FIELD_BYTES)}｜"
             f"持有：{clip_bytes(held, CONTEXT_FIELD_BYTES)}｜目标：{snapshot['goal']}"
+            + (f"｜【久别{absent}章，上次出场第{seen}章】" if absent >= LONG_ABSENCE_CHAPTERS else ""),
         )
-    sections: list[tuple[str, list[str]]] = [
-        (
-            "## 当前位置",
-            [
-                f"当前章：{current_chapter}",
-                f"卷：{position['volume']}（始于第{position['volume_start_chapter']}章）",
-                f"故事时间：{position['story_time']}",
-                f"场景：{position['scene']}",
-            ],
-        ),
-        ("## 长期约束", context["long_term_constraints"]),
-        ("## 核心角色状态", character_lines),
-        ("## 活跃伏笔", active_foreshadow_lines(state["foreshadow"])),
-        ("## 近三章速记", [f"第{item['chapter']}章｜{item['summary']}" for item in context["recent_chapters"]]),
-        ("## 下一章承诺", context["next_chapter_commitments"]),
-        ("## 连贯性风险", context["continuity_risks"]),
-    ]
-    lines = [
+        # 本章谁知道什么、和谁是什么关系，决定对话里能说什么；只放前两项作提示，全文在快照
+        knows = "；".join(clip_bytes(item, CONTEXT_DETAIL_BYTES) for item in snapshot["knowledge"][:2])
+        bonds = "；".join(clip_bytes(item, CONTEXT_DETAIL_BYTES) for item in snapshot["relationships"][:2])
+        if knows or bonds:
+            extras.append((2, order, "## 核心角色状态", index, f"知情：{knows or '无'}｜关系：{bonds or '无'}"))
+    for line in active_foreshadow_lines(state["foreshadow"], last_committed + 1):
+        entry("## 活跃伏笔", line)
+    recent = context["recent_chapters"]
+    for position_index, item in enumerate(recent):
+        index = entry("## 近章速记", f"第{item['chapter']}章｜{item['summary']}")
+        # 最近两章的回顾优先于其余补充：刚写完的那一幕怎么收尾，决定下一章第一段怎么接
+        if item.get("recap") and position_index >= len(recent) - RECAP_WINDOW:
+            extras.append((1, item["chapter"], "## 近章速记", index, f"回顾：{item['recap']}"))
+    for line in context["next_chapter_commitments"]:
+        entry("## 下一章承诺", line)
+    for line in context["continuity_risks"]:
+        entry("## 连贯性风险", line)
+
+    header = [
         f"# 写作连续性上下文 — {state['book_title']}",
         "",
         f"> 状态修订：{state['state_revision']}。截至当前章的续写状态卡，只放下一章真正需要的连续性状态。",
         "",
     ]
-    for heading, values in sections:
-        lines.append(heading)
-        lines.extend(f"- {value}" for value in values or ["无"])
-        lines.append("")
-    payload = "\n".join(lines).rstrip() + "\n"
+
+    def assemble() -> str:
+        lines = list(header)
+        for heading in CONTEXT_HEADINGS:
+            lines.append(heading)
+            if not entries[heading]:
+                lines.append("- 无")
+            for item in entries[heading]:
+                lines.append(f"- {item['line']}")
+                lines.extend(f"  - {extra}" for extra in item["extras"])
+            lines.append("")
+        return "\n".join(lines).rstrip() + "\n"
+
+    size = byte_size(assemble())
+    dropped = 0
+    for _, _, heading, index, text in sorted(extras, key=lambda item: (item[0], item[1])):
+        cost = byte_size(f"  - {text}\n")
+        if size + cost <= CONTEXT_TARGET_BYTES:
+            entries[heading][index]["extras"].append(text)
+            size += cost
+        else:
+            dropped += 1
+    payload = assemble()
+    if dropped:
+        trailer = f"\n> 篇幅所限，另有 {dropped} 条补充（章回顾、知情/关系）未列入；按需读 逐章记录/ 与 角色状态/{{名}}.md。\n"
+        if byte_size(payload + trailer) <= CONTEXT_MAX_BYTES:
+            payload += trailer
     headings = tuple(line for line in payload.splitlines() if line.startswith("## "))
     require(headings == CONTEXT_HEADINGS, "generated context headings do not match the seven-section schema")
     require(byte_size(payload) <= CONTEXT_MAX_BYTES, f"hot context exceeds {CONTEXT_MAX_BYTES} bytes")
     return payload
+
+
+def tracking_advisories(state: dict[str, Any], views: dict[str, str] | None = None) -> list[dict[str, str]]:
+    """不拦截的提醒：到期伏笔、久别角色、搁置的角色线程、状态卡预算。"""
+    advisories: list[dict[str, str]] = []
+    last = state["last_committed_chapter"]
+    next_chapter = last + 1
+    overdue = sorted(
+        (row for row in state["foreshadow"].values()
+         if row["status"] == "已埋" and foreshadow_urgency(row, next_chapter)[0] == 0),
+        key=lambda row: (row["planned_resolution_chapter"], row["id"]),
+    )
+    if overdue:
+        listed = "、".join(
+            f"{row['id']} 逾期{next_chapter - row['planned_resolution_chapter']}章" for row in overdue[:5]
+        )
+        advisories.append({
+            "code": "foreshadow-overdue",
+            "message": f"{len(overdue)} 条伏笔已过计划回收章（{listed}{'…' if len(overdue) > 5 else ''}）；"
+            "本章回收、在事务里改计划回收章，或标 已过期/放弃",
+        })
+    active = set(state["context"]["active_character_names"])
+    for name in state["context"]["active_character_names"]:
+        seen = last_seen(state, name)
+        if seen and last - seen >= LONG_ABSENCE_CHAPTERS:
+            advisories.append({
+                "code": "character-absent",
+                "message": f"{name} 已 {last - seen} 章未出场（上次第{seen}章）却仍列在活跃角色里；"
+                "重新登场前先读 角色状态/{name}.md 核对位置与持有物，或把 TA 移出 active_character_names",
+            })
+    for name, snapshot in sorted(state["characters"].items()):
+        seen = last_seen(state, name)
+        if name in active or not snapshot["open_threads"] or not seen or last - seen < DORMANT_THREAD_CHAPTERS:
+            continue
+        advisories.append({
+            "code": "thread-dormant",
+            "message": f"{name} 有 {len(snapshot['open_threads'])} 条未了线程，已 {last - seen} 章未出场；"
+            "安排回收、在快照里结案，或用 retired_characters 退役",
+        })
+    if views is not None and byte_size(views["上下文.md"]) > CONTEXT_TARGET_BYTES:
+        advisories.append({
+            "code": "context-budget",
+            "message": f"上下文.md 已 {byte_size(views['上下文.md'])} 字节，超过目标 {CONTEXT_TARGET_BYTES}；"
+            "合并长期约束、退役不再复用的角色和已结的风险",
+        })
+    return advisories
 
 
 def normalize_delta(
@@ -829,17 +976,35 @@ def normalize_delta(
     through_chapter: int,
     snapshots: dict[str, dict[str, Any]],
     existing_core_names: dict[str, str],
+    mode: str = "append",
 ) -> dict[str, Any]:
     delta = as_mapping(value, "delta")
     require_known_keys(
         delta,
         {
-            "result", "character_changes", "foreshadow_changes", "timeline_events", "fact_changes", "constraints",
-            "next_chapter_commitments", "retired_context_items", "retired_characters",
+            "result", "recap", "appeared_characters", "character_changes", "foreshadow_changes", "timeline_events",
+            "fact_changes", "constraints", "next_chapter_commitments", "retired_context_items", "retired_characters",
             "continuity_changes",
         },
         "delta",
     )
+    # 出场名单是「某角色多少章没露面」的唯一来源；append 必须显式给（可以是空数组），
+    # 省略和「本章没有核心角色出场」不能混为一谈。修订事务只在出场名单变化时才给。
+    appeared_raw = delta.get("appeared_characters")
+    require(
+        appeared_raw is not None or mode != "append",
+        "delta.appeared_characters is required on append: list every character who appears in this chapter "
+        "(use [] only when no named character appears)",
+    )
+    appeared = None
+    if appeared_raw is not None:
+        appeared = [
+            safe_file_component(name, f"delta.appeared_characters[{index}]")
+            for index, name in enumerate(as_list(appeared_raw, "delta.appeared_characters"))
+        ]
+        require(len(appeared) <= 40, "delta.appeared_characters may contain at most 40 names")
+        keys = [portable_name_key(name) for name in appeared]
+        require(len(keys) == len(set(keys)), "delta.appeared_characters contains duplicate characters")
     continuity_changes: list[dict[str, Any]] = []
     for index, raw in enumerate(as_list(delta.get("continuity_changes", []), "delta.continuity_changes")):
         item = as_mapping(raw, f"delta.continuity_changes[{index}]")
@@ -915,6 +1080,10 @@ def normalize_delta(
         # 与 context.recent_chapters[].summary 同上限：result 会原样写进近章速记，
         # 上限不一致时 361–480 字节的 result 会在合并后才以一个模型从未提交过的字段名报错。
         "result": clean_text(delta.get("result"), "delta.result", max_bytes=RECENT_SUMMARY_BYTES),
+        "recap": (
+            None if delta.get("recap") is None else clean_text(delta.get("recap"), "delta.recap", max_bytes=RECAP_BYTES)
+        ),
+        "appeared_characters": appeared,
         "character_changes": character_changes,
         "foreshadow_changes": foreshadow_changes,
         "timeline_events": timeline_events,
@@ -936,9 +1105,13 @@ def render_delta(chapter: int, title: str, delta: dict[str, Any], core_names: se
         f"# 第{chapter:03d}章 · {title}",
         f"- 结果：{delta['result']}",
         "- 下一章承诺：" + ("；".join(delta["next_chapter_commitments"]) or "无"),
-        "",
-        "## 角色变化",
     ]
+    if delta.get("appeared_characters") is not None:
+        lines.append("- 出场：" + ("、".join(delta["appeared_characters"]) or "无"))
+    if delta.get("recap"):
+        # 章回顾在状态卡里只留最近两章；滑出窗口后从这里定点回查
+        lines.append(f"- 回顾：{delta['recap']}")
+    lines.extend(["", "## 角色变化"])
     lines.extend(
         f"- {item['name']}｜{'核心' if item['name'] in core_names else '临时'}｜{item['change']}"
         for item in delta["character_changes"]
@@ -1001,13 +1174,38 @@ def render_delta(chapter: int, title: str, delta: dict[str, Any], core_names: se
     return payload
 
 
+def normalize_appearance_chapters(value: object, label: str, last_chapter: int) -> list[int]:
+    chapters = sorted({as_int(item, f"{label}[]", minimum=1) for item in as_list(value, label)})
+    require(all(chapter <= last_chapter for chapter in chapters), f"{label} cannot include unwritten chapters")
+    return chapters[-APPEARANCE_HISTORY:]
+
+
+def normalize_appearances(value: object, characters: dict[str, Any], last_chapter: int) -> dict[str, dict[str, Any]]:
+    """每个核心角色最近 8 次出场章与快照更新章；旧状态没有这一项时为空，不强制迁移。"""
+    rows = as_mapping(value, "tracking state.appearances")
+    normalized: dict[str, dict[str, Any]] = {}
+    for name, raw in rows.items():
+        require(name in characters, f"tracking state.appearances.{name} has no current character snapshot")
+        row = as_mapping(raw, f"tracking state.appearances.{name}")
+        require_known_keys(row, {"seen", "snapshot_chapter"}, f"tracking state.appearances.{name}")
+        snapshot_chapter = row.get("snapshot_chapter")
+        if snapshot_chapter is not None:
+            snapshot_chapter = as_int(snapshot_chapter, f"tracking state.appearances.{name}.snapshot_chapter", minimum=1)
+            require(snapshot_chapter <= max(1, last_chapter), f"appearances.{name}.snapshot_chapter is in the future")
+        normalized[name] = {
+            "seen": normalize_appearance_chapters(row.get("seen", []), f"tracking state.appearances.{name}.seen", last_chapter),
+            "snapshot_chapter": snapshot_chapter,
+        }
+    return {name: normalized[name] for name in sorted(normalized)}
+
+
 def normalize_state(document: object) -> dict[str, Any]:
     root = as_mapping(document, "tracking state")
     require_known_keys(
         root,
         {
             "schema_version", "book_title", "last_committed_chapter", "imported_through_chapter",
-            "state_revision", "context", "characters", "foreshadow", "timeline", "facts",
+            "state_revision", "context", "characters", "foreshadow", "timeline", "facts", "appearances",
         },
         "tracking state",
     )
@@ -1044,6 +1242,7 @@ def normalize_state(document: object) -> dict[str, Any]:
         "foreshadow": foreshadow,
         "timeline": timeline,
         "facts": facts,
+        "appearances": normalize_appearances(root.get("appearances", {}), characters, last_chapter),
     }
 
 
@@ -1059,7 +1258,7 @@ def normalize_initial_document(document: object) -> dict[str, Any]:
         root,
         {
             "schema_version", "book_title", "last_chapter", "context", "character_snapshots",
-            "foreshadow", "timeline_events", "facts",
+            "foreshadow", "timeline_events", "facts", "appearances",
         },
         "init input",
     )
@@ -1097,6 +1296,9 @@ def normalize_initial_document(document: object) -> dict[str, Any]:
         fact["updated_chapter"] = last_chapter
         facts[fact["id"]] = fact
     validate_fact_set(facts)
+    appearances = seed_appearances({}, root.get("appearances", {}), snapshots, last_chapter, "appearances")
+    for name in snapshots:
+        appearances.setdefault(name, {"seen": [], "snapshot_chapter": None})["snapshot_chapter"] = last_chapter or None
     return normalize_state(
         {
             "schema_version": TRACKING_SCHEMA_VERSION,
@@ -1109,8 +1311,29 @@ def normalize_initial_document(document: object) -> dict[str, Any]:
             "foreshadow": foreshadow,
             "timeline": timeline,
             "facts": facts,
+            "appearances": appearances,
         }
     )
+
+
+def seed_appearances(
+    current: dict[str, dict[str, Any]],
+    value: object,
+    characters: dict[str, Any],
+    last_chapter: int,
+    label: str,
+) -> dict[str, dict[str, Any]]:
+    """把已知出场章（导入时来自 拆文库 的角色出场记录）并入当前记录，只保留最近 8 次。"""
+    seeded = copy.deepcopy(current)
+    for raw_name, chapters in as_mapping(value, label).items():
+        name = safe_file_component(raw_name, f"{label} character name")
+        require(name in characters, f"{label}.{name} is not a core character with a current snapshot")
+        merged = set(seeded.get(name, {}).get("seen", [])) | set(
+            normalize_appearance_chapters(chapters, f"{label}.{name}", last_chapter)
+        )
+        row = seeded.setdefault(name, {"seen": [], "snapshot_chapter": None})
+        row["seen"] = sorted(merged)[-APPEARANCE_HISTORY:]
+    return seeded
 
 
 def normalize_transaction(state: dict[str, Any], document: object) -> dict[str, Any]:
@@ -1146,6 +1369,7 @@ def normalize_transaction(state: dict[str, Any], document: object) -> dict[str, 
         through_chapter=through_chapter,
         snapshots=snapshots,
         existing_core_names=existing_names,
+        mode=mode,
     )
     return {
         "mode": mode,
@@ -1276,6 +1500,7 @@ def merge_transaction(state: dict[str, Any], transaction: dict[str, Any]) -> dic
             f"retired character {name} is still listed in context.active_character_names",
         )
         next_state["characters"].pop(name)
+        next_state["appearances"].pop(name, None)
 
     # 上下文条目是整份提交的；漏写会静默丢历史裁定，因此掉落必须显式声明。
     previous_items = set(state["context"]["long_term_constraints"]) | set(state["context"]["continuity_risks"])
@@ -1316,10 +1541,28 @@ def merge_transaction(state: dict[str, Any], transaction: dict[str, Any]) -> dic
             )
     validate_fact_set(next_state["facts"])
 
+    delta = transaction["delta"]
+    appeared = {portable_name_key(name) for name in delta["appeared_characters"] or []}
+    appeared |= {portable_name_key(item["name"]) for item in delta["character_changes"]}
+    appeared |= {portable_name_key(name) for name in transaction["snapshots"]}
+    for name in next_state["characters"]:
+        row = next_state["appearances"].setdefault(name, {"seen": [], "snapshot_chapter": None})
+        seen = set(row["seen"])
+        if transaction["mode"] == "revision" and delta["appeared_characters"] is not None:
+            seen.discard(chapter)  # 修订给了新名单：按新名单重记这一章
+        if portable_name_key(name) in appeared:
+            seen.add(chapter)
+        row["seen"] = sorted(seen)[-APPEARANCE_HISTORY:]
+        if name in transaction["snapshots"]:
+            row["snapshot_chapter"] = next_state["last_committed_chapter"]
+
     recent_by_chapter = {item["chapter"]: item for item in state["context"]["recent_chapters"]}
     if chapter in recent_by_chapter or transaction["mode"] == "append":
-        recent_by_chapter[chapter] = {"chapter": chapter, "summary": transaction["delta"]["result"]}
-    recent = sorted(recent_by_chapter.values(), key=lambda item: item["chapter"])[-3:]
+        # 修订整条重写这一章的速记：旧回顾描述的是改写前的剧情，不能留着误导
+        recent_by_chapter[chapter] = {"chapter": chapter, "summary": delta["result"]}
+        if delta["recap"]:
+            recent_by_chapter[chapter]["recap"] = delta["recap"]
+    recent = sorted(recent_by_chapter.values(), key=lambda item: item["chapter"])[-RECENT_CHAPTER_WINDOW:]
     current_last = next_state["last_committed_chapter"]
     next_commitments = (
         transaction["delta"]["next_chapter_commitments"]
@@ -1354,9 +1597,7 @@ def render_views(state: dict[str, Any]) -> dict[str, str]:
     views["时间线/作者真相.md"] = author
     views["时间线/读者已知.md"] = reader
     for name, snapshot in state["characters"].items():
-        views[f"角色状态/{name}.md"] = render_snapshot(
-            name, snapshot, state["last_committed_chapter"], revision
-        )
+        views[f"角色状态/{name}.md"] = render_snapshot(name, snapshot, state["appearances"].get(name), revision)
     entities = {
         entity
         for fact in state["facts"].values()
@@ -1621,7 +1862,9 @@ def views_match(tracking: Path, views: dict[str, str]) -> bool:
     return True
 
 
-def render_project(project: Path, *, discard_interrupted: bool = False) -> tuple[dict[str, Any], bool]:
+def render_project(
+    project: Path, *, discard_interrupted: bool = False, appearances: object = None
+) -> tuple[dict[str, Any], bool]:
     """Re-derive every view from the authority, bumping state_revision only when something changes.
 
     This is a projection upgrade, not a fictional chapter event: it never creates or
@@ -1634,6 +1877,19 @@ def render_project(project: Path, *, discard_interrupted: bool = False) -> tuple
     raw_payload = state_path(project).read_text(encoding="utf-8") if state_path(project).exists() else ""
     state = load_state(project)
     require_no_interrupted_commit(tracking, state, discard_interrupted=discard_interrupted)
+    if appearances is not None:
+        seed = as_mapping(appearances, "appearances input")
+        require_known_keys(seed, {"schema_version", "appearances"}, "appearances input")
+        require(seed.get("schema_version") == INPUT_SCHEMA_VERSION, "appearances input schema_version is unsupported")
+        state = normalize_state(
+            {
+                **state,
+                "appearances": seed_appearances(
+                    state["appearances"], seed.get("appearances", {}), state["characters"],
+                    state["last_committed_chapter"], "appearances input.appearances",
+                ),
+            }
+        )
     if raw_payload == json_payload(state) and views_match(tracking, render_views(state)):
         return state, False
     open_runs = open_candidate_runs(tracking)
@@ -1671,6 +1927,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="rebuild over a half-written commit whose transaction file is lost",
     )
+    render_parser.add_argument(
+        "--appearances",
+        type=Path,
+        help="optional JSON {schema_version: 1, appearances: {角色: [章号...]}} to seed last-seen chapters",
+    )
     return parser
 
 
@@ -1684,9 +1945,14 @@ def main() -> int:
         elif args.command == "migrate-v4":
             result = migrate_v4(args.project, read_json(args.input))
         elif args.command == "render":
-            result, changed = render_project(args.project, discard_interrupted=args.discard_interrupted)
+            result, changed = render_project(
+                args.project,
+                discard_interrupted=args.discard_interrupted,
+                appearances=read_json(args.appearances) if args.appearances else None,
+            )
         else:
             result = check_project(args.project)
+        advisories = tracking_advisories(result, render_views(result))
     except (TrackingError, OSError, UnicodeError) as exc:
         emit(f"ERROR: {exc}", error=True)
         return 2
@@ -1696,6 +1962,8 @@ def main() -> int:
     }
     if args.command == "render":
         summary["changed"] = changed
+    if advisories:
+        summary["advisories"] = advisories
     emit(json.dumps(summary, ensure_ascii=False))
     return 0
 

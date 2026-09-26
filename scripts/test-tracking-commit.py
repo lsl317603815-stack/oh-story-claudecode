@@ -137,6 +137,7 @@ def transaction(
         "chapter_title": f"军宣爆款·{chapter}",
         "delta": {
             "result": f"江晨在第{chapter}章继续扩大军宣作品影响力。",
+            "appeared_characters": ["江晨", "钟嘉嘉"] if character else ["钟嘉嘉"],
             "character_changes": character_changes,
             "foreshadow_changes": foreshadow_changes,
             "timeline_events": timeline_events,
@@ -777,6 +778,161 @@ class TrackingCommitTests(unittest.TestCase):
 
         (run / "manifest.json").write_text(json.dumps({"status": "abandoned"}), encoding="utf-8")
         self.run_tool("render")
+        self.run_tool("check")
+
+    # ── 状态卡补强：到期伏笔、知情/关系、预算、久别、章回顾 ─────────────────
+    def foreshadow_row(self, identifier: str, *, planned: int | None, importance: str, planted: int = 1) -> dict[str, object]:
+        return {
+            "action": "upsert", "id": identifier, "summary": f"{identifier} 的伏笔内容", "planted_chapter": planted,
+            "planned_resolution_chapter": planned, "status": "已埋", "importance": importance,
+        }
+
+    def init_with(self, *, last_chapter: int, characters: dict[str, object] | None = None,
+                  active: list[str] | None = None, foreshadow: list[dict[str, object]] | None = None,
+                  appearances: dict[str, list[int]] | None = None) -> None:
+        document = initial_document(last_chapter=last_chapter)
+        document["character_snapshots"] = characters or {}
+        document["context"]["active_character_names"] = active or []
+        document["foreshadow"] = foreshadow or []
+        if appearances is not None:
+            document["appearances"] = appearances
+        self.run_tool("init", document)
+
+    def context_text(self) -> str:
+        return (self.project / "追踪/上下文.md").read_text(encoding="utf-8")
+
+    def test_due_foreshadow_is_pinned_ahead_of_distant_important_ones(self) -> None:
+        rows = [self.foreshadow_row(f"F1{index:02d}", planned=40 + index, importance="高") for index in range(9)]
+        rows.append(self.foreshadow_row("F201", planned=11, importance="低"))
+        rows.append(self.foreshadow_row("F202", planned=8, importance="低"))
+        self.init_with(last_chapter=10, foreshadow=rows)
+
+        context = self.context_text()
+        section = context.split("## 活跃伏笔", 1)[1].split("## ", 1)[0]
+        self.assertIn("【逾期3章】F202", section)
+        self.assertIn("【临近】F201", section)
+        self.assertLess(section.index("F202"), section.index("F201"))
+        self.assertLess(section.index("F201"), section.index("F100"))
+        self.assertIn("另有 3 条已埋伏笔未列出", section)
+        self.assertNotIn("F108", section)
+
+        result = json.loads(self.run_tool("check").stdout)
+        codes = [item["code"] for item in result["advisories"]]
+        self.assertEqual(codes, ["foreshadow-overdue"])
+        self.assertIn("F202 逾期3章", result["advisories"][0]["message"])
+
+    def test_active_character_line_carries_knowledge_and_relationships(self) -> None:
+        self.init_with(last_chapter=3, characters={"江晨": snapshot(items=3)}, active=["江晨"])
+        section = self.context_text().split("## 核心角色状态", 1)[1].split("## ", 1)[0]
+        self.assertIn("  - 知情：第1项：已经确认军宣流程和作品传播结果；第2项：", section)
+        self.assertIn("｜关系：第1项：与钟嘉嘉及文工团的协作关系", section)
+        self.assertNotIn("第3项：已经确认", section)  # 只放前两项
+
+    def test_optional_detail_lines_stay_within_the_target_budget(self) -> None:
+        names = [f"角色{index}" for index in range(6)]
+        heavy = snapshot(items=2, repeat=3)
+        self.init_with(last_chapter=3, characters={name: heavy for name in names}, active=names)
+        document = transaction(4)
+        document["delta"]["appeared_characters"] = names
+        document["delta"]["recap"] = "回" * 300
+        document["context"]["active_character_names"] = names
+        document["context"]["long_term_constraints"] = ["约" * 120 for _ in range(6)]
+        document["context"]["continuity_risks"] = ["险" * 120 for _ in range(5)]
+        document["delta"]["retired_context_items"] = ["军方培养江晨的后续安排尚未向读者揭示。"]
+        self.run_tool("commit", document)
+
+        context = self.context_text()
+        self.assertLessEqual(len(context.encode("utf-8")), 12288)
+        self.assertIn("篇幅所限，另有", context)
+        self.assertIn("回顾：", context)  # 章回顾优先于知情/关系
+        self.run_tool("check")
+
+    def test_appearances_drive_last_seen_long_absence_and_snapshot_view(self) -> None:
+        self.init_with(
+            last_chapter=40,
+            characters={"江晨": snapshot(), "周薄森": {**snapshot(), "open_threads": ["欠江晨一次特批"]}},
+            active=["江晨"],
+            appearances={"江晨": [20, 22], "周薄森": [5]},
+        )
+        state = self.read_state()
+        self.assertEqual(state["appearances"]["江晨"], {"seen": [20, 22], "snapshot_chapter": 40})
+        character = self.context_text().split("## 核心角色状态", 1)[1].split("## ", 1)[0]
+        self.assertIn("【久别18章，上次出场第22章】", character)
+        result = json.loads(self.run_tool("check").stdout)
+        self.assertEqual([item["code"] for item in result["advisories"]], ["character-absent", "thread-dormant"])
+
+        document = transaction(41, character=True)
+        self.run_tool("commit", document)
+        state = self.read_state()
+        self.assertEqual(state["appearances"]["江晨"], {"seen": [20, 22, 41], "snapshot_chapter": 41})
+        self.assertEqual(state["appearances"]["周薄森"]["seen"], [5])
+        view = (self.project / "追踪/角色状态/江晨.md").read_text(encoding="utf-8")
+        self.assertIn("- 快照更新：第41章", view)
+        self.assertIn("- 最近出场：第41章（近3次：20、22、41）", view)
+        self.assertNotIn("久别", self.context_text())
+
+    def test_append_requires_an_explicit_appearance_list(self) -> None:
+        self.init()
+        document = transaction(1)
+        document["delta"].pop("appeared_characters")
+        before = self.read_state()
+        result = self.run_tool("commit", document, expect=2)
+        self.assertIn("delta.appeared_characters is required on append", result.stderr)
+        self.assertEqual(self.read_state(), before)
+        document["delta"]["appeared_characters"] = []
+        self.run_tool("commit", document)
+
+    def test_revision_can_rewrite_one_chapter_appearance_list(self) -> None:
+        self.init_with(last_chapter=0)
+        self.run_tool("commit", transaction(1, character=True))
+        self.run_tool("commit", transaction(2, character=True))
+        revision = transaction(1, mode="revision", character=True)
+        revision["delta"]["appeared_characters"] = []
+        revision["character_snapshots"] = {}
+        revision["delta"]["character_changes"] = []
+        revision["context"]["active_character_names"] = ["江晨"]
+        self.run_tool("commit", revision)
+        self.assertEqual(self.read_state()["appearances"]["江晨"]["seen"], [2])
+
+    def test_recent_window_keeps_five_chapters_and_recaps_only_the_newest_two(self) -> None:
+        self.init()
+        for chapter in range(1, 8):
+            document = transaction(chapter)
+            document["delta"]["recap"] = f"第{chapter}章回顾：江晨收尾时站在看片会门口。"
+            self.run_tool("commit", document)
+        section = self.context_text().split("## 近章速记", 1)[1].split("## ", 1)[0]
+        self.assertEqual([line for line in section.splitlines() if line.startswith("- 第")][0][:5], "- 第3章")
+        self.assertEqual(section.count("  - 回顾："), 2)
+        self.assertIn("第7章回顾", section)
+        self.assertIn("第6章回顾", section)
+        self.assertNotIn("第5章回顾", section)
+        record = (self.project / "追踪/逐章记录/第005章.md").read_text(encoding="utf-8")
+        self.assertIn("- 回顾：第5章回顾", record)
+        self.assertIn("- 出场：钟嘉嘉", record)
+
+        revision = transaction(7, mode="revision")
+        self.run_tool("commit", revision)
+        self.assertNotIn("第7章回顾", self.context_text())  # 修订后旧回顾不再成立
+
+    def test_render_upgrades_a_pre_appearance_project_in_place(self) -> None:
+        self.init_with(last_chapter=12, characters={"江晨": snapshot()}, active=["江晨"])
+        tracking = self.project / "追踪"
+        state = self.read_state()
+        state.pop("appearances")
+        (tracking / "_tracking-state.json").write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        context = tracking / "上下文.md"
+        context.write_text(context.read_text(encoding="utf-8").replace("## 近章速记", "## 近三章速记"), encoding="utf-8")
+
+        self.assertIn("tracking_commit.py render", self.run_tool("check", expect=2).stderr)
+        seed = Path(self.temporary.name) / "seed.json"
+        seed.write_text(json.dumps({"schema_version": 1, "appearances": {"江晨": [3, 9]}}, ensure_ascii=False), encoding="utf-8")
+        args = [sys.executable, str(TOOL), "render", "--project", str(self.project), "--appearances", str(seed)]
+        completed = subprocess.run(args, text=True, capture_output=True, check=False, encoding="utf-8")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertTrue(json.loads(completed.stdout)["changed"])
+        upgraded = self.read_state()
+        self.assertEqual(upgraded["appearances"]["江晨"]["seen"], [3, 9])
+        self.assertEqual(upgraded["state_revision"], 1)
         self.run_tool("check")
 
 

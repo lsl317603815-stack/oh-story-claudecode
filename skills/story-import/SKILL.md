@@ -14,7 +14,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 40` 不一致时（标记缺失、字段缺失/非整数、小于或大于 40）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 40）` 并提示重新运行 `/story-setup` 后新开会话；大于 40 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 ## 核心原则
 
@@ -412,7 +412,7 @@ name: {角色名}
 3. **伏笔当前行**：从有正文证据的铺垫/回收事件生成 `foreshadow`。每个 ID 只保留当前状态一行；尚未实际埋设的未来设计留在大纲，不写 `伏笔.md`。
 4. **事实与读者认知**：把关键事件生成到 `timeline_events`。同一事件同时写客观事实、读者截至 N 章已知内容和实际揭示状态；未来计划揭示章不得伪装成已发生事实。
 5. **长期事实与关系**：把有证据、后面不知道就会写错的身份/血缘/亲属/婚姻/传承/从属/所有权/权限/规则/不可逆状态写入初始化 JSON 的 `facts`。每条有稳定 `K/R` ID、证据引用、读者揭示状态和禁止误读；没有证据的猜测不导入。
-6. **续写状态卡输入**：准备当前位置、长期约束、活跃核心角色、近三章速记、下一章承诺和连贯性风险。`上下文.md` 由工具生成固定 7 栏，不把文风、文件索引、普通待办或质检计数塞进续写状态卡。
+6. **续写状态卡输入**：准备当前位置、长期约束、活跃核心角色、近章速记（最多 5 章，最近 2 章可带约 300 字回顾 `recap`）、下一章承诺和连贯性风险。`拆文库/` 有角色出场记录时，把核心角色最近几次出场章写进 init 的顶层 `appearances`，续写时才能判断谁已久别。`上下文.md` 由工具生成固定 7 栏，不把文风、文件索引、普通待办或质检计数塞进续写状态卡。
 7. **执行初始化**：按当前平台探测 Python 3（`python3` → `python` → `py -3`），执行：
 
    > 项目 `追踪/` 里已有不属于当前协议的早期文件时不必手工清理：`init` 会先把它们按原样整体移入 `追踪/_旧追踪存档/`，再在原地建当前协议。旧内容保留供作者查阅，不参与解析，当前状态完全由本次导入输入决定；校验失败的 `init` 不移动任何文件。

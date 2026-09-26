@@ -6,8 +6,8 @@
 
 | 层级 | 文件 | 语义 |
 |---|---|---|
-| 唯一权威 | `_tracking-state.json` | schema、最后提交章、导入截止章、状态修订号、上下文结构、全部当前角色/伏笔/时间线/长期事实状态 |
-| 章节记录 | `逐章记录/第NNN章.md` | 本章对未来连续性有用的紧凑变化；目标 ≤1536 字节，硬上限 3072 字节；导入范围内修订写成覆盖记录 |
+| 唯一权威 | `_tracking-state.json` | schema、最后提交章、导入截止章、状态修订号、上下文结构、全部当前角色/伏笔/时间线/长期事实状态、核心角色出场记录 |
+| 章节记录 | `逐章记录/第NNN章.md` | 本章对未来连续性有用的紧凑变化（含出场名单与章回顾）；目标 ≤2560 字节，硬上限 4096 字节；导入范围内修订写成覆盖记录 |
 | 派生视图 | `上下文.md`、`角色状态/{角色名}.md`、`伏笔.md`、`时间线/作者真相.md`、`时间线/读者已知.md`、`长期事实.md`、`关系清单.md`、`事实档案/{实体}.md` | 完全从 `_tracking-state.json` 生成；禁止手改，不作为程序输入 |
 
 Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown。`check` 直接从 `_tracking-state.json` 重渲染并逐文件比较。未来“第几章揭示”的计划写在卷纲/细纲，不写成时间线既成事实。
@@ -22,14 +22,15 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py commit --project {书项目根} --input {逐章事务.json}
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py migrate-v4 --project {书项目根} --input {v4迁移.json}
 {PYTHON} {当前 skill 根}/scripts/tracking_commit.py check  --project {书项目根}
-{PYTHON} {当前 skill 根}/scripts/tracking_commit.py render --project {书项目根}
+{PYTHON} {当前 skill 根}/scripts/tracking_commit.py render --project {书项目根} [--appearances {出场记录.json}]
 ```
 
 - `init`：只在 `_tracking-state.json` 不存在时执行，绝不覆盖已初始化项目。
 - `commit`：读取唯一权威状态，在内存中完成合并、引用检查、全部视图渲染和容量检查；随后写逐章记录与派生视图，最后原子替换 `_tracking-state.json` 作为唯一提交点。
 - `migrate-v4`：只对已有 `schema_version=4` 的权威状态执行一次，升级到 schema 5 并可同时植入有证据的长期事实；不创建、不重写任何逐章记录。
 - `check`：严格验证 state schema、逐章记录连续性/规范名/体积、固定 7 栏、角色快照硬上限、派生文件集合，以及所有派生视图与 state 的逐字一致性。
-- `render`：从 `_tracking-state.json` 整份重建全部派生视图。视图已一致时什么都不写（输出 `"changed": false`）；有差异时把 `state_revision` 加一再重建，最后写权威文件。它不是章节事件，不创建、不改写任何逐章记录。两种情况用它：工具升级改变了视图渲染格式（`check` 会对每本老书报 `derived view differs`），或派生视图被手改。它会拒绝三种状态：有未闭环候选章（revision 前进会让候选稿过期，先 close 或 abandon，再在两章之间 render）；逐章记录超前于 `last_committed_chapter`；`上下文.md` 的状态修订超前于权威文件（后两种都是 commit 写到一半中断，应重跑同一份事务）。只有中断事务的 JSON 已经丢失时，才用 `render --discard-interrupted` 以最后提交的状态重建。
+- `commit` / `check` / `render` 成功时输出紧凑 JSON；有不拦截的提醒时带 `advisories`：`foreshadow-overdue`（伏笔已过计划回收章）、`character-absent`（活跃角色 15 章以上未出场）、`thread-dormant`（有未了线程的核心角色 30 章以上未出场）、`context-budget`（状态卡超过 8KB 目标）。`story_doctor.py` 把它们列为 warning。
+- `render`：从 `_tracking-state.json` 整份重建全部派生视图。视图已一致时什么都不写（输出 `"changed": false`）；有差异时把 `state_revision` 加一再重建，最后写权威文件。它不是章节事件，不创建、不改写任何逐章记录。两种情况用它：工具升级改变了视图渲染格式（`check` 会对每本老书报 `derived view differs`），或派生视图被手改。`--appearances` 可一并植入已知出场章（`{"schema_version": 1, "appearances": {"江晨": [3, 9]}}`，只收已有快照的核心角色，每人保留最近 8 次），供老书补「最近出场」。它会拒绝三种状态：有未闭环候选章（revision 前进会让候选稿过期，先 close 或 abandon，再在两章之间 render）；逐章记录超前于 `last_committed_chapter`；`上下文.md` 的状态修订超前于权威文件（后两种都是 commit 写到一半中断，应重跑同一份事务）。只有中断事务的 JSON 已经丢失时，才用 `render --discard-interrupted` 以最后提交的状态重建。
 
 同一本书只允许工作流串行提交，不支持多个 Agent 或终端并发写。`expected_state_revision` 用于拒绝基于旧状态构造的顺序 stale transaction，不是并发锁。
 
@@ -68,7 +69,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 }
 ```
 
-导入初始化时直接传入当前核心角色快照、伏笔当前行、时间线事件和固定 7 栏状态输入。阶段/卷级回看按需查询正文，不作为每章强一致追踪产物。
+导入初始化时直接传入当前核心角色快照、伏笔当前行、时间线事件和固定 7 栏状态输入；`recent_chapters` 最多 5 条，每条可带 `recap`（≤900 字节）。有 `拆文库/` 角色出场记录时，可加顶层 `"appearances": {"角色名": [章号, ...]}` 植入最近出场章。阶段/卷级回看按需查询正文，不作为每章强一致追踪产物。
 
 ## 逐章事务
 
@@ -81,6 +82,8 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
   "expected_state_revision": 9,
   "delta": {
     "result": "专业团队重拍的高清版在高层看片会上被判定缺了灵魂，张耀祖拍板继续采用江晨的手机原版。",
+    "recap": "看片会上专业团队的高清重拍版先放，周薄森看完只说缺了东西；再放江晨的手机原版，老兵的手在镜头里抖了一下，会议室没人说话。张耀祖拍板沿用原版，钟嘉嘉会后告诉江晨军报采访稿已过审，又说他只猜对了一半。本章收在江晨追问另一半是什么、钟嘉嘉没回答就走了。",
+    "appeared_characters": ["江晨", "周薄森", "张耀祖", "钟嘉嘉"],
     "character_changes": [
       {"name": "江晨", "change": "作品价值获军内高层确认，从爆款新人升为不可替代的军宣创作者"}
     ],
@@ -157,6 +160,8 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 约束：
 
 - 构造事务前运行 `check`，把当前 `state_revision` 原样写入 `expected_state_revision`；若状态已经变化，重新读取 state 并重构事务。
+- `delta.appeared_characters`：`append` 必填，列出本章实际出场的具名角色（核心与临时都可以列，工具只为已有快照的核心角色记录出场章）；本章没有具名角色出场才写 `[]`。它是「某角色多少章没露面」的唯一来源，省略会被拒。`character_changes` 与 `character_snapshots` 里的角色自动算出场。修订事务只在出场名单变了时才给，给了就按新名单重记该章。
+- `delta.recap`（可选，≤900 字节，约 300 字）：本章回顾，写关键事件、人物此刻的情绪与处境、结尾停在哪个画面，让下一章第一段能直接接上。状态卡只给最近 2 章显示回顾，更早的在逐章记录里。修订某章时不给 `recap` 会清掉该章旧回顾——改写后的剧情不能沿用旧回顾。
 - `delta.result` ≤360 字节（约 120 个汉字）：它会原样成为 `上下文.md` 近章速记里的本章一行，与 `recent_chapters[].summary` 同上限。
 - `context` 的允许字段随子命令不同：`init` 收 `position`、`long_term_constraints`、`active_character_names`、`continuity_risks`、`recent_chapters`、`next_chapter_commitments` 六项；`commit` 只收前四项。`recent_chapters` 与 `next_chapter_commitments` 在 commit 时由工具从当前视图和本章 `delta` 派生，手填会在任何写入前被拒（`context contains unsupported fields: ...`，exit 2）。照 init 示例套 commit 事务是最容易踩的一处。
 - `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。
@@ -203,8 +208,14 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 2. `## 长期约束`
 3. `## 核心角色状态`
 4. `## 活跃伏笔`
-5. `## 近三章速记`
+5. `## 近章速记`
 6. `## 下一章承诺`
 7. `## 连贯性风险`
 
-其中活跃角色最多 6 人、活跃伏笔确定性选取最多 8 条、近章只保留 3 章。这些是下一章热上下文容量，不是完整角色状态的容量限制。
+其中活跃角色最多 6 人、活跃伏笔确定性选取最多 8 条、近章保留 5 章。这些是下一章热上下文容量，不是完整角色状态的容量限制。
+
+- **活跃伏笔**：已逾期（计划回收章早于下一章）的排最前并标【逾期k章】，三章内到期的其次并标【临近】，其余按重要度、计划回收章、ID 排；超过 8 条时末行写明隐藏了几条。到期的次要伏笔因此能挤掉远期的重要伏笔。
+- **核心角色状态**：每人一行必选（身份、状态、位置、持有、目标）；15 章以上未出场的加【久别k章，上次出场第X章】。
+- **可选补充行**：最近 2 章的回顾，以及每个活跃角色「知情：前两项｜关系：前两项」（每项截到 72 字节）。它们按「章回顾 → 知情/关系」的固定顺序在 8192 字节目标内填充，放不下的不写，卡尾注明省略了几条。必选内容仍受 12288 字节硬上限约束。
+
+角色快照 `角色状态/{角色名}.md` 头部写「快照更新：第X章」和「最近出场：第Y章（近几次）」。快照只在角色变化时重交，久别角色的快照可能停在很多章以前，据此判断要不要先核对正文。
