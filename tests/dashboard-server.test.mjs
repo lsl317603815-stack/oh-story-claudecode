@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, test } from "node:test";
 import {
   DashboardError,
   browserLaunchCommand,
+  countManuscriptCharacters,
   createDashboardServer,
   listWorkspaceDirectory,
+  parseTargetWords,
   pathsReferToSameFile,
+  readProjectStatus,
   resolveWorkspaceDirectory,
   resolveWorkspacePath,
   scanWorkspace,
@@ -765,5 +768,419 @@ describe("HTTP API", () => {
     } finally {
       await chmod(root, 0o755);
     }
+  });
+});
+
+const STATUS_PROJECT = "长篇/状态书";
+
+function statusTrackingState(overrides = {}) {
+  const card = (openThreads = []) => ({
+    identity: "测试",
+    location: "某地",
+    goal: "测试",
+    state: "平稳",
+    abilities_resources: [],
+    relationships: [],
+    knowledge: [],
+    open_threads: openThreads,
+  });
+  const row = (id, planned, status = "已埋", importance = "中") => ({
+    id,
+    summary: `${id} 的伏笔`,
+    planted_chapter: 1,
+    planned_resolution_chapter: planned,
+    status,
+    importance,
+    updated_chapter: 1,
+  });
+  return {
+    schema_version: 5,
+    book_title: "状态书",
+    last_committed_chapter: 50,
+    imported_through_chapter: 0,
+    state_revision: 7,
+    context: {
+      position: { volume: "第一卷", volume_start_chapter: 1, story_time: "某日", scene: "某地" },
+      long_term_constraints: [],
+      active_character_names: ["甲", "乙"],
+      continuity_risks: [],
+      recent_chapters: [],
+      next_chapter_commitments: [],
+    },
+    characters: { 甲: card(), 乙: card(["乙的线"]), 丙: card(["丙一", "丙二"]), 丁: card(["丁一"]), 戊: card(["戊一"]) },
+    // 下一章 N = 51：临近窗口是 51..53，逾期按「最久未回收」排前
+    foreshadow: {
+      F011: row("F011", 50, "已埋", "中"),
+      F010: row("F010", 45, "已埋", "高"),
+      F012: row("F012", 51, "已埋", "低"),
+      F013: row("F013", 53),
+      F014: row("F014", 54),
+      F015: row("F015", 40, "已回收"),
+      F016: row("F016", null),
+    },
+    timeline: {},
+    facts: {},
+    appearances: {
+      甲: { seen: [30, 35], snapshot_chapter: 35 },
+      乙: { seen: [36], snapshot_chapter: 36 },
+      丙: { seen: [12, 20], snapshot_chapter: 20 },
+      丁: { seen: [21], snapshot_chapter: 21 },
+    },
+    ...overrides,
+  };
+}
+
+async function createStatusWorkspace({ state = statusTrackingState(), files = {} } = {}) {
+  const root = await mkdtemp(resolve(tmpdir(), "oh-story-dashboard-status-"));
+  temporaryDirectories.push(root);
+  const project = resolve(root, ...STATUS_PROJECT.split("/"));
+  await mkdir(resolve(project, "追踪"), { recursive: true });
+  await writeFile(
+    resolve(project, "追踪", "_tracking-state.json"),
+    typeof state === "string" ? state : JSON.stringify(state),
+    "utf8",
+  );
+  for (const [relativePath, content] of Object.entries(files)) {
+    const target = resolve(project, relativePath);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, typeof content === "string" ? content : JSON.stringify(content), "utf8");
+  }
+  return { root, project };
+}
+
+describe("project status", () => {
+  test("reports every field for the modern long-form fixture over HTTP", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "oh-story-dashboard-status-fixture-"));
+    temporaryDirectories.push(root);
+    await createDashboardFixture(root);
+    const baseUrl = await startServer(root);
+
+    const workspace = await fetch(`${baseUrl}/api/workspace`).then((response) => response.json());
+    assert.deepEqual(
+      workspace.projects.map(({ path, projectKind, hasTrackingState }) => ({ path, projectKind, hasTrackingState })),
+      [{ path: "长篇/测试长篇项目", projectKind: "long", hasTrackingState: true }],
+    );
+
+    const response = await fetch(
+      `${baseUrl}/api/project-status?path=${encodeURIComponent("长篇/测试长篇项目")}`,
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /application\/json/);
+    assert.deepEqual(await response.json(), {
+      path: "长篇/测试长篇项目",
+      schema_version: 5,
+      last_committed_chapter: 40,
+      state_revision: 42,
+      // 第001章「顾临推开门。」6 字 + 第002章「　　沈砚没有回头。」去掉全角缩进 7 字；标题行不计
+      words_written: 13,
+      chapter_files: 2,
+      words_truncated: false,
+      target_words: 300000,
+      overdue_foreshadows: [
+        {
+          id: "F001",
+          summary: "旧信封里夹着一把铜钥匙",
+          planned_resolution_chapter: 38,
+          importance: "高",
+          overdue_by: 3,
+        },
+      ],
+      due_soon_foreshadows: [
+        {
+          id: "F002",
+          summary: "档案馆地下室的第二道门",
+          planned_resolution_chapter: 42,
+          importance: "中",
+        },
+      ],
+      absent_characters: [{ name: "沈砚", last_seen: 20, absent: 20 }],
+      dormant_threads: [{ name: "周衡", open_threads: 2, last_seen: 8, absent: 32 }],
+      open_candidate: {
+        chapter: 41,
+        status: "draft",
+        run: "长篇/测试长篇项目/追踪/候选章/第041章/C20260926-090000",
+        approval_mode: "review",
+        gate_status: "pass",
+        reviews: { deslop: "PASS", consistency: null },
+      },
+      quality: { gated: 1, legacy: 1 },
+      errors: [],
+      limits: { maxChapterFiles: 3000 },
+    });
+  });
+
+  test("applies the tracking script's due-soon, overdue, absence and dormancy windows", async () => {
+    const { root } = await createStatusWorkspace();
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    assert.equal(status.last_committed_chapter, 50);
+    assert.equal(status.state_revision, 7);
+    assert.deepEqual(
+      status.overdue_foreshadows.map(({ id, overdue_by }) => ({ id, overdue_by })),
+      [
+        { id: "F010", overdue_by: 6 },
+        { id: "F011", overdue_by: 1 },
+      ],
+    );
+    assert.deepEqual(status.due_soon_foreshadows.map((item) => item.id), ["F012", "F013"]);
+    assert.ok(status.due_soon_foreshadows.every((item) => !("overdue_by" in item)));
+    // 甲 50-35=15 章正好到久别线；乙 14 章还不算
+    assert.deepEqual(status.absent_characters, [{ name: "甲", last_seen: 35, absent: 15 }]);
+    // 丙 30 章正好到搁置线；丁 29 章不算；戊没有出场记录无法判断；乙在活跃名单里不算搁置
+    assert.deepEqual(status.dormant_threads, [{ name: "丙", open_threads: 2, last_seen: 20, absent: 30 }]);
+    // 没有 正文/、大纲/、候选章/、章节提交/ 的新项目：数量是已知的 0，而不是未知
+    assert.equal(status.words_written, 0);
+    assert.equal(status.chapter_files, 0);
+    assert.equal(status.target_words, null);
+    assert.equal(status.open_candidate, null);
+    assert.deepEqual(status.quality, { gated: 0, legacy: 0 });
+    assert.deepEqual(status.errors, []);
+  });
+
+  test("treats a state without appearances as an older project, not an error", async () => {
+    const state = statusTrackingState();
+    delete state.appearances;
+    const { root } = await createStatusWorkspace({ state });
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    assert.deepEqual(status.absent_characters, []);
+    assert.deepEqual(status.dormant_threads, []);
+    assert.equal(status.overdue_foreshadows.length, 2);
+    assert.deepEqual(status.errors, []);
+  });
+
+  test("keeps the other blocks when the tracking state JSON is malformed", async () => {
+    const { root } = await createStatusWorkspace({
+      state: "{\"schema_version\": 5, \"last_committed_chapter\": ",
+      files: {
+        "正文/第001章.md": "# 第一章\n\n正文五个字",
+        "大纲/大纲.md": "- 目标字数：10 万字\n",
+        "追踪/章节提交/第001章.json": { protocol: "gated-v2" },
+      },
+    });
+    const baseUrl = await startServer(root);
+    const response = await fetch(
+      `${baseUrl}/api/project-status?path=${encodeURIComponent(STATUS_PROJECT)}`,
+    );
+    assert.equal(response.status, 200);
+    const status = await response.json();
+    for (const field of [
+      "schema_version",
+      "last_committed_chapter",
+      "state_revision",
+      "overdue_foreshadows",
+      "due_soon_foreshadows",
+      "absent_characters",
+      "dormant_threads",
+    ]) {
+      assert.equal(status[field], null, field);
+    }
+    assert.equal(status.words_written, 5);
+    assert.equal(status.target_words, 100000);
+    assert.deepEqual(status.quality, { gated: 1, legacy: 0 });
+    assert.equal(status.errors.length, 1);
+    assert.match(status.errors[0], /^追踪\/_tracking-state\.json：JSON 格式错误/);
+
+    // 结构不对（顶层是数组、字段类型错）同样只让受影响的块置空，不 500
+    const arrayState = await createStatusWorkspace({ state: "[]" });
+    const arrayStatus = await readProjectStatus(arrayState.root, STATUS_PROJECT);
+    assert.equal(arrayStatus.last_committed_chapter, null);
+    assert.deepEqual(arrayStatus.errors, ["追踪/_tracking-state.json：顶层不是 JSON 对象"]);
+
+    const badForeshadow = await createStatusWorkspace({
+      state: statusTrackingState({ foreshadow: "坏掉的伏笔表" }),
+    });
+    const partial = await readProjectStatus(badForeshadow.root, STATUS_PROJECT);
+    assert.equal(partial.last_committed_chapter, 50);
+    assert.equal(partial.overdue_foreshadows, null);
+    assert.equal(partial.due_soon_foreshadows, null);
+    assert.deepEqual(partial.absent_characters, [{ name: "甲", last_seen: 35, absent: 15 }]);
+    assert.deepEqual(partial.errors, ["追踪/_tracking-state.json：foreshadow 不是对象"]);
+  });
+
+  test("picks the first open candidate in script order and counts commit protocols", async () => {
+    const { root } = await createStatusWorkspace({
+      files: {
+        "追踪/候选章/第009章/Z/manifest.json": { status: "committed", chapter: 9 },
+        "追踪/候选章/第010章/A/candidate.md": "manifest 还没写好的运行目录要跳过",
+        "追踪/候选章/第010章/B/manifest.json": {
+          status: "approved",
+          chapter: 10,
+          approval_mode: "auto",
+          gate_run: { status: "pass" },
+          reviews: { deslop: { verdict: "PASS" }, consistency: { verdict: "CONCERNS" } },
+        },
+        "追踪/候选章/第011章/A/manifest.json": { status: "draft", chapter: 11 },
+        "追踪/章节提交/第001章.json": { protocol: "gated-v2" },
+        "追踪/章节提交/第002章.json": { protocol: "gated-v2" },
+        "追踪/章节提交/第003章.json": { protocol: "legacy-v1" },
+        "追踪/章节提交/第004章.json": { status: "committed" },
+        "追踪/章节提交/说明.md": "不是提交凭证",
+      },
+    });
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    assert.deepEqual(status.open_candidate, {
+      chapter: 10,
+      status: "approved",
+      run: `${STATUS_PROJECT}/追踪/候选章/第010章/B`,
+      approval_mode: "auto",
+      gate_status: "pass",
+      reviews: { deslop: "PASS", consistency: "CONCERNS" },
+    });
+    assert.deepEqual(status.quality, { gated: 2, legacy: 2 });
+    assert.deepEqual(status.errors, []);
+  });
+
+  test("nulls only the candidate or quality block whose JSON is malformed", async () => {
+    const { root } = await createStatusWorkspace({
+      files: {
+        "追踪/候选章/第003章/A/manifest.json": "{坏",
+        "追踪/候选章/第004章/A/manifest.json": { status: "draft", chapter: 4 },
+        "追踪/章节提交/第001章.json": { protocol: "gated-v2" },
+        "追踪/章节提交/第002章.json": "not json",
+      },
+    });
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    // 排在前面的 manifest 读不动，就无法断定第 4 章是不是「第一个」未闭环候选
+    assert.equal(status.open_candidate, null);
+    assert.equal(status.quality, null);
+    assert.equal(status.last_committed_chapter, 50);
+    assert.equal(status.errors.length, 2);
+    assert.match(status.errors[0], /^追踪\/候选章\/第003章\/A\/manifest\.json：JSON 格式错误/);
+    assert.match(status.errors[1], /^追踪\/章节提交\/第002章\.json：JSON 格式错误/);
+  });
+
+  test("counts Chinese manuscript characters without headings or whitespace", () => {
+    assert.equal(
+      countManuscriptCharacters("# 第一章\n\n　　他说：“走。”\r\nHello world\n## 小节\n#不是标题\n   ### 缩进标题\n"),
+      // 他说：“走。” 7 + Helloworld 10 + #不是标题 5
+      22,
+    );
+    assert.equal(countManuscriptCharacters("﻿# 标题\n正文😀"), 3);
+    assert.equal(countManuscriptCharacters(""), 0);
+  });
+
+  test("parses the outline target in 万字 and prefers 目标字数 over 预计字数", () => {
+    assert.equal(parseTargetWords("- 预计字数：80 万字\n\n- 目标字数：150.5 万字\n"), 1505000);
+    assert.equal(parseTargetWords("- 预计字数: 80万字"), 800000);
+    assert.equal(parseTargetWords("* **目标字数**：120 万字"), 1200000);
+    assert.equal(parseTargetWords("- 目标字数：1.1 万字"), 11000);
+    assert.equal(parseTargetWords("- 目标字数：{X} 万字\n- 预计字数：{X} 万字"), null);
+    assert.equal(parseTargetWords("- 目标字数：0 万字"), null);
+    assert.equal(parseTargetWords("正文里提到目标字数：100 万字"), null);
+    assert.equal(parseTargetWords(""), null);
+  });
+
+  test("sums only top-level 正文/第*章*.md files and reads the outline target", async (context) => {
+    const { root, project } = await createStatusWorkspace({
+      files: {
+        "正文/第001章.md": "# 第001章 开端\n\n一二三。\n",
+        "正文/第002章_重逢.md": "## 第二章\n\n四五\n六\n",
+        "正文/第003章.txt": "不是 Markdown 章节",
+        "正文/笔记.md": "不是章节",
+        "正文/第一卷/第004章.md": "只统计 正文/ 顶层章节",
+        "大纲/大纲.md": "# 大纲\n\n- 预计字数：50 万字\n- 目标字数：80 万字\n",
+      },
+    });
+    // 符号链接章节与文件树同规则：不跟随、不计字数
+    try {
+      await writeFile(resolve(root, "外部.md"), "链接目标不应计入", "utf8");
+      await symlink(resolve(root, "外部.md"), resolve(project, "正文", "第005章.md"));
+    } catch (error) {
+      if (error?.code !== "EPERM") throw error;
+      context.diagnostic("当前平台不允许创建测试符号链接，链接章节这一项未覆盖");
+    }
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    // 第001章「一二三。」4 字 + 第002章_重逢「四五」「六」3 字；标题行、.txt、笔记、子卷、链接都不计
+    assert.equal(status.words_written, 7);
+    assert.equal(status.chapter_files, 2);
+    assert.equal(status.words_truncated, false);
+    assert.equal(status.target_words, 800000);
+    assert.deepEqual(status.errors, []);
+  });
+
+  test("caps manuscript counting at 3000 chapter files", async () => {
+    const { root, project } = await createStatusWorkspace();
+    const body = resolve(project, "正文");
+    await mkdir(body, { recursive: true });
+    for (let start = 0; start < 3001; start += 250) {
+      await Promise.all(
+        Array.from({ length: Math.min(250, 3001 - start) }, (_, offset) =>
+          writeFile(resolve(body, `第${String(start + offset + 1).padStart(4, "0")}章.md`), "字", "utf8"),
+        ),
+      );
+    }
+    const status = await readProjectStatus(root, STATUS_PROJECT);
+    assert.equal(status.chapter_files, 3000);
+    assert.equal(status.words_written, 3000);
+    assert.equal(status.words_truncated, true);
+  });
+
+  test("rejects traversal, absolute and hidden paths like the other directory routes", async () => {
+    const { root } = await createStatusWorkspace();
+    const baseUrl = await startServer(root);
+    const request = (path) =>
+      fetch(`${baseUrl}/api/project-status?path=${encodeURIComponent(path)}`).then(async (response) => ({
+        status: response.status,
+        code: (await response.json()).error?.code,
+      }));
+    assert.deepEqual(await request("../outside"), { status: 403, code: "path_outside_workspace" });
+    assert.deepEqual(await request(`${STATUS_PROJECT}/../../..`), { status: 403, code: "path_outside_workspace" });
+    assert.deepEqual(await request("/etc"), { status: 403, code: "path_outside_workspace" });
+    assert.deepEqual(await request(`${STATUS_PROJECT}/.git`), { status: 403, code: "directory_hidden" });
+    assert.deepEqual(await request(""), { status: 400, code: "invalid_path" });
+  });
+
+  test("returns 404 JSON for directories that are not long-form projects", async () => {
+    const root = await createWorkspace();
+    await mkdir(resolve(root, "长篇", "半成品", "追踪"), { recursive: true });
+    await writeFile(resolve(root, "长篇", "半成品", "追踪", "伏笔.md"), "# 旧版平铺追踪\n", "utf8");
+    const baseUrl = await startServer(root);
+    const request = (path) =>
+      fetch(`${baseUrl}/api/project-status?path=${encodeURIComponent(path)}`).then(async (response) => ({
+        status: response.status,
+        type: response.headers.get("content-type"),
+        body: await response.json(),
+      }));
+
+    const legacy = await request("长篇/示例书");
+    assert.equal(legacy.status, 404);
+    assert.match(legacy.type, /application\/json/);
+    assert.equal(legacy.body.error.code, "project_not_found");
+    assert.match(legacy.body.error.message, /追踪\/_tracking-state\.json/);
+    assert.equal((await request("长篇/半成品")).body.error.code, "project_not_found");
+    assert.equal((await request("长篇/不存在")).body.error.code, "directory_not_found");
+    const file = await request("长篇/示例书/封面.png");
+    assert.deepEqual([file.status, file.body.error.code], [400, "not_a_directory"]);
+
+    const workspace = await scanWorkspace(root);
+    assert.deepEqual(
+      workspace.projects.map(({ path, hasTrackingState }) => ({ path, hasTrackingState })),
+      [
+        { path: "长篇/半成品", hasTrackingState: false },
+        { path: "长篇/示例书", hasTrackingState: false },
+      ],
+    );
+  });
+
+  test("does not follow a symlinked tracking state", async (context) => {
+    const { root, project } = await createStatusWorkspace();
+    const stateFile = resolve(project, "追踪", "_tracking-state.json");
+    const elsewhere = resolve(root, "别处状态.json");
+    await writeFile(elsewhere, await readFile(stateFile, "utf8"), "utf8");
+    await rm(stateFile);
+    try {
+      await symlink(elsewhere, stateFile);
+    } catch (error) {
+      if (error?.code === "EPERM") {
+        context.skip("当前平台不允许创建测试符号链接");
+        return;
+      }
+      throw error;
+    }
+    await assert.rejects(
+      readProjectStatus(root, STATUS_PROJECT),
+      (error) => error instanceof DashboardError && error.status === 403 && error.code === "symlink_not_readable",
+    );
+    const workspace = await scanWorkspace(root);
+    assert.equal(workspace.projects.find((entry) => entry.path === STATUS_PROJECT).hasTrackingState, false);
   });
 });

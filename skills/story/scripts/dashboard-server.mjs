@@ -48,6 +48,29 @@ const MAX_SEARCH_DEPTH = 20;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const FILE_MUTATION_TAILS = new Map();
 
+// 长篇项目状态卡（只读）。口径与 story-long-write/scripts/tracking_commit.py、
+// chapter_candidate.py 保持一致：下一章 N = last_committed_chapter + 1，
+// 「临近」= N ≤ 计划回收章 ≤ N+2，久别 ≥15 章，搁置线程 ≥30 章。
+const TRACKING_DIRECTORY = "追踪";
+const TRACKING_STATE_FILE = "_tracking-state.json";
+const TRACKING_STATE_LABEL = `${TRACKING_DIRECTORY}/${TRACKING_STATE_FILE}`;
+const MAX_TRACKING_STATE_BYTES = 16 * 1024 * 1024;
+const MAX_STATUS_CHAPTER_FILES = 3000;
+const MAX_STATUS_RECORD_FILES = 10000;
+const STATUS_READ_CONCURRENCY = 16;
+const CHAPTER_FILE_PATTERN = /^第.*章.*\.md$/u;
+const CANDIDATE_CHAPTER_DIRECTORY_PATTERN = /^第.*章$/u;
+const COMMIT_RECEIPT_PATTERN = /^第.*章\.json$/u;
+const OPEN_CANDIDATE_STATUSES = new Set(["draft", "approved", "promoted"]);
+const GATED_PROTOCOL = "gated-v2";
+const FORESHADOW_DUE_SOON_WINDOW = 2;
+const LONG_ABSENCE_CHAPTERS = 15;
+const DORMANT_THREAD_CHAPTERS = 30;
+const TARGET_WORDS_LABELS = ["目标字数", "预计字数"];
+const TARGET_WORDS_LINE =
+  /^\s*[-*+]\s*(?:\*\*)?(目标字数|预计字数)(?:\*\*)?\s*[：:]\s*(?:约\s*)?(\d+(?:\.\d+)?)\s*万\s*字/u;
+const MARKDOWN_HEADING_LINE = /^ {0,3}#{1,6}(?:[ \t]|$)/u;
+
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -377,6 +400,12 @@ async function findProjectRoots(
     projects.push({
       absolutePath: currentPath,
       relativePath: relative(root, currentPath),
+      kind: isLongProject ? "long" : "short",
+      // 前端只给当前事务协议的长篇项目挂状态卡；先在这里判好，避免对每个项目盲打 404。
+      hasTrackingState:
+        isLongProject &&
+        childDirectoryNames.has(TRACKING_DIRECTORY) &&
+        (await hasRegularTrackingState(currentPath)),
     });
     return projects;
   }
@@ -411,9 +440,11 @@ export async function scanWorkspace(root) {
   const libraries = libraryRoots.map((entry) =>
     directoryNode(entry.absolutePath, entry.relativePath),
   );
-  const projects = projectRoots.map((entry) =>
-    directoryNode(entry.absolutePath, entry.relativePath),
-  );
+  const projects = projectRoots.map((entry) => ({
+    ...directoryNode(entry.absolutePath, entry.relativePath),
+    projectKind: entry.kind,
+    hasTrackingState: entry.hasTrackingState,
+  }));
   libraries.sort(compareTreeEntries);
   projects.sort(compareTreeEntries);
 
@@ -547,6 +578,502 @@ export async function searchWorkspace(root, queryValue, scopeValue) {
       maxResults: MAX_SEARCH_RESULTS,
       maxNodes: MAX_SEARCH_NODES,
       maxDepth: MAX_SEARCH_DEPTH,
+    },
+  };
+}
+
+// ── 长篇项目状态（只读） ─────────────────────────────────────────────────────
+// 状态卡绝不能因为某份项目数据坏了就 500：每一块各自兜底，读不动的那块置 null，
+// 原因写进 errors；只有「路径越界 / 不是长篇项目」这类请求本身的问题才返回 4xx。
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function nonNegativeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function positiveInteger(value) {
+  return Number.isSafeInteger(value) && value >= 1 ? value : null;
+}
+
+function optionalString(value) {
+  return typeof value === "string" ? value : null;
+}
+
+// 与 Python 的 sorted() 同序（按码位），保证「第一个未闭环候选」和写作脚本认的是同一个。
+function compareCodePoints(left, right) {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function compareChapterNames(left, right) {
+  return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" }) || compareCodePoints(left, right);
+}
+
+function errorCode(error) {
+  return typeof error?.code === "string" ? error.code : "READ_ERROR";
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function drain() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, drain));
+  return results;
+}
+
+async function hasRegularTrackingState(projectRoot) {
+  const trackingInfo = await lstat(resolve(projectRoot, TRACKING_DIRECTORY)).catch(() => null);
+  if (!trackingInfo?.isDirectory() || trackingInfo.isSymbolicLink()) return false;
+  const stateInfo = await lstat(resolve(projectRoot, TRACKING_DIRECTORY, TRACKING_STATE_FILE)).catch(() => null);
+  return Boolean(stateInfo?.isFile() && !stateInfo.isSymbolicLink());
+}
+
+async function assertLongProjectMarker(projectRoot) {
+  const markers = [
+    { path: resolve(projectRoot, TRACKING_DIRECTORY), directory: true },
+    { path: resolve(projectRoot, TRACKING_DIRECTORY, TRACKING_STATE_FILE), directory: false },
+  ];
+  for (const marker of markers) {
+    let info;
+    try {
+      info = await lstat(marker.path);
+    } catch (error) {
+      if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
+        throw new DashboardError(
+          404,
+          "project_not_found",
+          `该目录不是长篇项目：缺少 ${TRACKING_STATE_LABEL}`,
+        );
+      }
+      throw new DashboardError(
+        403,
+        "project_unreadable",
+        "项目追踪目录无法读取，请检查访问权限或挂载状态",
+      );
+    }
+    if (info.isSymbolicLink()) {
+      throw new DashboardError(403, "symlink_not_readable", "Dashboard 不读取符号链接形式的追踪状态");
+    }
+    if (marker.directory ? !info.isDirectory() : !info.isFile()) {
+      throw new DashboardError(
+        404,
+        "project_not_found",
+        `该目录不是长篇项目：缺少 ${TRACKING_STATE_LABEL}`,
+      );
+    }
+  }
+}
+
+function projectLabel(projectRoot, absolutePath) {
+  return toPosixPath(relative(projectRoot, absolutePath)) || ".";
+}
+
+// 只读普通目录：符号链接与文件树、/api/file 一样不跟随。缺失返回 missing，读不动记错误。
+async function readStatusDirectory(absolutePath, projectRoot, errors) {
+  const label = projectLabel(projectRoot, absolutePath);
+  let info;
+  try {
+    info = await lstat(absolutePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return { missing: true, entries: null };
+    errors.push(`${label}：目录无法读取（${errorCode(error)}）`);
+    return { missing: false, entries: null };
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    errors.push(`${label}：不是普通目录，Dashboard 不跟随符号链接`);
+    return { missing: false, entries: null };
+  }
+  try {
+    return { missing: false, entries: await readdir(absolutePath, { withFileTypes: true }) };
+  } catch (error) {
+    errors.push(`${label}：目录无法读取（${errorCode(error)}）`);
+    return { missing: false, entries: null };
+  }
+}
+
+async function readStatusText(absolutePath, projectRoot, errors, maxBytes = MAX_FILE_BYTES) {
+  const label = projectLabel(projectRoot, absolutePath);
+  let info;
+  try {
+    info = await lstat(absolutePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing" };
+    errors.push(`${label}：无法读取（${errorCode(error)}）`);
+    return { status: "error" };
+  }
+  if (info.isSymbolicLink() || !info.isFile()) {
+    errors.push(`${label}：不是普通文件，Dashboard 不跟随符号链接`);
+    return { status: "error" };
+  }
+  if (info.size > maxBytes) {
+    errors.push(`${label}：文件超过 ${Math.round(maxBytes / (1024 * 1024))} MiB，未读取`);
+    return { status: "error" };
+  }
+  try {
+    return { status: "ok", text: (await readFile(absolutePath, "utf8")).replace(/^﻿/u, "") };
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing" };
+    errors.push(`${label}：无法读取（${errorCode(error)}）`);
+    return { status: "error" };
+  }
+}
+
+async function readStatusJson(absolutePath, projectRoot, errors, maxBytes = MAX_FILE_BYTES) {
+  const result = await readStatusText(absolutePath, projectRoot, errors, maxBytes);
+  if (result.status !== "ok") return result;
+  try {
+    return { status: "ok", value: JSON.parse(result.text) };
+  } catch (error) {
+    errors.push(`${projectLabel(projectRoot, absolutePath)}：JSON 格式错误（${error.message}）`);
+    return { status: "error" };
+  }
+}
+
+/** 中文网文口径的字数：非空白字符按码位计数，Markdown 标题行（章名）不计入。 */
+export function countManuscriptCharacters(markdown) {
+  let total = 0;
+  for (const line of String(markdown).replace(/^﻿/u, "").split(/\r\n|\r|\n/u)) {
+    if (MARKDOWN_HEADING_LINE.test(line)) continue;
+    // \s 覆盖全角空格（U+3000）等 Unicode 空白：段首「　　」缩进不算字。
+    total += [...line.replace(/\s+/gu, "")].length;
+  }
+  return total;
+}
+
+/** 从 大纲/大纲.md 读目标体量；「目标字数」优先于开书时的「预计字数」。 */
+export function parseTargetWords(markdown) {
+  const found = new Map();
+  for (const line of String(markdown).split(/\r\n|\r|\n/u)) {
+    const match = TARGET_WORDS_LINE.exec(line);
+    if (match && !found.has(match[1])) found.set(match[1], Number(match[2]));
+  }
+  for (const label of TARGET_WORDS_LABELS) {
+    const value = found.get(label);
+    if (Number.isFinite(value) && value > 0) return Math.round(value * 10000);
+  }
+  return null;
+}
+
+function emptyTrackingSummary() {
+  return {
+    schema_version: null,
+    last_committed_chapter: null,
+    state_revision: null,
+    overdue_foreshadows: null,
+    due_soon_foreshadows: null,
+    absent_characters: null,
+    dormant_threads: null,
+  };
+}
+
+function optionalMapping(value, field, errors) {
+  if (value === undefined || value === null) return {};
+  if (isPlainObject(value)) return value;
+  errors.push(`${TRACKING_STATE_LABEL}：${field} 不是对象`);
+  return null;
+}
+
+function summarizeTrackingState(document, errors) {
+  const summary = emptyTrackingSummary();
+  if (!isPlainObject(document)) {
+    errors.push(`${TRACKING_STATE_LABEL}：顶层不是 JSON 对象`);
+    return summary;
+  }
+  summary.schema_version = Number.isSafeInteger(document.schema_version) ? document.schema_version : null;
+  summary.last_committed_chapter = nonNegativeInteger(document.last_committed_chapter);
+  summary.state_revision = nonNegativeInteger(document.state_revision);
+  if (summary.state_revision === null) {
+    errors.push(`${TRACKING_STATE_LABEL}：state_revision 缺失或不是非负整数`);
+  }
+  const last = summary.last_committed_chapter;
+  if (last === null) {
+    errors.push(`${TRACKING_STATE_LABEL}：last_committed_chapter 缺失或不是非负整数`);
+    return summary;
+  }
+  const nextChapter = last + 1;
+
+  const foreshadow = optionalMapping(document.foreshadow, "foreshadow", errors);
+  if (foreshadow) {
+    const overdue = [];
+    const dueSoon = [];
+    for (const [key, row] of Object.entries(foreshadow)) {
+      if (!isPlainObject(row) || row.status !== "已埋") continue;
+      const planned = positiveInteger(row.planned_resolution_chapter);
+      if (planned === null) continue;
+      const item = {
+        id: typeof row.id === "string" && row.id ? row.id : key,
+        summary: optionalString(row.summary),
+        planned_resolution_chapter: planned,
+        importance: optionalString(row.importance),
+      };
+      if (planned < nextChapter) {
+        overdue.push({ ...item, overdue_by: nextChapter - planned });
+      } else if (planned <= nextChapter + FORESHADOW_DUE_SOON_WINDOW) {
+        dueSoon.push(item);
+      }
+    }
+    const byPlannedChapter = (left, right) =>
+      left.planned_resolution_chapter - right.planned_resolution_chapter || compareCodePoints(left.id, right.id);
+    summary.overdue_foreshadows = overdue.sort(byPlannedChapter);
+    summary.due_soon_foreshadows = dueSoon.sort(byPlannedChapter);
+  }
+
+  // appearances 是 v5 才补上的出场记录，旧项目没有这一项时按空表处理，不算错误。
+  const appearances = optionalMapping(document.appearances, "appearances", errors);
+  const characters = optionalMapping(document.characters, "characters", errors);
+  const context = optionalMapping(document.context, "context", errors);
+  let activeNames = null;
+  if (context) {
+    const raw = context.active_character_names;
+    if (raw === undefined || raw === null) {
+      activeNames = [];
+    } else if (Array.isArray(raw)) {
+      activeNames = raw.filter((name) => typeof name === "string" && name.length > 0);
+    } else {
+      errors.push(`${TRACKING_STATE_LABEL}：context.active_character_names 不是数组`);
+    }
+  }
+  const lastSeen = (name) => {
+    const row = appearances && Object.hasOwn(appearances, name) ? appearances[name] : null;
+    const seen = isPlainObject(row) && Array.isArray(row.seen) ? row.seen.filter((chapter) => positiveInteger(chapter) !== null) : [];
+    return seen.length ? Math.max(...seen) : null;
+  };
+  if (appearances && activeNames) {
+    summary.absent_characters = activeNames.flatMap((name) => {
+      const seen = lastSeen(name);
+      if (seen === null || last - seen < LONG_ABSENCE_CHAPTERS) return [];
+      return [{ name, last_seen: seen, absent: last - seen }];
+    });
+  }
+  if (appearances && activeNames && characters) {
+    const active = new Set(activeNames);
+    summary.dormant_threads = Object.keys(characters)
+      .sort(compareCodePoints)
+      .flatMap((name) => {
+        if (active.has(name)) return [];
+        const snapshot = characters[name];
+        const threads = isPlainObject(snapshot) && Array.isArray(snapshot.open_threads) ? snapshot.open_threads.length : 0;
+        const seen = lastSeen(name);
+        if (threads === 0 || seen === null || last - seen < DORMANT_THREAD_CHAPTERS) return [];
+        return [{ name, open_threads: threads, last_seen: seen, absent: last - seen }];
+      });
+  }
+  return summary;
+}
+
+async function summarizeManuscript(projectRoot, errors) {
+  const bodyRoot = resolve(projectRoot, "正文");
+  const listing = await readStatusDirectory(bodyRoot, projectRoot, errors);
+  if (listing.missing) return { words_written: 0, chapter_files: 0, words_truncated: false };
+  if (!listing.entries) return { words_written: null, chapter_files: null, words_truncated: false };
+
+  const names = listing.entries
+    .filter((entry) => entry.isFile() && CHAPTER_FILE_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort(compareChapterNames);
+  const counted = names.slice(0, MAX_STATUS_CHAPTER_FILES);
+  const results = await mapWithConcurrency(counted, STATUS_READ_CONCURRENCY, async (name) => {
+    const fileErrors = [];
+    const file = await readStatusText(resolve(bodyRoot, name), projectRoot, fileErrors);
+    return { file, fileErrors };
+  });
+  let words = 0;
+  let files = 0;
+  let skipped = false;
+  for (const { file, fileErrors } of results) {
+    errors.push(...fileErrors);
+    if (file.status !== "ok") {
+      skipped = skipped || file.status === "error";
+      continue;
+    }
+    words += countManuscriptCharacters(file.text);
+    files += 1;
+  }
+  return {
+    words_written: words,
+    chapter_files: files,
+    words_truncated: names.length > counted.length || skipped,
+  };
+}
+
+async function readTargetWords(projectRoot, errors) {
+  const outline = await readStatusText(resolve(projectRoot, "大纲", "大纲.md"), projectRoot, errors);
+  return outline.status === "ok" ? parseTargetWords(outline.text) : null;
+}
+
+function describeCandidate(manifest, chapterDirectory, runDirectory, realRoot) {
+  const reviews = isPlainObject(manifest.reviews) ? manifest.reviews : {};
+  const verdict = (kind) => {
+    const receipt = Object.hasOwn(reviews, kind) ? reviews[kind] : null;
+    return isPlainObject(receipt) ? optionalString(receipt.verdict) : null;
+  };
+  const numbered = /^第0*(\d+)章$/u.exec(chapterDirectory);
+  return {
+    chapter: positiveInteger(manifest.chapter) ?? (numbered ? Number(numbered[1]) : null),
+    status: manifest.status,
+    run: toPosixPath(relative(realRoot, runDirectory)),
+    approval_mode: optionalString(manifest.approval_mode),
+    gate_status: isPlainObject(manifest.gate_run) ? optionalString(manifest.gate_run.status) : null,
+    reviews: { deslop: verdict("deslop"), consistency: verdict("consistency") },
+  };
+}
+
+// 与 chapter_candidate.py 的 open_workspaces 同序扫描 追踪/候选章/第*章/*/manifest.json。
+// 排在前面的 manifest 读坏时无法断定谁是「第一个未闭环候选」，整块置 null 并报错。
+async function findOpenCandidate(projectRoot, realRoot, errors) {
+  const candidatesRoot = resolve(projectRoot, TRACKING_DIRECTORY, "候选章");
+  const chapterListing = await readStatusDirectory(candidatesRoot, projectRoot, errors);
+  if (chapterListing.missing || !chapterListing.entries) return null;
+  const chapterDirectories = chapterListing.entries
+    .filter((entry) => entry.isDirectory() && CANDIDATE_CHAPTER_DIRECTORY_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort(compareCodePoints);
+  let scanned = 0;
+  for (const chapterDirectory of chapterDirectories) {
+    const chapterRoot = resolve(candidatesRoot, chapterDirectory);
+    const runListing = await readStatusDirectory(chapterRoot, projectRoot, errors);
+    if (runListing.missing) continue;
+    if (!runListing.entries) return null;
+    const runs = runListing.entries
+      .filter((entry) => entry.isDirectory() && !shouldIgnoreDirectory(entry.name))
+      .map((entry) => entry.name)
+      .sort(compareCodePoints);
+    for (const run of runs) {
+      scanned += 1;
+      if (scanned > MAX_STATUS_RECORD_FILES) {
+        errors.push(`${TRACKING_DIRECTORY}/候选章：候选运行目录超过 ${MAX_STATUS_RECORD_FILES} 个，未完成扫描`);
+        return null;
+      }
+      const runDirectory = resolve(chapterRoot, run);
+      const manifestPath = resolve(runDirectory, "manifest.json");
+      const manifest = await readStatusJson(manifestPath, projectRoot, errors);
+      if (manifest.status === "missing") continue;
+      if (manifest.status === "error") return null;
+      if (!isPlainObject(manifest.value)) {
+        errors.push(`${projectLabel(projectRoot, manifestPath)}：顶层不是 JSON 对象`);
+        return null;
+      }
+      if (OPEN_CANDIDATE_STATUSES.has(manifest.value.status)) {
+        return describeCandidate(manifest.value, chapterDirectory, runDirectory, realRoot);
+      }
+    }
+  }
+  return null;
+}
+
+async function summarizeCommitReceipts(projectRoot, errors) {
+  const receiptsRoot = resolve(projectRoot, TRACKING_DIRECTORY, "章节提交");
+  const listing = await readStatusDirectory(receiptsRoot, projectRoot, errors);
+  if (listing.missing) return { gated: 0, legacy: 0 };
+  if (!listing.entries) return null;
+  const names = listing.entries
+    .filter((entry) => entry.isFile() && COMMIT_RECEIPT_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort(compareChapterNames);
+  if (names.length > MAX_STATUS_RECORD_FILES) {
+    errors.push(`${TRACKING_DIRECTORY}/章节提交：提交凭证超过 ${MAX_STATUS_RECORD_FILES} 份，未统计`);
+    return null;
+  }
+  const results = await mapWithConcurrency(names, STATUS_READ_CONCURRENCY, async (name) => {
+    const receiptErrors = [];
+    const receipt = await readStatusJson(resolve(receiptsRoot, name), projectRoot, receiptErrors);
+    return { name, receipt, receiptErrors };
+  });
+  let gated = 0;
+  let legacy = 0;
+  let failed = false;
+  for (const { name, receipt, receiptErrors } of results) {
+    errors.push(...receiptErrors);
+    if (receipt.status === "missing") continue;
+    if (receipt.status === "error") {
+      failed = true;
+      continue;
+    }
+    if (!isPlainObject(receipt.value)) {
+      errors.push(`${TRACKING_DIRECTORY}/章节提交/${name}：顶层不是 JSON 对象`);
+      failed = true;
+      continue;
+    }
+    if (receipt.value.protocol === GATED_PROTOCOL) gated += 1;
+    else legacy += 1;
+  }
+  return failed ? null : { gated, legacy };
+}
+
+// 意料之外的 I/O 异常（EIO、竞态删除等）也只让对应那一块置空，不把整张状态卡打成 500。
+async function guardedStatusPart(label, errors, fallback, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    errors.push(`${label}：读取失败（${errorCode(error)}）`);
+    return fallback;
+  }
+}
+
+export async function readProjectStatus(root, requestedPath) {
+  const { absolutePath: projectRoot, realRoot } = await resolveWorkspaceDirectory(root, requestedPath);
+  await assertLongProjectMarker(projectRoot);
+
+  const stateErrors = [];
+  const manuscriptErrors = [];
+  const outlineErrors = [];
+  const candidateErrors = [];
+  const receiptErrors = [];
+  const [tracking, manuscript, targetWords, openCandidate, quality] = await Promise.all([
+    guardedStatusPart(TRACKING_STATE_LABEL, stateErrors, emptyTrackingSummary(), async () => {
+      const state = await readStatusJson(
+        resolve(projectRoot, TRACKING_DIRECTORY, TRACKING_STATE_FILE),
+        projectRoot,
+        stateErrors,
+        MAX_TRACKING_STATE_BYTES,
+      );
+      if (state.status === "missing") {
+        stateErrors.push(`${TRACKING_STATE_LABEL}：文件在读取时消失`);
+      }
+      return state.status === "ok" ? summarizeTrackingState(state.value, stateErrors) : emptyTrackingSummary();
+    }),
+    guardedStatusPart(
+      "正文",
+      manuscriptErrors,
+      { words_written: null, chapter_files: null, words_truncated: false },
+      () => summarizeManuscript(projectRoot, manuscriptErrors),
+    ),
+    guardedStatusPart("大纲/大纲.md", outlineErrors, null, () => readTargetWords(projectRoot, outlineErrors)),
+    guardedStatusPart(`${TRACKING_DIRECTORY}/候选章`, candidateErrors, null, () =>
+      findOpenCandidate(projectRoot, realRoot, candidateErrors),
+    ),
+    guardedStatusPart(`${TRACKING_DIRECTORY}/章节提交`, receiptErrors, null, () =>
+      summarizeCommitReceipts(projectRoot, receiptErrors),
+    ),
+  ]);
+
+  return {
+    path: toPosixPath(relative(realRoot, projectRoot)) || ".",
+    schema_version: tracking.schema_version,
+    last_committed_chapter: tracking.last_committed_chapter,
+    state_revision: tracking.state_revision,
+    words_written: manuscript.words_written,
+    chapter_files: manuscript.chapter_files,
+    words_truncated: manuscript.words_truncated,
+    target_words: targetWords,
+    overdue_foreshadows: tracking.overdue_foreshadows,
+    due_soon_foreshadows: tracking.due_soon_foreshadows,
+    absent_characters: tracking.absent_characters,
+    dormant_threads: tracking.dormant_threads,
+    open_candidate: openCandidate,
+    quality,
+    errors: [...stateErrors, ...manuscriptErrors, ...outlineErrors, ...candidateErrors, ...receiptErrors],
+    limits: {
+      maxChapterFiles: MAX_STATUS_CHAPTER_FILES,
     },
   };
 }
@@ -788,6 +1315,10 @@ export function createDashboardServer({ root, allowNetwork = false }) {
             url.searchParams.get("scope") || "",
           ),
         );
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/project-status") {
+        sendJson(response, 200, await readProjectStatus(workspaceRoot, url.searchParams.get("path") || ""));
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/file") {

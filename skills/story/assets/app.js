@@ -182,6 +182,8 @@ function createTreeEntry(node, depth = 0) {
     const shouldOpen =
       state.expandedDirs.has(node.path) ||
       (depth === 0 && !state.collapsedDirs.has(node.path));
+    // 只有工作区扫描认出的长篇项目根（含 追踪/_tracking-state.json）才挂状态卡
+    const showsProjectStatus = depth === 0 && node.hasTrackingState === true;
     details.open = shouldOpen;
     // 只记录作者亲手的展开/收起；首层程序化展开不算偏好。
     let recorded = shouldOpen;
@@ -192,6 +194,8 @@ function createTreeEntry(node, depth = 0) {
         state.expandedDirs.add(node.path);
         state.collapsedDirs.delete(node.path);
         if (!node.loaded && !node.loading) loadDirectory(node);
+        // 作者亲手打开项目时顺带重读一次状态，收起再展开就是最直接的「刷新状态卡」
+        if (showsProjectStatus && !node.statusLoading) loadProjectStatus(node);
       } else {
         state.expandedDirs.delete(node.path);
         state.collapsedDirs.add(node.path);
@@ -204,6 +208,7 @@ function createTreeEntry(node, depth = 0) {
     label.textContent = node.name;
     summary.append(label);
     details.append(summary);
+    if (showsProjectStatus) details.append(createProjectStatusCard(node));
 
     const list = document.createElement("ul");
     node.children.forEach((child) => {
@@ -247,6 +252,21 @@ function createTreeEntry(node, depth = 0) {
       window.queueMicrotask(() => {
         node.loadQueued = false;
         if (!node.loaded && !node.loading && !node.loadError) loadDirectory(node);
+      });
+    }
+    // 自动加载只试一次：失败后等作者点「重新读取」，不在每次重绘时反复打接口
+    if (
+      showsProjectStatus &&
+      shouldOpen &&
+      !node.status &&
+      !node.statusLoading &&
+      !node.statusError &&
+      !node.statusQueued
+    ) {
+      node.statusQueued = true;
+      window.queueMicrotask(() => {
+        node.statusQueued = false;
+        if (!node.status && !node.statusLoading && !node.statusError) loadProjectStatus(node);
       });
     }
     return item;
@@ -305,6 +325,274 @@ async function loadDirectory(node, { append = false } = {}) {
     renderLoadedFileCount();
     renderTree();
   }
+}
+
+// ── 长篇项目状态卡（只读） ─────────────────────────────────────────────
+// 数据来自 /api/project-status；卡片挂在项目根目录下、子目录列表之前，
+// 随项目展开/收起显示，不改动文件树原有的行与目录结构。
+
+async function loadProjectStatus(node) {
+  if (node.statusLoading) return;
+  const retrying = Boolean(node.statusError);
+  node.statusLoading = true;
+  node.statusError = "";
+  if (retrying) renderTree();
+  try {
+    node.status = await requestJson(`/api/project-status?path=${encodeURIComponent(node.path)}`);
+  } catch (error) {
+    // 已有旧数据时保留旧卡片，只在从未读到过时显示错误
+    if (!node.status) node.statusError = error.message;
+  } finally {
+    node.statusLoading = false;
+    renderTree();
+  }
+}
+
+function refreshProjectStatusFor(path) {
+  const project = state.workspace?.projects.find(
+    (node) =>
+      node.hasTrackingState && (node.path === "." || path.startsWith(`${node.path}/`)),
+  );
+  if (project?.status && !project.statusLoading) loadProjectStatus(project);
+}
+
+function formatWordAmount(value) {
+  if (value >= 10000) {
+    const wan = value / 10000;
+    return `${Number.isInteger(wan) ? wan : wan.toFixed(1).replace(/\.0$/, "")} 万字`;
+  }
+  return `${formatNumber(value)} 字`;
+}
+
+function formatPercent(ratio) {
+  const percent = ratio * 100;
+  if (percent > 0 && percent < 0.1) return "<0.1%";
+  return `${percent >= 10 ? Math.round(percent) : percent.toFixed(1)}%`;
+}
+
+function candidateStatusLabel(status) {
+  return { draft: "草稿", approved: "已接纳", promoted: "已写入正文" }[status] || status;
+}
+
+// 与 chapter_candidate.py 的接纳前流程同序：门禁 → 去味审查 → 一致性审查 → 接纳 → 写入 → 闭环
+function candidateStep(candidate) {
+  if (candidate.status === "approved") return "待写入正文";
+  if (candidate.status === "promoted") return "待追踪闭环";
+  if (!candidate.gate_status) return "待跑门禁";
+  if (candidate.gate_status !== "pass") return "门禁未通过";
+  const { deslop, consistency } = candidate.reviews || {};
+  if (deslop === "REJECT" || consistency === "REJECT") return "审查驳回，需重写";
+  if (!deslop) return "待去味审查";
+  if (!consistency) return "待一致性审查";
+  return candidate.approval_mode === "auto" ? "待自动接纳" : "待作者接纳";
+}
+
+function statusElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+
+function statusRow(term, ...content) {
+  const row = statusElement("div", "project-status-row");
+  row.append(statusElement("dt", "", term));
+  const value = statusElement("dd");
+  value.append(...content);
+  row.append(value);
+  return row;
+}
+
+function statusList(items, limit, render) {
+  const list = statusElement("ul", "project-status-list");
+  items.slice(0, limit).forEach((item) => list.append(render(item)));
+  if (items.length > limit) {
+    list.append(statusElement("li", "project-status-more", `另有 ${formatNumber(items.length - limit)} 条`));
+  }
+  return list;
+}
+
+function foreshadowItem(item, kind) {
+  const entry = statusElement("li", "project-status-item");
+  entry.dataset.kind = kind;
+  entry.title = [item.id, item.summary, item.importance && `重要度：${item.importance}`]
+    .filter(Boolean)
+    .join("｜");
+  entry.append(statusElement("span", "project-status-id", item.id));
+  entry.append(
+    statusElement(
+      "span",
+      "project-status-tag",
+      kind === "overdue" ? `逾期 ${item.overdue_by} 章` : `第 ${item.planned_resolution_chapter} 章到期`,
+    ),
+  );
+  entry.append(statusElement("span", "project-status-text", item.summary || "—"));
+  return entry;
+}
+
+function renderProgressRow(status) {
+  const last = status.last_committed_chapter;
+  if (last === null) return statusRow("进度", "—");
+  const row = statusRow("进度", last === 0 ? "尚未开篇" : `已提交至第 ${formatNumber(last)} 章`);
+  row.title = `下一章：第 ${formatNumber(last + 1)} 章`;
+  return row;
+}
+
+function renderWordsRow(status) {
+  const words = status.words_written;
+  const target = status.target_words;
+  if (words === null) return statusRow("字数", "—");
+  const partial = status.words_truncated ? "（未统计完整）" : "";
+  if (!target) {
+    const row = statusRow("字数", `${formatWordAmount(words)}${partial} · 未设目标字数`);
+    row.title = `已写 ${formatNumber(words)} 字；大纲/大纲.md 里没有「目标字数：X 万字」`;
+    return row;
+  }
+  const ratio = words / target;
+  const meter = statusElement("progress", "project-status-meter");
+  meter.max = 100;
+  meter.value = Math.min(100, ratio * 100);
+  meter.setAttribute("aria-label", `完成度 ${formatPercent(ratio)}`);
+  const row = statusRow(
+    "字数",
+    `${formatWordAmount(words)} / ${formatWordAmount(target)}${partial} · ${formatPercent(ratio)}`,
+    meter,
+  );
+  row.title = `已写 ${formatNumber(words)} 字，目标 ${formatNumber(target)} 字`;
+  return row;
+}
+
+function renderForeshadowRow(status) {
+  const overdue = status.overdue_foreshadows;
+  const dueSoon = status.due_soon_foreshadows;
+  if (!overdue || !dueSoon) return statusRow("伏笔", "—");
+  if (!overdue.length && !dueSoon.length) return statusRow("伏笔", "无逾期或临近伏笔");
+  const heading = statusElement("span", "project-status-summary");
+  heading.dataset.tone = overdue.length ? "danger" : "warning";
+  heading.textContent = `逾期 ${formatNumber(overdue.length)} · 临近 ${formatNumber(dueSoon.length)}`;
+  const items = [
+    ...overdue.map((item) => ({ item, kind: "overdue" })),
+    ...dueSoon.map((item) => ({ item, kind: "due" })),
+  ];
+  return statusRow("伏笔", heading, statusList(items, 4, ({ item, kind }) => foreshadowItem(item, kind)));
+}
+
+function renderCharactersRow(status) {
+  const absent = status.absent_characters;
+  const dormant = status.dormant_threads;
+  if (!absent && !dormant) return statusRow("角色", "—");
+  const items = [
+    ...(absent || []).map((item) => ({
+      kind: "absent",
+      name: item.name,
+      text: `久别 ${formatNumber(item.absent)} 章`,
+      detail: `仍在活跃名单，上次出场第 ${formatNumber(item.last_seen)} 章`,
+    })),
+    ...(dormant || []).map((item) => ({
+      kind: "dormant",
+      name: item.name,
+      text: `${formatNumber(item.open_threads)} 条线程搁置 ${formatNumber(item.absent)} 章`,
+      detail: `未了线程 ${formatNumber(item.open_threads)} 条，上次出场第 ${formatNumber(item.last_seen)} 章`,
+    })),
+  ];
+  if (!items.length) return statusRow("角色", absent && dormant ? "无久别角色或搁置线程" : "—");
+  return statusRow(
+    "角色",
+    statusList(items, 4, (item) => {
+      const entry = statusElement("li", "project-status-item");
+      entry.dataset.kind = item.kind;
+      entry.title = `${item.name}：${item.text}（${item.detail}）`;
+      entry.append(statusElement("span", "project-status-name", item.name));
+      entry.append(statusElement("span", "project-status-text", item.text));
+      return entry;
+    }),
+  );
+}
+
+function renderCandidateRow(status) {
+  const candidate = status.open_candidate;
+  if (!candidate) {
+    const unknown = (status.errors || []).some((message) => message.startsWith("追踪/候选章"));
+    return statusRow("候选", unknown ? "无法判断（候选章数据读取失败）" : "无未闭环候选章");
+  }
+  const chapter = candidate.chapter ? `第 ${formatNumber(candidate.chapter)} 章` : "候选章";
+  const step = statusElement("span", "project-status-summary", candidateStep(candidate));
+  step.dataset.tone = candidate.gate_status === "fail" ? "danger" : "info";
+  const verdict = (value) => value || "未审";
+  const gate = { pass: "通过", fail: "未过" }[candidate.gate_status] || candidate.gate_status || "未跑";
+  const detail = statusElement(
+    "span",
+    "project-status-detail",
+    `门禁 ${gate} · 去味 ${verdict(candidate.reviews?.deslop)} · 一致性 ${verdict(candidate.reviews?.consistency)}`,
+  );
+  const row = statusRow("候选", `${chapter} · ${candidateStatusLabel(candidate.status)} · `, step, detail);
+  row.title = candidate.run;
+  return row;
+}
+
+function renderQualityRow(status) {
+  const quality = status.quality;
+  if (!quality) return statusRow("质检", "—");
+  return statusRow(
+    "质检",
+    `门禁接纳 ${formatNumber(quality.gated)} 章 · 旧流程 ${formatNumber(quality.legacy)} 章`,
+  );
+}
+
+function createProjectStatusCard(node) {
+  const card = statusElement("div", "project-status");
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", `${node.name} 项目状态`);
+  card.dataset.project = node.path;
+
+  const header = statusElement("div", "project-status-head");
+  header.append(statusElement("span", "project-status-title", "项目状态"));
+  const status = node.status;
+  if (status?.state_revision !== null && status?.state_revision !== undefined) {
+    header.append(statusElement("span", "project-status-revision", `修订 ${formatNumber(status.state_revision)}`));
+  }
+  card.append(header);
+
+  if (!status) {
+    card.dataset.state = node.statusError ? "error" : "loading";
+    const message = statusElement(
+      "p",
+      "project-status-message",
+      node.statusError ? `状态读取失败：${node.statusError}` : "正在读取项目状态…",
+    );
+    card.append(message);
+    if (node.statusError) {
+      const retry = statusElement("button", "project-status-retry", "重新读取状态");
+      retry.type = "button";
+      retry.addEventListener("click", () => loadProjectStatus(node));
+      card.append(retry);
+    }
+    return card;
+  }
+
+  card.dataset.state = node.statusLoading ? "refreshing" : "ready";
+  const grid = statusElement("dl", "project-status-grid");
+  grid.append(
+    renderProgressRow(status),
+    renderWordsRow(status),
+    renderForeshadowRow(status),
+    renderCharactersRow(status),
+    renderCandidateRow(status),
+    renderQualityRow(status),
+  );
+  card.append(grid);
+
+  const errors = status.errors || [];
+  if (errors.length) {
+    // 卡片里只列出问题文件，解析器原文放进悬停提示，避免把窄栏撑成一大块
+    const sources = [...new Set(errors.map((message) => message.split("：")[0]))];
+    const shown = sources.slice(0, 2).join("、");
+    const more = sources.length > 2 ? ` 等 ${formatNumber(sources.length)} 处` : "";
+    const warning = statusElement("p", "project-status-errors", `部分数据无法读取：${shown}${more}`);
+    warning.title = errors.join("\n");
+    card.append(warning);
+  }
+  return card;
 }
 
 function loadedFileCount() {
@@ -697,6 +985,8 @@ async function saveFile() {
     file.version = saved.version;
     file.size = saved.size;
     showToast(`已保存《${file.name}》`);
+    // 改了大纲目标字数、正文或追踪文件后，已展示的项目状态卡跟着重读
+    refreshProjectStatusFor(file.path);
     if (state.activeFile !== file) return;
     state.originalContent = sent;
     // 保存途中敲进来的字仍是未保存修改，不能被这次结果抹平成「已保存」
