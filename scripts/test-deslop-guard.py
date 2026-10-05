@@ -99,4 +99,40 @@ with tempfile.TemporaryDirectory(prefix="deslop-guard-") as raw_tmp:
     escaped = run("init", str(outside), "--project-root", str(project), "--run-id", "escape")
     assert escaped.returncode == 2 and "必须位于项目根目录内" in escaped.stderr
 
-print("OK: deslop guard stages candidates, protects literals, rejects stale writes, and applies explicitly")
+    # scan：只读，按规则表 v1 与阈值给告警＋候选位置；check 把候选稿告警并入 advisory，永不 blocking。
+    book = tmp / "book"
+    chapter = book / "正文" / "第002章.md"
+    chapter.parent.mkdir(parents=True)
+    rows = ["# 第2章 扫描"] + ["他推开门，屋里很暗，地上堆着旧纸箱，墙角还靠着一把伞。"] * 50
+    rows[5:5] = ["他猛地停下——门外有人。"] * 4
+    chapter_text = "\n".join(rows) + "\n"
+    chapter.write_text(chapter_text, encoding="utf-8")
+    scanned = run("scan", str(chapter), "--format", "json")
+    assert scanned.returncode == 0, scanned.stderr
+    report = json.loads(scanned.stdout)["reports"][0]
+    assert chapter.read_text(encoding="utf-8") == chapter_text, "scan 不得改正文"
+    assert report["rule_table_version"] == "v1-2026-10-06"
+    assert report["thresholds"]["source"] == "default" and report["thresholds"]["pool"] == "都市高武系统"
+    alarms = {item["id"]: item for item in report["alarms"]}
+    assert alarms["L04"]["alarm"] == "rule-threshold" and len(alarms["L04"]["candidates"]) == 4
+    assert alarms["L04"]["candidates"][0]["line"] == 6
+    assert alarms["W01"]["alarm"] == "rule-threshold"
+    assert {"P12", "P11", "L21", "L16"} <= {rid for rid, item in alarms.items() if item["alarm"] == "deficit-floor"}
+    assert all(item["status"] != "retired" or item["alarm"] for item in report["rules"])
+    (book / ".deslop-thresholds.json").write_text(json.dumps({
+        "schema": "deslop-thresholds/v1", "pool": "都市脑洞游戏制作", "disabled_rules": ["L04"],
+    }, ensure_ascii=False), encoding="utf-8")
+    rescanned = json.loads(run("scan", str(chapter), "--format", "json").stdout)["reports"][0]
+    assert rescanned["thresholds"]["source"] == "book" and rescanned["thresholds"]["pool"] == "都市脑洞游戏制作"
+    assert "L04" not in {item["id"] for item in rescanned["alarms"]}
+
+    scan_init = run("init", str(chapter), "--project-root", str(book), "--run-id", "scan-regression")
+    assert scan_init.returncode == 0, scan_init.stderr
+    checked = run("check", scan_init.stdout.strip())
+    assert checked.returncode == 0, checked.stdout
+    check_report = json.loads(checked.stdout)
+    assert check_report["status"] == "pass" and check_report["surface_scan"]["alarms"] >= 1
+    assert any(item["type"] == "rule-threshold" for item in check_report["advisory"])
+    assert not any(item["type"] in ("rule-threshold", "deficit-floor") for item in check_report["blocking"])
+
+print("OK: deslop guard stages candidates, protects literals, rejects stale writes, applies explicitly, and scans alarms read-only")

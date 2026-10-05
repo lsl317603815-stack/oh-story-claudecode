@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Stage fiction deslop edits, protect literals, and apply checked candidates."""
+"""Stage fiction deslop edits, protect literals, and apply checked candidates.
+
+`scan` reports corpus-validated surface-rule alarms with candidate positions and never edits text
+(rule table: references/pattern-contracts.json; thresholds: nearest book `.deslop-thresholds.json`,
+falling back to references/deslop-thresholds.default.json). `check` attaches the same alarms to the
+candidate as advisory only. Edits reach the source only through `apply --confirm APPLY`.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +25,16 @@ RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_])\d+(?:\.\d+)?(?:[%％年月日时分秒章卷万亿元岁号层级]*)")
 TITLE_RE = re.compile(r"《([^》\n]{1,80})》")
 CODE_RE = re.compile(r"`([^`\n]{1,120})`")
+
+
+RULE_TABLE_DIR = Path(__file__).resolve().parent.parent / "references"
+RULE_CONTRACTS = "pattern-contracts.json"
+RULE_THRESHOLDS_DEFAULT = "deslop-thresholds.default.json"
+BOOK_THRESHOLDS = ".deslop-thresholds.json"
+THRESHOLD_SCHEMA = "deslop-thresholds/v1"
+SCAN_MAX_CANDIDATES = 20
+DENOMINATOR_SCALE = {"per_1000_han": ("han", 1000), "per_100_paragraphs": ("paragraphs", 100),
+                     "per_100_sentences": ("sentences", 100), "per_100_chapters": (None, 100)}
 
 
 class GuardError(RuntimeError):
@@ -148,6 +164,166 @@ def hard_literals(ledger: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def load_rule_table() -> dict[str, Any]:
+    contracts = load_json(RULE_TABLE_DIR / RULE_CONTRACTS)
+    table = contracts.get("rule_table") or {}
+    rules = contracts.get("surface_rules") or []
+    if not table.get("version") or not rules:
+        raise GuardError(f"规则表缺少 rule_table.version 或 surface_rules: {RULE_TABLE_DIR / RULE_CONTRACTS}")
+    return {"version": table["version"], "rules": rules}
+
+
+def find_book_thresholds(path: Path) -> Path | None:
+    """从正文所在目录逐级向上找最近的书目录阈值文件；不回退调用者 cwd（同 .deslop-whitelist）。"""
+    for directory in [path.parent, *path.parent.parents]:
+        candidate = directory / BOOK_THRESHOLDS
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def resolve_thresholds(source: Path, *, pool: str | None = None, explicit: str | None = None,
+                       writer_family: str | None = None) -> dict[str, Any]:
+    default_path = RULE_TABLE_DIR / RULE_THRESHOLDS_DEFAULT
+    defaults = load_json(default_path)
+    ctx: dict[str, Any] = {"source": "default", "path": str(default_path), "warnings": [], "disabled": [],
+                           "min_han": defaults.get("min_han", 1000)}
+    book: dict[str, Any] | None = None
+    book_path = Path(explicit).expanduser().resolve() if explicit else find_book_thresholds(source)
+    if book_path is not None:
+        try:
+            book = load_json(book_path)
+            if book.get("schema") != THRESHOLD_SCHEMA:
+                raise GuardError(f"schema 应为 {THRESHOLD_SCHEMA}，实际 {book.get('schema')!r}")
+            ctx.update(source="explicit" if explicit else "book", path=str(book_path))
+        except GuardError as exc:
+            ctx["warnings"].append(f"书目录阈值文件无效，已回退仓内缺省表：{book_path}（{exc}）")
+            book = None
+    pools = defaults.get("pools", {})
+    wanted = pool or (book or {}).get("pool") or defaults["default_pool"]
+    if wanted not in pools:
+        ctx["warnings"].append(f"题材池「{wanted}」不在缺省表里，已改用 {defaults['default_pool']}")
+        wanted = defaults["default_pool"]
+    ctx["pool"] = wanted
+    if pools[wanted].get("warning"):
+        ctx["warnings"].append(f"{wanted}：{pools[wanted]['warning']}")
+    rules = {rid: dict(row) for rid, row in pools[wanted].get("rules", {}).items()}
+    if book:
+        for rid, override in (book.get("rules") or {}).items():
+            rules[rid] = {**rules.get(rid, {}), **override, "overridden": True}
+        ctx["disabled"] = list(book.get("disabled_rules") or [])
+        if isinstance(book.get("min_han"), int):
+            ctx["min_han"] = book["min_han"]
+        ctx["baseline_source"] = (book.get("baseline") or {}).get("source")
+    ctx["writer_family"] = writer_family or (book or {}).get("writer_family")
+    ctx["rules"] = rules
+    if ctx["source"] == "default":
+        ctx["warnings"].append("未找到书目录 .deslop-thresholds.json，回退仓内缺省表")
+    return ctx
+
+
+def load_corpus_detectors() -> Any:
+    """corpus_rules 只随 story-deslop 正本分发；其他 skill 的本脚本副本没有它时返回 None。"""
+    root = Path(__file__).resolve().parent
+    if not (root / "corpus_rules" / "detectors.py").is_file():
+        return None
+    sys.dont_write_bytecode = True
+    for entry in (str(root), str(root / "corpus_rules")):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
+    import detectors  # noqa: PLC0415
+
+    return detectors
+
+
+def normalized_line_numbers(text: str, paragraphs: list[str]) -> list[int]:
+    """把 voice_profile.normalized_lines 的段落映回原文行号（按序匹配去空白后的整行）。"""
+    numbers: list[int] = []
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    cursor = 0
+    for paragraph in paragraphs:
+        while cursor < len(lines) and lines[cursor].strip() != paragraph:
+            cursor += 1
+        numbers.append(cursor + 1 if cursor < len(lines) else 0)
+        cursor += 1
+    return numbers
+
+
+def surface_scan(source: Path, *, pool: str | None = None, thresholds: str | None = None,
+                 writer_family: str | None = None, include_retired: bool = False) -> dict[str, Any]:
+    """按规则表与阈值给出告警和候选位置；只读，不改文本。"""
+    detectors = load_corpus_detectors()
+    table = load_rule_table()
+    ctx = resolve_thresholds(source, pool=pool, explicit=thresholds, writer_family=writer_family)
+    meta = {k: ctx.get(k) for k in ("source", "path", "pool", "writer_family", "min_han", "baseline_source", "warnings", "disabled")}
+    result: dict[str, Any] = {"file": str(source), "rule_table_version": table["version"], "thresholds": meta,
+                              "alarms": [], "rules": []}
+    if detectors is None:
+        result["status"] = "unavailable"
+        result["note"] = "本副本没有 corpus_rules 检测器；全量表层扫描只在 story-deslop 正本提供"
+        return result
+    text = read_text(source)
+    paragraphs = detectors.VP.normalized_lines(text)
+    line_numbers = normalized_line_numbers(text, paragraphs)
+    units = detectors.unit_counts(paragraphs)
+    units["chapters"] = 1
+    result["units"] = units
+    judged = units["han"] >= ctx["min_han"]
+    if not judged:
+        result["note"] = f"正文 {units['han']} 汉字 < {ctx['min_han']}，不做章级阈值判定，只列命中"
+    for rule in table["rules"]:
+        rid, status = rule["id"], rule["status"]
+        detector = detectors.REGISTRY.get(rid)
+        if detector is None:
+            continue
+        hits = detector(paragraphs)
+        if rule.get("kind") == "metric":
+            value = hits[0]["value"] if hits else None
+            count = None
+        else:
+            field, scale = DENOMINATOR_SCALE[rule["denominator"]]
+            denominator = units[field] if field else 1
+            count = len(hits)
+            value = count * scale / denominator if denominator else None
+        bounds = ctx["rules"].get(rid, {})
+        alarm: str | None = None
+        bound: float | None = None
+        active = judged and value is not None and rid not in ctx["disabled"]
+        if status in ("conditional", "candidate") and active and bounds.get("chapter_p90") is not None:
+            bound = bounds["chapter_p90"]
+            alarm = "rule-threshold" if value > bound else None
+        elif rule.get("action") == "family_hint" and active and bounds.get("chapter_p90") is not None:
+            families = (rule.get("family_hint") or {}).get("families", [])
+            if ctx["writer_family"] in families:
+                bound = bounds["chapter_p90"]
+                alarm = "family-hint" if value > bound else None
+        if alarm is None and rule.get("deficit") and active and bounds.get("chapter_p10") is not None:
+            if value < bounds["chapter_p10"]:
+                bound, alarm = bounds["chapter_p10"], "deficit-floor"
+        row = {"id": rid, "name": rule["name"], "status": status, "value": None if value is None else round(value, 4),
+               "count": count, "bound": bound, "alarm": alarm}
+        if status == "retired" and alarm is None and not include_retired:
+            continue
+        if status == "pending" and hits and alarm is None:
+            # 待定：量不足、去留未定，维持现状但只列命中位置，不做阈值告警（决定 13）。
+            row["candidates"] = [{"line": line_numbers[h["para"]], "text": h["text"], "sentence": h["sentence"][:60]}
+                                 for h in hits[:5] if "para" in h]
+            result.setdefault("pending_hits", []).append(row)
+        result["rules"].append(row)
+        if alarm:
+            candidates = []
+            if alarm != "deficit-floor":
+                for hit in hits[:SCAN_MAX_CANDIDATES]:
+                    if "para" in hit:
+                        candidates.append({"line": line_numbers[hit["para"]], "text": hit["text"],
+                                           "sentence": hit["sentence"][:60], "in_dialogue": hit["in_dialogue"]})
+            direction = "低于真人章级 P10" if alarm == "deficit-floor" else "高于真人章级 P90"
+            result["alarms"].append({**row, "severity": "advisory", "candidates": candidates,
+                                     "message": f"{rule['name']} {value:.2f}，{direction}（{bound:.2f}，{ctx['pool']}）；只告警，作者决定是否改。"})
+    result["status"] = "alarms" if result["alarms"] else "clean"
+    return result
+
+
 def build_report(run_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     snapshot, candidate_path = snapshot_paths(run_dir, manifest)
     source, candidate = read_text(snapshot), read_text(candidate_path)
@@ -174,11 +350,22 @@ def build_report(run_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
 
     spans = changed_spans(source, candidate)
     atomic_json(run_dir / "changed-spans.json", {"version": 1, "spans": spans})
+    # 表层规则只告警：候选稿的阈值告警并入 advisory，永不进入 blocking（规则表 v1，决定 9）。
+    surface: dict[str, Any]
+    try:
+        scan = surface_scan(candidate_path)
+        surface = {"status": scan["status"], "rule_table_version": scan["rule_table_version"],
+                   "thresholds": {k: scan["thresholds"][k] for k in ("source", "pool")}, "alarms": len(scan["alarms"])}
+        for alarm in scan["alarms"]:
+            advisory.append({"type": alarm["alarm"], "rule": alarm["id"], "message": alarm["message"],
+                             "candidates": alarm["candidates"][:5]})
+    except GuardError as exc:
+        surface = {"status": "unavailable", "note": str(exc)}
     return {
         "status": "blocked" if blocking else "pass", "run_id": manifest["run_id"],
         "edit_scope": manifest["edit_scope"], "rewrite_intensity": manifest["rewrite_intensity"],
         "retention_ratio": round(retention, 6), "changed_span_count": len(spans),
-        "blocking": blocking, "advisory": advisory,
+        "blocking": blocking, "advisory": advisory, "surface_scan": surface,
     }
 
 
@@ -251,6 +438,27 @@ def cmd_apply(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_scan(args: argparse.Namespace) -> int:
+    reports = [surface_scan(Path(raw).expanduser().resolve(), pool=args.pool, thresholds=args.thresholds,
+                            writer_family=args.writer_family, include_retired=args.include_retired)
+               for raw in args.files]
+    if args.format == "json":
+        print(json.dumps({"reports": reports}, ensure_ascii=False, indent=2))
+        return 0
+    for report in reports:
+        th = report["thresholds"]
+        print(f"# {report['file']}：规则表 {report['rule_table_version']}；阈值 {th['source']}·{th['pool']}；"
+              + "；".join(th["warnings"] + ([report["note"]] if report.get("note") else [])))
+        for alarm in report["alarms"]:
+            print(f"[advisory] {alarm['alarm']} {alarm['id']}: {alarm['message']}")
+            for c in alarm["candidates"]:
+                print(f"  候选 第{c['line']}行: {c['text']}｜{c['sentence']}")
+        for row in report.get("pending_hits", []):
+            where = "、".join(f"第{c['line']}行「{c['text']}」" for c in row["candidates"])
+            print(f"[candidate] pending {row['id']} {row['name']} {row['count']} 处（待定，只列不告警）: {where}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -273,6 +481,14 @@ def build_parser() -> argparse.ArgumentParser:
     apply_parser.add_argument("run_dir")
     apply_parser.add_argument("--confirm", required=True)
     apply_parser.set_defaults(func=cmd_apply)
+    scan_parser = sub.add_parser("scan", help="只读：按规则表与阈值报告告警和候选位置，不改文本")
+    scan_parser.add_argument("files", nargs="+")
+    scan_parser.add_argument("--pool")
+    scan_parser.add_argument("--thresholds", help="指定书目录阈值文件；缺省逐级向上找 .deslop-thresholds.json")
+    scan_parser.add_argument("--writer-family", choices=("claude", "doubao", "gpt", "unknown"))
+    scan_parser.add_argument("--include-retired", action="store_true", help="同时列出 retired 规则的度量（不告警）")
+    scan_parser.add_argument("--format", choices=("text", "json"), default="text")
+    scan_parser.set_defaults(func=cmd_scan)
     return parser
 
 

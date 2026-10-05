@@ -1,53 +1,141 @@
 {
-  "version": 1,
+  "version": 2,
   "default_action": "advisory",
+  "rule_table": {
+    "version": "v1-2026-10-06",
+    "decided": "2026-10-06",
+    "decision": "设计正本 2026-10-05-去AI味语料验证规则 §二 决定 9–13：表层规则一律阈值告警＋候选位置，不自动改写；L04 限量提示；淘汰条目 retired；冲突项不拦截；「猛地」单列候选；待定保留候选态；反向指标预注册赤字",
+    "audit": "仓外语料池 网文/_P2/审计-网文去AI味规则-语料验证-20261006.md",
+    "corpus": {
+      "fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "sha256_16": {
+        "manifest.json": "16189a6c1a27a94b",
+        "measure_units.jsonl": "b99a44820bc55a26",
+        "p2_rule_stats.json": "bdccc7040e5202e3",
+        "thresholds_draft.json": "7e0f64eb3e89cb9f"
+      },
+      "seed": 20261006,
+      "bootstrap": 1000,
+      "A0g": "2026-10 三族无约束稿（claude／doubao／gpt）× 11 章源包；训练侧 69,730 汉字（8 章组），留出 24,200",
+      "H": "外部热门原文 6 本书等权（H01–H06），训练侧 3,383,426 汉字，留出 734,340",
+      "criteria": "R＝A0g 三族等权 ÷ H 书等权；单基线加严：R≥2.0 纳入，1.25–2.0 条件（三族各≥1.25 且对位池同向），<1.25 淘汰；量不足待定"
+    },
+    "status_semantics": {
+      "conditional": "限量提示：超过题材池章级 P90 才出一条 advisory，附候选位置；不禁用、不自动改",
+      "candidate": "新候选：同 conditional 的阈值提示，但证据未复验，不计入问题密度",
+      "pending": "量不足、去留未定：维持现状但降为 advisory，只逐处列出候选位置，不做阈值告警、不拦截",
+      "retired": "语料淘汰：检测器仍可跑（--include-retired 或 scan 全量），默认不输出、不拦截、不计入问题密度",
+      "preregistered_deficit": "反向指标（AI 偏少）：低于题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字",
+      "unvalidated": "未进 P2 统计的读感提示：保持 advisory，不得升 blocking"
+    },
+    "unvalidated_detectors": [
+      "period-stutter",
+      "long-paragraph",
+      "micro-action-tic",
+      "action-list-tic",
+      "system-notice-formality-tic",
+      "overcompressed-prose-tic",
+      "low-connective-density-tic",
+      "quote-emphasis-tic",
+      "sensory-subject-mismatch"
+    ],
+    "regenerate": "仓外语料池 网文/_P3/build_p3_tables.py --repo <仓根>；重验证与升版由作者拍板"
+  },
   "patterns": [
     {
       "id": "action-explanation-tail",
       "scope": "paragraph",
       "semantic_risk": "high",
-      "signals": ["动作或对话已经表达结果，随后旁白再次解释人物情绪或意义"],
-      "exclusions": ["人物得出新的可行动结论", "第一人称自我欺骗", "悬疑中的错误归因"],
+      "signals": [
+        "动作或对话已经表达结果，随后旁白再次解释人物情绪或意义"
+      ],
+      "exclusions": [
+        "人物得出新的可行动结论",
+        "第一人称自我欺骗",
+        "悬疑中的错误归因"
+      ],
       "preservation": "保留新的认知、决定和后果，只删除重复解释",
       "auto_fix": false,
-      "evidence_status": "candidate"
+      "evidence_status": "candidate",
+      "corpus_id": "D41",
+      "probe_agreement": 0.69,
+      "kappa": 0.68,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；与 D42 合并成「解释尾」一条再测"
     },
     {
       "id": "dialogue-interpretation-tail",
       "scope": "scene",
       "semantic_risk": "high",
-      "signals": ["台词已暴露立场，叙述者紧接着替读者翻译同一立场"],
-      "exclusions": ["言行不一致", "视角人物误读", "台词存在双关或反话"],
+      "signals": [
+        "台词已暴露立场，叙述者紧接着替读者翻译同一立场"
+      ],
+      "exclusions": [
+        "言行不一致",
+        "视角人物误读",
+        "台词存在双关或反话"
+      ],
       "preservation": "保留信息差、误读和关系变化",
       "auto_fix": false,
-      "evidence_status": "candidate"
+      "evidence_status": "candidate",
+      "corpus_id": "D42",
+      "probe_agreement": 0.73,
+      "kappa": 0.73,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；与 D41 合并再测"
     },
     {
       "id": "uniform-beat-shape",
       "scope": "chapter",
       "semantic_risk": "medium",
-      "signals": ["多个场景重复使用冲突、解释、金句、钩子的同一落点", "段落长度与收束方式长期一致"],
-      "exclusions": ["有意的仪式结构", "喜剧重复", "倒计时或审判场景"],
+      "signals": [
+        "多个场景重复使用冲突、解释、金句、钩子的同一落点"
+      ],
+      "exclusions": [
+        "有意的仪式结构",
+        "喜剧重复",
+        "倒计时或审判场景"
+      ],
       "preservation": "保持事件顺序和节奏功能，只改变不必要的同构表达",
       "auto_fix": false,
-      "evidence_status": "candidate"
+      "evidence_status": "candidate",
+      "evidence_note": "P2 语料：段长均匀度（L14、D23）与句长节奏（L12、L13、D24）无区分力或 AI 更参差，原「段落长度与收束方式长期一致」信号已删；只留场景落点同构",
+      "rule_table_version": "v1-2026-10-06"
     },
     {
       "id": "voice-convergence",
       "scope": "chapter",
       "semantic_risk": "high",
-      "signals": ["不同人物都使用完整、正确、会总结的相同句式", "不同身份共享同一抽象词和情绪表达"],
-      "exclusions": ["正式会议", "共同背诵或训练", "同一组织的固定术语"],
+      "signals": [
+        "不同人物都使用完整、正确、会总结的相同句式",
+        "不同身份共享同一抽象词和情绪表达"
+      ],
+      "exclusions": [
+        "正式会议",
+        "共同背诵或训练",
+        "同一组织的固定术语"
+      ],
       "preservation": "按人物样本恢复词汇、句长、回避方式和信息权限",
       "auto_fix": false,
-      "evidence_status": "candidate"
+      "evidence_status": "candidate",
+      "corpus_id": "D46",
+      "probe_agreement": 0.89,
+      "kappa": 0.89,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；一致率过线但正例只有 4–5 段"
     },
     {
       "id": "cross-chapter-reaction-loop",
       "scope": "cross-chapter",
       "semantic_risk": "medium",
-      "signals": ["同一身体反应跨章重复承担不同情绪"],
-      "exclusions": ["角色稳定症状", "伏笔症状", "创伤触发或能力代价"],
+      "signals": [
+        "同一身体反应跨章重复承担不同情绪"
+      ],
+      "exclusions": [
+        "角色稳定症状",
+        "伏笔症状",
+        "创伤触发或能力代价"
+      ],
       "preservation": "保留设定性症状和情绪强度，改变无角色归属的模板反应",
       "auto_fix": false,
       "evidence_status": "candidate"
@@ -56,11 +144,3157 @@
       "id": "metaphor-loop",
       "scope": "chapter",
       "semantic_risk": "medium",
-      "signals": ["同一比喻域反复解释不同场景", "每个情绪节点都补一个精致比喻"],
-      "exclusions": ["主题意象", "伏笔意象", "角色固定认知框架"],
+      "signals": [
+        "同一比喻域反复解释不同场景",
+        "每个情绪节点都补一个精致比喻"
+      ],
+      "exclusions": [
+        "主题意象",
+        "伏笔意象",
+        "角色固定认知框架",
+        "gpt 写手族（比喻标记 R 0.45）"
+      ],
       "preservation": "保留有回收价值的主题意象和最有功能的少数比喻",
       "auto_fix": false,
-      "evidence_status": "candidate"
+      "evidence_status": "candidate",
+      "corpus_id": "D47",
+      "probe_agreement": 1.0,
+      "kappa": 1.0,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；冲突组·比喻文学化；与 L23 族特异结论合看"
+    },
+    {
+      "id": "soft-verdict",
+      "scope": "paragraph",
+      "semantic_risk": "high",
+      "signals": [
+        "叙述者替读者给人物或事件下定性、软评判"
+      ],
+      "exclusions": [
+        "视角人物带偏见的当下判断",
+        "第一人称自评"
+      ],
+      "preservation": "证据留在场内，只删叙述者的定性",
+      "auto_fix": false,
+      "evidence_status": "candidate",
+      "corpus_id": "D43",
+      "probe_agreement": 0.69,
+      "kappa": 0.68,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；正例过少"
+    },
+    {
+      "id": "arranged-setup",
+      "scope": "scene",
+      "semantic_risk": "medium",
+      "signals": [
+        "铺垫明显为后文服务，角色当场并不需要这条信息"
+      ],
+      "exclusions": [
+        "角色当场需要的规则说明",
+        "设定交代是题材常态的场景"
+      ],
+      "preservation": "保留角色当下要用的信息，只删提前替后文安排的部分",
+      "auto_fix": false,
+      "evidence_status": "candidate",
+      "corpus_id": "D44",
+      "probe_agreement": 0.69,
+      "kappa": 0.68,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；定义需收窄：排除角色当场需要的规则说明（网文设定交代是常态）"
+    },
+    {
+      "id": "adjacent-repeat-description",
+      "scope": "paragraph",
+      "semantic_risk": "medium",
+      "signals": [
+        "相邻段反复描写同一瞬间、同一动作或同一情绪"
+      ],
+      "exclusions": [
+        "有意的复沓",
+        "视角切换后的再呈现"
+      ],
+      "preservation": "合并同一瞬间，保留最有推进的细节",
+      "auto_fix": false,
+      "evidence_status": "candidate",
+      "corpus_id": "D45",
+      "probe_agreement": 0.75,
+      "kappa": 0.75,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）"
+    },
+    {
+      "id": "elevated-ending",
+      "scope": "chapter",
+      "semantic_risk": "medium",
+      "signals": [
+        "章尾或场尾用总结、升华、点题收束"
+      ],
+      "exclusions": [
+        "人物当场说出的誓言或决定",
+        "题材需要的仪式收尾"
+      ],
+      "preservation": "保留结尾的事件与钩子，只删替读者总结的句子",
+      "auto_fix": false,
+      "evidence_status": "candidate",
+      "corpus_id": "D48",
+      "probe_agreement": 0.81,
+      "kappa": 0.81,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）；表层 D19 待定（R 4.75，2 处），合看值得扩样"
+    },
+    {
+      "id": "abstract-emotion-telling",
+      "scope": "paragraph",
+      "semantic_risk": "medium",
+      "signals": [
+        "直接告知抽象情绪，代替动作、物件或对话里的表现"
+      ],
+      "exclusions": [
+        "儿童或第一人称视角的直白自述",
+        "节奏需要的一句概括"
+      ],
+      "preservation": "保留情绪强度与转折，改成可见的表现",
+      "auto_fix": false,
+      "evidence_status": "candidate",
+      "corpus_id": "D49",
+      "probe_agreement": 0.67,
+      "kappa": 0.67,
+      "rule_table_version": "v1-2026-10-06",
+      "evidence_note": "表演档：本轮不算 R，只出候选表，不自动改（审计 §八）"
+    }
+  ],
+  "surface_rules": [
+    {
+      "id": "D01",
+      "name": "一级禁用词·情态类",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.2636,
+      "R_ci90": [
+        0.1508,
+        0.388
+      ],
+      "family_R": {
+        "claude": 0.0564,
+        "doubao": 0.4978,
+        "gpt": 0.2366
+      },
+      "holdout_R": 0.166,
+      "A0_R": 0.7086,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/情态类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D01",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.2636,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.2636,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "D02",
+      "name": "一级禁用词·动作类",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.2634,
+      "R_ci90": [
+        0.0,
+        0.7833
+      ],
+      "family_R": {
+        "claude": 0.7901,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 3.6626,
+      "tier_notes": [
+        "量少但可排除：A0g 1 处／期望 4.4，泊松 95% 上界 R=1.09<1.25"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/动作类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D02",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.2634,
+        "reason": "量少但可排除：A0g 1 处／期望 4.4，泊松 95% 上界 R=1.09<1.25"
+      }
+    },
+    {
+      "id": "D03",
+      "name": "一级禁用词·表情类",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.5885,
+      "R_ci90": [
+        0.1728,
+        1.0562
+      ],
+      "family_R": {
+        "claude": 0.6683,
+        "doubao": 0.5363,
+        "gpt": 0.5608
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 3 处／期望 5.1，泊松上界 R=1.51"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/表情类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D03",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D04",
+      "name": "一级禁用词·心理类",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量少但可排除：A0g 0 处／期望 3.1，泊松 95% 上界 R=0.98<1.25"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/心理类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D04",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0,
+        "reason": "量少但可排除：A0g 0 处／期望 3.1，泊松 95% 上界 R=0.98<1.25"
+      }
+    },
+    {
+      "id": "D05",
+      "name": "一级禁用词·判断类",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 2.906,
+      "A0_R": 9.1459,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 1.6，泊松上界 R=1.92"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/判断类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D05",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D06",
+      "name": "一级禁用词·形容类",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7421,
+      "R_ci90": [
+        0.1368,
+        1.477
+      ],
+      "family_R": {
+        "claude": 0.5242,
+        "doubao": 1.2622,
+        "gpt": 0.44
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 5 处／期望 6.6，泊松上界 R=1.60"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/形容类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D06",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D07",
+      "name": "一级禁用词·过渡类",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 1.6，泊松上界 R=1.87"
+      ],
+      "source": "story-deslop references/banned-words.md 一级/过渡类（门禁 A）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D07",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D08",
+      "name": "二级禁用词·语境敏感词",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.3388,
+      "R_ci90": [
+        0.9176,
+        1.8082
+      ],
+      "family_R": {
+        "claude": 0.8549,
+        "doubao": 2.183,
+        "gpt": 0.9784
+      },
+      "holdout_R": 0.5396,
+      "A0_R": 0.9283,
+      "tier_notes": [
+        "AI 更高（区间含1）",
+        "条件档未过：三族未全≥1.25"
+      ],
+      "source": "story-deslop references/banned-words.md 二级/语境敏感词",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D08",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.3388,
+        "reason": "AI 更高（区间含1）；条件档未过：三族未全≥1.25",
+        "note": "整类淘汰；「猛地」单列为 W01 新候选，「骤然」观察"
+      },
+      "split_out": [
+        "W01"
+      ]
+    },
+    {
+      "id": "D09",
+      "name": "二级禁用词·弱化副词",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.1342,
+      "R_ci90": [
+        0.7213,
+        1.5311
+      ],
+      "family_R": {
+        "claude": 0.796,
+        "doubao": 1.4374,
+        "gpt": 1.1691
+      },
+      "holdout_R": 0.7006,
+      "A0_R": 0.5408,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop references/banned-words.md 二级/弱化副词",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D09",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.1342,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "D10",
+      "name": "二级禁用词·书面腔",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.0，泊松上界 R=70.04"
+      ],
+      "source": "story-deslop references/banned-words.md 二级/书面腔",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "A",
+      "corpus_rules_detector": "detect_D10",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D11",
+      "name": "模板化套句",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.2255,
+      "R_ci90": [
+        0.0,
+        2.6685
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 1.7971,
+        "gpt": 1.8793
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 2 处／期望 1.5，泊松上界 R=4.10"
+      ],
+      "source": "story-deslop references/banned-words.md 禁用句式模板表；story-deslop SKILL.md 门禁 B",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "corpus_rules_detector": "detect_D11",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D12",
+      "name": "否定铺垫翻转「不是A，(而)是B」",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.4564,
+      "R_ci90": [
+        0.1063,
+        0.8819
+      ],
+      "family_R": {
+        "claude": 0.7596,
+        "doubao": 0.6097,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.1954,
+      "A0_R": 9.8188,
+      "tier_notes": [
+        "量少但可排除：A0g 4 处／期望 9.1，泊松 95% 上界 R=1.01<1.25"
+      ],
+      "source": "story-deslop references/banned-words.md ★★★★★；story-deslop SKILL.md 门禁 B；check-ai-patterns not-is-comparison",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "check_ai_patterns_types": [
+        "not-is-comparison",
+        "reverse-not-is"
+      ],
+      "corpus_rules_detector": "detect_D12",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.4564,
+        "reason": "量少但可排除：A0g 4 处／期望 9.1，泊松 95% 上界 R=1.01<1.25"
+      }
+    },
+    {
+      "id": "D13",
+      "name": "跨句否定排列「不是A。也不是B。只是C。」",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": null,
+      "R_ci90": [
+        null,
+        null
+      ],
+      "family_R": {
+        "claude": null,
+        "doubao": null,
+        "gpt": null
+      },
+      "holdout_R": null,
+      "A0_R": null,
+      "tier_notes": [
+        "无法计算（两侧皆零）"
+      ],
+      "source": "story-deslop references/banned-words.md ★★★；check-ai-patterns negation-parade",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "check_ai_patterns_types": [
+        "negation-parade"
+      ],
+      "corpus_rules_detector": "detect_D13",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D14",
+      "name": "「，带着……」万能状语",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.8253,
+      "R_ci90": [
+        0.7076,
+        3.106
+      ],
+      "family_R": {
+        "claude": 2.4847,
+        "doubao": 2.9912,
+        "gpt": 0.0
+      },
+      "holdout_R": 1.7952,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 5 处／期望 2.8，泊松上界 R=3.80"
+      ],
+      "source": "story-deslop references/banned-words.md ★★★★；story-deslop SKILL.md 门禁 B",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "corpus_rules_detector": "detect_D14",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D15",
+      "name": "声音描写套句",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 4.7736,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.4，泊松上界 R=7.50"
+      ],
+      "source": "story-deslop references/banned-words.md ★★★★；story-deslop SKILL.md 门禁 B",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "check_ai_patterns_types": [
+        "voice-contrast"
+      ],
+      "corpus_rules_detector": "detect_D15",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D16",
+      "name": "心理直述（他／她知道·感到·意识到）",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7082,
+      "R_ci90": [
+        0.2615,
+        1.2755
+      ],
+      "family_R": {
+        "claude": 0.9482,
+        "doubao": 0.3805,
+        "gpt": 0.7958
+      },
+      "holdout_R": 0.3398,
+      "A0_R": 1.9916,
+      "tier_notes": [
+        "量不足：A0g 5 处／期望 7.3，泊松上界 R=1.45"
+      ],
+      "source": "story-deslop references/banned-words.md ★★★★ 与模板表；story-deslop SKILL.md 门禁 B／C",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B/C",
+      "check_ai_patterns_types": [
+        "reasoning-chain-tic"
+      ],
+      "corpus_rules_detector": "detect_D16",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D17",
+      "name": "对话标签密度",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.6685,
+      "R_ci90": [
+        0.3959,
+        0.97
+      ],
+      "family_R": {
+        "claude": 0.8231,
+        "doubao": 0.8059,
+        "gpt": 0.3764
+      },
+      "holdout_R": 0.4692,
+      "A0_R": 0.5765,
+      "tier_notes": [
+        "真人更高（区间不含1）"
+      ],
+      "source": "story-deslop SKILL.md 门禁 B（对话标签密度）；dialogue_drift_gate",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "corpus_rules_detector": "detect_D17",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.6685,
+        "reason": "真人更高（区间不含1）"
+      }
+    },
+    {
+      "id": "D18",
+      "name": "公式化对话标签",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0337,
+      "R_ci90": [
+        0.0,
+        0.0989
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0494,
+        "gpt": 0.0517
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "story-deslop SKILL.md 门禁 B（公式化标签）；anti-ai-writing 模式1（沉声道／淡淡地说）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "corpus_rules_detector": "detect_D18",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0337,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.0337,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "D19",
+      "name": "结尾升华句",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_chapters",
+      "R": 4.7482,
+      "R_ci90": [
+        0.0,
+        10.9567
+      ],
+      "family_R": {
+        "claude": 7.1223,
+        "doubao": 7.1223,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 2 处／期望 0.4，泊松上界 R=14.95"
+      ],
+      "source": "story-deslop SKILL.md 门禁 F；banned-words 升华句式",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "F",
+      "check_ai_patterns_types": [
+        "trailer-summary"
+      ],
+      "corpus_rules_detector": "detect_D19",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D20",
+      "name": "总结／顿悟句式",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7026,
+      "R_ci90": [
+        0.1472,
+        1.3661
+      ],
+      "family_R": {
+        "claude": 1.1614,
+        "doubao": 0.6214,
+        "gpt": 0.3249
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 6 处／期望 8.9，泊松上界 R=1.33"
+      ],
+      "source": "story-deslop references/banned-words.md 二级/总结句式",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "F",
+      "check_ai_patterns_types": [
+        "abstract-summary-tic"
+      ],
+      "corpus_rules_detector": "detect_D20",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D21",
+      "name": "解释腔句式",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量少但可排除：A0g 0 处／期望 4.1，泊松 95% 上界 R=0.73<1.25"
+      ],
+      "source": "story-deslop SKILL.md 门禁 G；anti-ai-writing 模式5／8",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "G",
+      "corpus_rules_detector": "detect_D21",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0,
+        "reason": "量少但可排除：A0g 0 处／期望 4.1，泊松 95% 上界 R=0.73<1.25"
+      }
+    },
+    {
+      "id": "D22",
+      "name": "上帝视角剧透",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.7，泊松上界 R=4.14"
+      ],
+      "source": "story-deslop SKILL.md 门禁 G；anti-ai-writing 模式8",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "G",
+      "check_ai_patterns_types": [
+        "trailer-ending"
+      ],
+      "corpus_rules_detector": "detect_D22",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D23",
+      "name": "段落均匀带占比",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.8627,
+      "R_ci90": [
+        0.7968,
+        0.9218
+      ],
+      "family_R": {
+        "claude": 0.9193,
+        "doubao": 0.6621,
+        "gpt": 1.0068
+      },
+      "holdout_R": 0.7669,
+      "A0_R": 0.5563,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·段落均匀度"
+      ],
+      "source": "story-deslop SKILL.md 门禁 D（段落长短交错，不要每段都 3–5 行）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "D",
+      "corpus_rules_detector": "detect_D23",
+      "conflict_topic": "段落均匀度",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.8627,
+        "reason": "无区分力；冲突组·段落均匀度"
+      }
+    },
+    {
+      "id": "D24",
+      "name": "句长同档长串",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 1.0294,
+      "R_ci90": [
+        0.865,
+        1.1747
+      ],
+      "family_R": {
+        "claude": 1.2673,
+        "doubao": 0.6096,
+        "gpt": 1.2113
+      },
+      "holdout_R": 0.8935,
+      "A0_R": 0.8943,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·句内节奏"
+      ],
+      "source": "story-deslop SKILL.md 门禁 D（长短交错）；prose_metrics 分档",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "D",
+      "corpus_rules_detector": "detect_D24",
+      "conflict_topic": "句内节奏",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.0294,
+        "reason": "无区分力；冲突组·句内节奏"
+      }
+    },
+    {
+      "id": "D25",
+      "name": "连续排比",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.0574,
+      "R_ci90": [
+        0.4733,
+        2.0224
+      ],
+      "family_R": {
+        "claude": 2.3604,
+        "doubao": 0.8119,
+        "gpt": 0.0
+      },
+      "holdout_R": 1.7941,
+      "A0_R": 4.7015,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·句内节奏"
+      ],
+      "source": "story-deslop references/banned-words.md 排比句式；story-deslop SKILL.md 门禁 D；anti-ai-writing 模式7",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "D",
+      "corpus_rules_detector": "detect_D25",
+      "conflict_topic": "句内节奏",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.0574,
+        "reason": "无区分力；冲突组·句内节奏"
+      }
+    },
+    {
+      "id": "D26",
+      "name": "文言比喻词",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.1409,
+      "R_ci90": [
+        0.058,
+        0.2253
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.4226,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）",
+        "冲突组·比喻文学化"
+      ],
+      "source": "story-deslop references/banned-words.md 情态类与 ★★★「仿佛…一般」；story-deslop SKILL.md 门禁 B",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "corpus_rules_detector": "detect_D26",
+      "conflict_topic": "比喻文学化",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.1409,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）；冲突组·比喻文学化"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.1409,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "D27",
+      "name": "精致戏剧反应短语密度",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.5164,
+      "R_ci90": [
+        0.1955,
+        0.872
+      ],
+      "family_R": {
+        "claude": 0.3617,
+        "doubao": 0.5806,
+        "gpt": 0.6071
+      },
+      "holdout_R": 0.4098,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量少但可排除：A0g 5 处／期望 9.5，泊松 95% 上界 R=1.11<1.25"
+      ],
+      "source": "story-deslop references/banned-words.md 表情类／★★★；check-ai-patterns cliche-density-tic；voice_profile body_reaction 标记",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "脚本 cliche-density-tic",
+      "check_ai_patterns_types": [
+        "cliche-density-tic"
+      ],
+      "corpus_rules_detector": "detect_D27",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.5164,
+        "reason": "量少但可排除：A0g 5 处／期望 9.5，泊松 95% 上界 R=1.11<1.25"
+      }
+    },
+    {
+      "id": "D28",
+      "name": "问答教学对",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 2.3，泊松上界 R=1.32",
+        "冲突组·设问"
+      ],
+      "source": "story-deslop cross-chapter-shape.md 问答教学化；chapter_shape_gate.py",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "跨章结构 chapter_shape_gate",
+      "corpus_rules_detector": "detect_D28",
+      "conflict_topic": "设问",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D29",
+      "name": "工整决策栏／否定清单",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7569,
+      "R_ci90": [
+        0.0,
+        2.1592
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 2.2707
+      },
+      "holdout_R": 0.0,
+      "A0_R": 11.717,
+      "tier_notes": [
+        "量不足：A0g 1 处／期望 1.3，泊松上界 R=3.73"
+      ],
+      "source": "story-deslop references/banned-words.md；check-ai-patterns formulaic-parallelism",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "B",
+      "check_ai_patterns_types": [
+        "formulaic-parallelism"
+      ],
+      "corpus_rules_detector": "detect_D29",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "D30",
+      "name": "抽象情绪告知（标志词版）",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.6，泊松上界 R=4.74"
+      ],
+      "source": "story-deslop SKILL.md 门禁 C（心理描写外化）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "C",
+      "corpus_rules_detector": "detect_D30",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L01",
+      "name": "翻案腔",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.3395,
+      "R_ci90": [
+        0.0789,
+        0.664
+      ],
+      "family_R": {
+        "claude": 0.5651,
+        "doubao": 0.4535,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.1488,
+      "A0_R": 7.2454,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则1",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L01",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.3395,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.3395,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "L02",
+      "name": "顿号罗列过密",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.387,
+      "R_ci90": [
+        0.812,
+        2.0494
+      ],
+      "family_R": {
+        "claude": 1.624,
+        "doubao": 1.4219,
+        "gpt": 1.1152
+      },
+      "holdout_R": 1.0739,
+      "A0_R": 3.3404,
+      "tier_notes": [
+        "AI 更高（区间含1）",
+        "条件档未过：三族未全≥1.25"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则2",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L02",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.387,
+        "reason": "AI 更高（区间含1）；条件档未过：三族未全≥1.25"
+      }
+    },
+    {
+      "id": "L03",
+      "name": "相邻句结构同款（连续两句）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 1.4358,
+      "R_ci90": [
+        1.0775,
+        1.8376
+      ],
+      "family_R": {
+        "claude": 2.1383,
+        "doubao": 0.8865,
+        "gpt": 1.2827
+      },
+      "holdout_R": 0.9109,
+      "A0_R": 0.594,
+      "tier_notes": [
+        "AI 更高（区间不含1）",
+        "条件档未过：三族未全≥1.25"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则3",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L03",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.4358,
+        "reason": "AI 更高（区间不含1）；条件档未过：三族未全≥1.25"
+      }
+    },
+    {
+      "id": "L03b",
+      "name": "相邻句结构同款（连续三句）",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 1.2658,
+      "R_ci90": [
+        0.6385,
+        2.1277
+      ],
+      "family_R": {
+        "claude": 2.3414,
+        "doubao": 1.456,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.5131,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 6 处／期望 6.1，泊松上界 R=1.94"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则3",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L03b",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L04",
+      "name": "破折号",
+      "status": "conditional",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "threshold_hint",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 2.0726,
+      "R_ci90": [
+        1.5138,
+        2.6983
+      ],
+      "family_R": {
+        "claude": 0.9434,
+        "doubao": 3.691,
+        "gpt": 1.5835
+      },
+      "holdout_R": 2.1108,
+      "A0_R": 23.4537,
+      "tier_notes": [
+        "AI 更高（区间不含1）",
+        "有族方向相反，降一档"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则4",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "check_ai_patterns_types": [
+        "em-dash"
+      ],
+      "corpus_rules_detector": "detect_L04",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "超过所在题材池章级 P90 才提示；不禁用、不自动改"
+      },
+      "family_note": "豆包驱动（claude 族 0.94）；幻言池反向（0.76）；去掉 H02 后 R 1.74 将掉档，下轮重验证复核"
+    },
+    {
+      "id": "L05a",
+      "name": "提示语冒号",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 3.3662,
+      "R_ci90": [
+        0.0,
+        10.6564
+      ],
+      "family_R": {
+        "claude": 10.0987,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 3.7498,
+      "A0_R": 33.4895,
+      "tier_notes": [
+        "量不足：A0g 1 处／期望 0.3，泊松上界 R=13.94"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则5-一",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L05a",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L05b",
+      "name": "空转句引列表",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.0，泊松上界 R=375.42"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则5-二",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L05b",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L06",
+      "name": "序数词当小标题",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": null,
+      "R_ci90": [
+        null,
+        null
+      ],
+      "family_R": {
+        "claude": null,
+        "doubao": null,
+        "gpt": null
+      },
+      "holdout_R": null,
+      "A0_R": null,
+      "tier_notes": [
+        "无法计算（两侧皆零）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则6",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L06",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L07",
+      "name": "拟人化喻体",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": null,
+      "R_ci90": [
+        null,
+        null
+      ],
+      "family_R": {
+        "claude": null,
+        "doubao": null,
+        "gpt": null
+      },
+      "holdout_R": null,
+      "A0_R": null,
+      "tier_notes": [
+        "无法计算（两侧皆零）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则7",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L07",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L08",
+      "name": "材料密度（数字与时间锚点）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.7489,
+      "R_ci90": [
+        1.1913,
+        2.3587
+      ],
+      "family_R": {
+        "claude": 1.9574,
+        "doubao": 1.8379,
+        "gpt": 1.4514
+      },
+      "holdout_R": 2.8416,
+      "A0_R": 2.121,
+      "tier_notes": [
+        "AI 更高（区间不含1）",
+        "与假设方向相反",
+        "反向指标·AI 偏多（条件纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则8",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L08",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.7489,
+        "reason": "AI 更高（区间不含1）；与假设方向相反；反向指标·AI 偏多（条件纳入档强度）"
+      },
+      "reverse_observation": {
+        "status": "observe_only",
+        "action": "report_only",
+        "R": 1.7489,
+        "direction": "AI 偏多",
+        "use": "只报：事后反向发现，混源包内容（细纲数字），下轮独立复验前不进规则表"
+      }
+    },
+    {
+      "id": "L09",
+      "name": "禁用起手式",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.4，泊松上界 R=7.34"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则9",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L09",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L10a",
+      "name": "过长前置定语",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.3425,
+      "R_ci90": [
+        0.1968,
+        0.4884
+      ],
+      "family_R": {
+        "claude": 0.1544,
+        "doubao": 0.7436,
+        "gpt": 0.1296
+      },
+      "holdout_R": 0.1209,
+      "A0_R": 1.8729,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则10-1",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L10a",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.3425,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.3425,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "L10b",
+      "name": "当…时前置从句",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.7，泊松上界 R=4.38"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则10-2",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L10b",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L10c",
+      "name": "前置话题壳",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量少但可排除：A0g 0 处／期望 5.3，泊松 95% 上界 R=0.57<1.25"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则10-3",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L10c",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0,
+        "reason": "量少但可排除：A0g 0 处／期望 5.3，泊松 95% 上界 R=0.57<1.25"
+      }
+    },
+    {
+      "id": "L10d",
+      "name": "句首连接词当路标",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.1488,
+      "R_ci90": [
+        0.0,
+        0.4257
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.4464
+      },
+      "holdout_R": 0.0,
+      "A0_R": 2.1591,
+      "tier_notes": [
+        "量少但可排除：A0g 1 处／期望 6.5，泊松 95% 上界 R=0.73<1.25"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则10-4",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L10d",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.1488,
+        "reason": "量少但可排除：A0g 1 处／期望 6.5，泊松 95% 上界 R=0.73<1.25"
+      }
+    },
+    {
+      "id": "L10e",
+      "name": "这意味着式复述",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.6，泊松上界 R=4.64"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则10-5",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L10e",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L11",
+      "name": "段首零主语评论",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.9196,
+      "R_ci90": [
+        0.0,
+        1.9989
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 2.7589
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 2 处／期望 1.5，泊松上界 R=4.30"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 规则11",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L11",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L12",
+      "name": "句长均匀度",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.968,
+      "R_ci90": [
+        0.9169,
+        1.0204
+      ],
+      "family_R": {
+        "claude": 0.9529,
+        "doubao": 1.0491,
+        "gpt": 0.902
+      },
+      "holdout_R": 1.055,
+      "A0_R": 1.0796,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·句内节奏"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L12",
+      "conflict_topic": "句内节奏",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.968,
+        "reason": "无区分力；冲突组·句内节奏"
+      }
+    },
+    {
+      "id": "L13",
+      "name": "相邻句长差",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.925,
+      "R_ci90": [
+        0.8953,
+        0.9571
+      ],
+      "family_R": {
+        "claude": 0.777,
+        "doubao": 1.3955,
+        "gpt": 0.6023
+      },
+      "holdout_R": 0.8268,
+      "A0_R": 0.8155,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·句内节奏"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L13",
+      "conflict_topic": "句内节奏",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.925,
+        "reason": "无区分力；冲突组·句内节奏"
+      }
+    },
+    {
+      "id": "L14",
+      "name": "段落长度均匀度",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 1.1312,
+      "R_ci90": [
+        1.0828,
+        1.1824
+      ],
+      "family_R": {
+        "claude": 1.1384,
+        "doubao": 1.3033,
+        "gpt": 0.9518
+      },
+      "holdout_R": 1.2268,
+      "A0_R": 1.4138,
+      "tier_notes": [
+        "无区分力",
+        "冲突组·段落均匀度"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L14",
+      "conflict_topic": "段落均匀度",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.1312,
+        "reason": "无区分力；冲突组·段落均匀度"
+      }
+    },
+    {
+      "id": "L15",
+      "name": "单字虚词（就／很／了）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.9032,
+      "R_ci90": [
+        0.8059,
+        0.9969
+      ],
+      "family_R": {
+        "claude": 1.1102,
+        "doubao": 0.8009,
+        "gpt": 0.7985
+      },
+      "holdout_R": 1.1511,
+      "A0_R": 0.9437,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L15",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9032,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "L16",
+      "name": "口语连接词",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.3517,
+      "R_ci90": [
+        0.2752,
+        0.4276
+      ],
+      "family_R": {
+        "claude": 0.4804,
+        "doubao": 0.3442,
+        "gpt": 0.2304
+      },
+      "holdout_R": 0.261,
+      "A0_R": 0.2027,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L16",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.3517,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.3517,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "L17",
+      "name": "反复写全称（少用代词）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 0.3413,
+      "R_ci90": [
+        0.2394,
+        0.4441
+      ],
+      "family_R": {
+        "claude": 0.437,
+        "doubao": 0.3073,
+        "gpt": 0.2796
+      },
+      "holdout_R": 0.5192,
+      "A0_R": 0.3105,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L17",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.3413,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.3413,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "L18",
+      "name": "抽象被动",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.7，泊松上界 R=4.10"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L18",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L19",
+      "name": "设问自答（叙述层）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 1.179,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量少但可排除：A0g 0 处／期望 5.5，泊松 95% 上界 R=0.55<1.25",
+        "冲突组·设问"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L19",
+      "conflict_topic": "设问",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0,
+        "reason": "量少但可排除：A0g 0 处／期望 5.5，泊松 95% 上界 R=0.55<1.25；冲突组·设问"
+      }
+    },
+    {
+      "id": "L20",
+      "name": "问句小标题",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": "inf",
+      "R_ci90": [
+        1000000000.0,
+        1000000000.0
+      ],
+      "family_R": {
+        "claude": "inf",
+        "doubao": null,
+        "gpt": null
+      },
+      "holdout_R": null,
+      "A0_R": null,
+      "tier_notes": [
+        "量不足：A0g 训练侧 1 处，按真人率期望 0.0 处"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L20",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L21",
+      "name": "正文问句（叙述层）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.1667,
+      "R_ci90": [
+        0.104,
+        0.2368
+      ],
+      "family_R": {
+        "claude": 0.1818,
+        "doubao": 0.2245,
+        "gpt": 0.0939
+      },
+      "holdout_R": 0.8746,
+      "A0_R": 0.0609,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L21",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.1667,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.1667,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "L22",
+      "name": "句内同构排比",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.3489,
+      "R_ci90": [
+        0.8636,
+        1.8846
+      ],
+      "family_R": {
+        "claude": 1.7201,
+        "doubao": 0.9861,
+        "gpt": 1.3405
+      },
+      "holdout_R": 1.5364,
+      "A0_R": 1.6667,
+      "tier_notes": [
+        "AI 更高（区间含1）",
+        "条件档未过：三族未全≥1.25",
+        "冲突组·句内节奏"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L22",
+      "conflict_topic": "句内节奏",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.3489,
+        "reason": "AI 更高（区间含1）；条件档未过：三族未全≥1.25；冲突组·句内节奏"
+      }
+    },
+    {
+      "id": "L23",
+      "name": "比喻本身（比喻标记词）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "family_hint",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.7807,
+      "R_ci90": [
+        1.3492,
+        2.2185
+      ],
+      "family_R": {
+        "claude": 2.0222,
+        "doubao": 2.8673,
+        "gpt": 0.4526
+      },
+      "holdout_R": 0.9882,
+      "A0_R": 10.9836,
+      "tier_notes": [
+        "AI 更高（区间不含1）",
+        "条件档未过：三族未全≥1.25",
+        "冲突组·比喻文学化"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "check_ai_patterns_types": [
+        "metaphor-density-tic"
+      ],
+      "corpus_rules_detector": "detect_L23",
+      "conflict_topic": "比喻文学化",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.7807,
+        "reason": "AI 更高（区间不含1）；条件档未过：三族未全≥1.25；冲突组·比喻文学化"
+      },
+      "family_hint": {
+        "families": [
+          "claude",
+          "doubao"
+        ],
+        "bound": "chapter_p90",
+        "use": "只在 claude／豆包写手族上作族别提示（gpt 族 R 0.45）；其他族不提示"
+      }
+    },
+    {
+      "id": "L23b",
+      "name": "比喻起段",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 1.9694,
+      "R_ci90": [
+        0.9422,
+        3.0799
+      ],
+      "family_R": {
+        "claude": 1.3929,
+        "doubao": 3.4647,
+        "gpt": 1.0504
+      },
+      "holdout_R": 1.6656,
+      "A0_R": 6.1876,
+      "tier_notes": [
+        "AI 更高（区间含1）",
+        "条件档未过：三族未全≥1.25",
+        "冲突组·比喻文学化"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 段落级结构表（比喻起段）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L23b",
+      "conflict_topic": "比喻文学化",
+      "conflict_ruling": "lieflat 与旧 deslop 相反的冲突项：本池站 lieflat 一边或证据不足，从 blocking 降为不拦截（决定 9；审计 §四）",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.9694,
+        "reason": "AI 更高（区间含1）；条件档未过：三族未全≥1.25；冲突组·比喻文学化"
+      }
+    },
+    {
+      "id": "L24",
+      "name": "抽象名词配具体动词",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": null,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.0，泊松上界 R=65.74"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L24",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L25",
+      "name": "动词名词化",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 0.6，泊松上界 R=5.21"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表（lieflat 规则8 的名词化改法仍在其保留规则里）",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L25",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "L26",
+      "name": "正文序数词",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7198,
+      "R_ci90": [
+        0.2258,
+        1.267
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 2.1595
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 3 处／期望 4.0，泊松上界 R=1.93"
+      ],
+      "source": "lieflat-less-ai-tone RESEARCH.md/SKILL.md @27d2923（MIT） 淘汰表",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_L26",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      }
+    },
+    {
+      "id": "P01",
+      "name": "段长均值",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 1.1248,
+      "R_ci90": [
+        1.0432,
+        1.2145
+      ],
+      "family_R": {
+        "claude": 1.0408,
+        "doubao": 1.6349,
+        "gpt": 0.6986
+      },
+      "holdout_R": 0.9209,
+      "A0_R": 1.1762,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 paragraph_mean_chars",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P01",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.1248,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P02",
+      "name": "段长中位数",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.938,
+      "R_ci90": [
+        0.8181,
+        1.0747
+      ],
+      "family_R": {
+        "claude": 0.8326,
+        "doubao": 1.4071,
+        "gpt": 0.5744
+      },
+      "holdout_R": 0.6921,
+      "A0_R": 0.9103,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 paragraph_median_chars",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P02",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.938,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P03",
+      "name": "句长均值",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.9233,
+      "R_ci90": [
+        0.8823,
+        0.9668
+      ],
+      "family_R": {
+        "claude": 0.803,
+        "doubao": 1.2944,
+        "gpt": 0.6726
+      },
+      "holdout_R": 0.784,
+      "A0_R": 0.7819,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 sentence_mean_chars",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P03",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9233,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P04",
+      "name": "句长中位数",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.9184,
+      "R_ci90": [
+        0.8624,
+        0.9796
+      ],
+      "family_R": {
+        "claude": 0.8025,
+        "doubao": 1.287,
+        "gpt": 0.6657
+      },
+      "holdout_R": 0.7496,
+      "A0_R": 0.7126,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 sentence_median_chars",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P04",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9184,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P05",
+      "name": "分句长均值",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 0.9614,
+      "R_ci90": [
+        0.93,
+        0.9967
+      ],
+      "family_R": {
+        "claude": 0.8944,
+        "doubao": 1.0995,
+        "gpt": 0.8902
+      },
+      "holdout_R": 0.8726,
+      "A0_R": 0.9632,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 clause_mean_chars",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P05",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9614,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P06",
+      "name": "短句（≤8 字）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 1.1042,
+      "R_ci90": [
+        0.9643,
+        1.2323
+      ],
+      "family_R": {
+        "claude": 1.1716,
+        "doubao": 0.7572,
+        "gpt": 1.3837
+      },
+      "holdout_R": 1.463,
+      "A0_R": 1.4574,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 short_sentence_rate_pct",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P06",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.1042,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P07",
+      "name": "长句（≥35 字）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 0.8303,
+      "R_ci90": [
+        0.7249,
+        0.9566
+      ],
+      "family_R": {
+        "claude": 0.4283,
+        "doubao": 1.9323,
+        "gpt": 0.1303
+      },
+      "holdout_R": 0.574,
+      "A0_R": 0.488,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 long_sentence_rate_pct",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P07",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.8303,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P08",
+      "name": "中句（9–34 字）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 0.9953,
+      "R_ci90": [
+        0.9507,
+        1.0414
+      ],
+      "family_R": {
+        "claude": 1.0538,
+        "doubao": 0.8978,
+        "gpt": 1.0343
+      },
+      "holdout_R": 0.8994,
+      "A0_R": 0.9279,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 sentence_distribution.medium",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P08",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9953,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P09",
+      "name": "对话起段",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_paragraphs",
+      "R": 0.7056,
+      "R_ci90": [
+        0.5349,
+        0.8705
+      ],
+      "family_R": {
+        "claude": 0.6975,
+        "doubao": 0.5945,
+        "gpt": 0.8248
+      },
+      "holdout_R": 0.8288,
+      "A0_R": 0.3107,
+      "tier_notes": [
+        "真人更高（区间不含1）"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 dialogue_paragraph_rate_pct",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P09",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.7056,
+        "reason": "真人更高（区间不含1）"
+      }
+    },
+    {
+      "id": "P10",
+      "name": "逗号",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.9853,
+      "R_ci90": [
+        0.9328,
+        1.0351
+      ],
+      "family_R": {
+        "claude": 1.0601,
+        "doubao": 1.0078,
+        "gpt": 0.8879
+      },
+      "holdout_R": 1.0576,
+      "A0_R": 0.8584,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 comma_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P10",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.9853,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "P11",
+      "name": "问号",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.4764,
+      "R_ci90": [
+        0.3907,
+        0.5685
+      ],
+      "family_R": {
+        "claude": 0.4268,
+        "doubao": 0.4282,
+        "gpt": 0.5742
+      },
+      "holdout_R": 0.6079,
+      "A0_R": 0.2303,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 question_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P11",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.4764,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.4764,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "P12",
+      "name": "感叹号",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.108,
+      "R_ci90": [
+        0.0609,
+        0.1546
+      ],
+      "family_R": {
+        "claude": 0.0898,
+        "doubao": 0.1803,
+        "gpt": 0.0539
+      },
+      "holdout_R": 0.1281,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "真人更高（区间不含1）",
+        "反向指标·AI 偏少（纳入档强度）"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 exclamation_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P12",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.108,
+        "reason": "真人更高（区间不含1）；反向指标·AI 偏少（纳入档强度）"
+      },
+      "deficit": {
+        "status": "preregistered_deficit",
+        "action": "deficit_floor",
+        "R": 0.108,
+        "strength": "纳入",
+        "bound": "chapter_p10",
+        "registered_on": "2026-10-06",
+        "use": "低于所在题材池真人章级 P10 时 advisory 告警；不改稿、不自动加字；下轮重验证再判（决定 10）"
+      }
+    },
+    {
+      "id": "P13",
+      "name": "章内重复句",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_100_sentences",
+      "R": 0.517,
+      "R_ci90": [
+        0.2824,
+        0.7809
+      ],
+      "family_R": {
+        "claude": 0.9104,
+        "doubao": 0.0,
+        "gpt": 0.6407
+      },
+      "holdout_R": 2.1619,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "真人更高（区间不含1）"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 internal_repeat_rate_pct",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P13",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.517,
+        "reason": "真人更高（区间不含1）"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P14",
+      "name": "比喻标记（voice_profile）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 1.2671,
+      "R_ci90": [
+        0.8908,
+        1.6347
+      ],
+      "family_R": {
+        "claude": 1.9414,
+        "doubao": 1.5581,
+        "gpt": 0.3017
+      },
+      "holdout_R": 0.6175,
+      "A0_R": 12.8166,
+      "tier_notes": [
+        "AI 更高（区间含1）",
+        "条件档未过：三族未全≥1.25"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 simile_marker_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P14",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.2671,
+        "reason": "AI 更高（区间含1）；条件档未过：三族未全≥1.25"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P15",
+      "name": "解释标记（voice_profile）",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 0 处／期望 1.9，泊松上界 R=1.54"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 explanation_marker_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P15",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P16",
+      "name": "身体反应标记（voice_profile）",
+      "status": "pending",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": true,
+      "action": "advisory",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 9.4431,
+      "R_ci90": [
+        0.0,
+        32.9075
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 28.3294
+      },
+      "holdout_R": 0.0,
+      "A0_R": 0.0,
+      "tier_notes": [
+        "量不足：A0g 2 处／期望 0.2，泊松上界 R=30.91"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 body_reaction_marker_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P16",
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "量不足：维持现状但降为 advisory，只列命中位置不做阈值告警；池 P90 留作下轮重验证"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P17",
+      "name": "转场标记（voice_profile）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.7013,
+      "R_ci90": [
+        0.4126,
+        1.0297
+      ],
+      "family_R": {
+        "claude": 0.9744,
+        "doubao": 0.0602,
+        "gpt": 1.0694
+      },
+      "holdout_R": 0.4391,
+      "A0_R": 2.1389,
+      "tier_notes": [
+        "真人更高（区间含1）"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 transition_marker_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P17",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.7013,
+        "reason": "真人更高（区间含1）"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P18",
+      "name": "对比模板（voice_profile）",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 0.0,
+      "R_ci90": [
+        0.0,
+        0.0
+      ],
+      "family_R": {
+        "claude": 0.0,
+        "doubao": 0.0,
+        "gpt": 0.0
+      },
+      "holdout_R": 0.0,
+      "A0_R": 1.7889,
+      "tier_notes": [
+        "量少但可排除：A0g 0 处／期望 7.4，泊松 95% 上界 R=0.40<1.25"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 contrast_template_per_1k",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "deslop_gate": "voice_profile",
+      "corpus_rules_detector": "detect_P18",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 0.0,
+        "reason": "量少但可排除：A0g 0 处／期望 7.4，泊松 95% 上界 R=0.40<1.25"
+      },
+      "voice_profile_note": "voice_profile 的本书双向漂移画像不受影响；本条只表示它不再作为 AI 味证据"
+    },
+    {
+      "id": "P19",
+      "name": "每段句数",
+      "status": "retired",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "off",
+      "kind": "metric",
+      "denominator": "per_chapter_metric",
+      "R": 1.2075,
+      "R_ci90": [
+        1.1587,
+        1.2601
+      ],
+      "family_R": {
+        "claude": 1.3067,
+        "doubao": 1.2692,
+        "gpt": 1.0465
+      },
+      "holdout_R": 1.1653,
+      "A0_R": 1.5064,
+      "tier_notes": [
+        "无区分力"
+      ],
+      "source": "story-deslop scripts/prose_metrics.py + voice_profile.prose_metrics 字段 sentences_per_paragraph",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_P19",
+      "retired": {
+        "on": "2026-10-06",
+        "R": 1.2075,
+        "reason": "无区分力"
+      }
+    },
+    {
+      "id": "W01",
+      "name": "逐词候选「猛地」",
+      "status": "candidate",
+      "version": "v1-2026-10-06",
+      "blocking": false,
+      "counts_toward_issue_density": false,
+      "action": "threshold_hint",
+      "kind": "count",
+      "denominator": "per_1000_han",
+      "R": 14.8899,
+      "R_ci90": null,
+      "family_R_per_1000": {
+        "claude": 0.3944,
+        "doubao": 1.0287,
+        "gpt": 0.4137
+      },
+      "A0g_n": 44,
+      "H_n": 247,
+      "tier_notes": [
+        "D08 整类淘汰后逐词单列；三族各 9–24 倍；逐词未做区间，下轮复验（决定 13）"
+      ],
+      "source": "P2 审计 §五 D08 逐词；p2_banned_words.json",
+      "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+      "corpus_rules_detector": "detect_W01",
+      "check_ai_patterns_types": [
+        "candidate-term-W01"
+      ],
+      "threshold": {
+        "bound": "chapter_p90",
+        "message": "超过所在题材池章级 P90 才提示；候选态，不拦截"
+      },
+      "candidate_since": "2026-10-06"
     }
   ]
 }

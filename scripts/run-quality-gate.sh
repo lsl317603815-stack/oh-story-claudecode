@@ -51,6 +51,7 @@ node scripts/test-typos.js
 node scripts/test-emotion-floor.js
 node scripts/test-hook-strength.js
 python3 scripts/test-deslop-guard.py
+python3 scripts/test-deslop-corpus-rules.py
 bash scripts/test-dialogue-drift-gate.sh
 python3 scripts/test-prose-metrics.py
 bash scripts/test-outline-copy.sh

@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const USAGE = `Usage: node check-ai-patterns.js [--check] [--json] [--fail-on=blocking|all] <file...>
+const USAGE = `Usage: node check-ai-patterns.js [--check] [--json] [--fail-on=blocking|all] [--pool=<题材池>] [--writer-family=claude|doubao|gpt] [--thresholds=<文件>] [--include-retired] [--rule-table=on|off] <file...>
 
 Detect high-risk AI-flavor prose patterns that need human rewrite:
   - negative setup followed by positive flip in the same sentence
@@ -31,9 +31,19 @@ Detect high-risk AI-flavor prose patterns that need human rewrite:
   - 引号强调滥用 (叙述里 1-4 字短词加引号强调，密度型)
   - 对话密度统计 (info，独立成行对话段占比，非问题项，不影响退出码，仅供节奏判断参考)
 
-Each finding carries severity: blocking by default only for high-confidence generation/deslop patterns (not-is-comparison / voice-contrast / negation-parade / reverse-not-is / trailer-ending / trailer-summary). Em dashes are contextual advisory because they may belong to stable author voice or functional interruption. This is a local style/readability gate, not an AIGC detector score; functional human text can be marked for review instead of hard-edited for a detector.
-或 advisory (period-stutter / long-paragraph / micro-action-tic / action-list-tic / abstract-summary-tic / cliche-density-tic / metaphor-density-tic / reasoning-chain-tic / system-notice-formality-tic / overcompressed-prose-tic / low-connective-density-tic / quote-emphasis-tic / formulaic-parallelism / sensory-subject-mismatch，是提示，justified 的长推理/氛围段或有意拟人可保留)。
---fail-on=blocking 只在出现 blocking finding 时退出 1；默认 --fail-on=all 有任何 blocking/advisory finding 即退出 1（info 级 dialogue-density-stat 是确定性统计输出，不计入退出码）。
+规则表（references/pattern-contracts.json 的 surface_rules，版本见 rule_table.version）决定每类检测的去留，
+阈值（书目录 .deslop-thresholds.json，缺省回退 references/deslop-thresholds.default.json）决定何时告警：
+  - 所有表层检测一律只告警、给候选位置，不再有 blocking（2026-10-06 决定 9）。
+  - retired（语料淘汰，如 not-is-comparison／reverse-not-is／cliche-density-tic／metaphor-density-tic）
+    默认不输出、不计退出码；--include-retired 以 severity=retired 列出，仍不计退出码。
+  - pending（量不足，如 voice-contrast／negation-parade／trailer-ending／trailer-summary）照常逐处 advisory。
+  - em-dash（L04 条件档）不再逐处报：章级率超过所在题材池 P90 才出一条 rule-threshold，附全部候选位置。
+  - 「猛地」（W01 候选）同样按池 P90 出 rule-threshold；比喻密度（L23）只在 --writer-family=claude|doubao 时出 family-hint。
+  - 感叹号／问号／叙述问句／口语连接词（预注册赤字）低于池 P10 时出 deficit-floor advisory：只提示，不加字。
+  - 未进语料统计的读感提示（碎句号、长段落、微动作、动作清单、公文腔、过度精炼、低连接、引号强调、感官主体错位）保持 advisory。
+章级阈值只在正文 ≥ min_han（缺省 1000 汉字）时判定。--rule-table=off（或环境变量 DESLOP_RULE_TABLE=off）
+输出检测器原始 severity，只供检测器回归测试，不作去味依据。
+--fail-on=blocking 只在出现 blocking finding 时退出 1；默认 --fail-on=all 有任何 blocking/advisory finding 即退出 1（info 与 retired 不计入退出码）。
 
 The script reports findings only. It never rewrites text, because the safe fix is
 contextual: usually delete the negative setup, write the positive term directly,
@@ -268,10 +278,44 @@ const QUOTE_EMPHASIS_MIN_HITS = 3;
 const QUOTE_EMPHASIS_MAX_VISIBLE = 4;
 const QUOTE_EMPHASIS_SPEECH_VERB_PATTERN = /[说道问喊答念叫回吼骂写读唱嘀咕]/;
 
+// ---- 语料验证规则表（2026-10-06，规则表 v1）----
+// 规则去留来自 references/pattern-contracts.json 的 surface_rules（P2 语料统计＋作者拍板），
+// 阈值来自书目录 .deslop-thresholds.json，缺省回退 references/deslop-thresholds.default.json。
+// 下列章级计数口径与 scripts/corpus_rules/detectors.py 同名检测器一致（阈值就是按那套口径从真人语料标的）：
+// 分母＝voice_profile.normalized_lines 后的汉字数；命中含引号内，L21 只数引号外。
+const RULE_TABLE_DIR = path.join(__dirname, '..', 'references');
+const RULE_CONTRACTS_FILE = 'pattern-contracts.json';
+const RULE_THRESHOLDS_FILE = 'deslop-thresholds.default.json';
+const BOOK_THRESHOLDS_FILE = '.deslop-thresholds.json';
+const CHAPTER_RATE_PATTERNS = {
+  L04: /—+|－{2,}/g,
+  W01: /猛地/g,
+  L23: /仿佛|如同|宛如|宛若|犹如|好似|恍若|(?<!类)似的|(?<!好)像是|像(?:一|个|只|条|头|块|座|把|根|片|团|颗|道|朵|张|股|阵|被)/g,
+  P11: /[？?]/g,
+  P12: /[！!]/g,
+  L21: /[？?]/g,
+  L16: /但是|其实|不过|就是/g,
+};
+const NARRATION_ONLY_RULES = new Set(['L21']);
+const SURPLUS_THRESHOLD_RULES = ['L04', 'W01'];
+const FAMILY_HINT_RULES = ['L23'];
+const DEFICIT_RULES = ['P12', 'P11', 'L21', 'L16'];
+const RT_OPEN_QUOTES = '“「『';
+const RT_CLOSE_QUOTES = '”」』';
+const RT_TITLE_PATTERN = /^\s*#{1,6}\s*/;
+const RT_CHAPTER_PATTERN = /^第0*(\d+)章(?:_|\.|\s|$)/;
+const RT_HAN_PATTERN = /[㐀-鿿]/g;
+const RT_MAX_CANDIDATES = 40;
+
 const options = {
   json: false,
   files: [],
   failOn: 'all',
+  pool: null,
+  writerFamily: null,
+  thresholdsPath: null,
+  includeRetired: false,
+  ruleTable: process.env.DESLOP_RULE_TABLE === 'off' ? 'off' : 'on',
 };
 
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -284,6 +328,18 @@ for (let i = 2; i < process.argv.length; i += 1) {
     const v = arg.slice('--fail-on='.length);
     if (v !== 'blocking' && v !== 'all') die(`--fail-on must be 'blocking' or 'all'`);
     options.failOn = v;
+  } else if (arg.startsWith('--pool=')) {
+    options.pool = arg.slice('--pool='.length);
+  } else if (arg.startsWith('--writer-family=')) {
+    options.writerFamily = arg.slice('--writer-family='.length);
+  } else if (arg.startsWith('--thresholds=')) {
+    options.thresholdsPath = path.resolve(arg.slice('--thresholds='.length));
+  } else if (arg === '--include-retired') {
+    options.includeRetired = true;
+  } else if (arg.startsWith('--rule-table=')) {
+    const v = arg.slice('--rule-table='.length);
+    if (v !== 'on' && v !== 'off') die(`--rule-table must be 'on' or 'off'`);
+    options.ruleTable = v;
   } else if (arg === '-h' || arg === '--help') {
     process.stdout.write(`${USAGE}\n`);
     process.exit(0);
@@ -300,6 +356,8 @@ if (options.files.length === 0) {
 
 let failed = false;
 const allFindings = [];
+const fileMeta = [];
+const RULE_TABLE = options.ruleTable === 'on' ? loadRuleTable() : null;
 
 for (const file of options.files) {
   const fullPath = path.resolve(file);
@@ -312,16 +370,28 @@ for (const file of options.files) {
     continue;
   }
 
-  const findings = scanDocument(input).map((finding) => ({ file, ...finding }));
-  allFindings.push(...findings);
+  const ctx = {};
+  const raw = scanDocument(input, ctx);
+  let findings = raw;
+  if (RULE_TABLE) {
+    const applied = applyRuleTable(raw, input, ctx.proseLines || [], resolveThresholds(fullPath));
+    findings = applied.findings;
+    fileMeta.push({ file, ...applied.meta });
+  }
+  allFindings.push(...findings.map((finding) => ({ file, ...finding })));
 }
 
 if (options.json) {
-  process.stdout.write(`${JSON.stringify({ findings: allFindings }, null, 2)}\n`);
+  const payload = { findings: allFindings };
+  if (RULE_TABLE) payload.rule_table = { version: RULE_TABLE.version, contracts: RULE_TABLE.contractsPath, error: RULE_TABLE.error || null, files: fileMeta };
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 } else {
   for (const finding of allFindings) {
     console.log(`${finding.file}:${finding.line}:${finding.column}: [${finding.severity}] ${finding.type}: ${finding.message} (${finding.excerpt})`);
+    for (const c of finding.candidates || []) console.log(`  候选 ${finding.file}:${c.line}:${c.column}: ${c.excerpt}`);
   }
+  // 规则表与阈值来源走 stderr，不混入逐行 finding。
+  for (const meta of fileMeta) console.error(`# ${meta.file}: ${meta.summary}`);
 }
 
 // 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
@@ -345,7 +415,7 @@ function die(message) {
   process.exit(2);
 }
 
-function scanDocument(input) {
+function scanDocument(input, ctx = {}) {
   const lines = input.split(/\r?\n/);
   const findings = [];
   let fence = null;
@@ -387,6 +457,7 @@ function scanDocument(input) {
   }
 
   flushBlock();
+  ctx.proseLines = proseLines;
   findings.push(...scanProsePatterns(proseLines));
   findings.sort((a, b) => a.line - b.line || a.column - b.column);
   return findings;
@@ -1517,4 +1588,295 @@ function computeDialogueDensity(proseLines) {
 // 独立成行对话/字条段：整段trim后以成对引号开头（「/『/【/"/'等），与"对话独立成行"格式规则同口径。
 function isDialogueParagraph(trimmed) {
   return QUOTE_PAIRS.some(([open]) => trimmed.startsWith(open));
+}
+
+// ───────────────────────── 语料验证规则表层 ─────────────────────────
+// 检测器只负责找位置；本层按规则表决定输出形态。任何规则都不再 blocking，也不改写正文。
+
+function readJsonFile(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function loadRuleTable() {
+  const contractsPath = process.env.DESLOP_PATTERN_CONTRACTS || path.join(RULE_TABLE_DIR, RULE_CONTRACTS_FILE);
+  const defaultsPath = process.env.DESLOP_THRESHOLDS_DEFAULT || path.join(RULE_TABLE_DIR, RULE_THRESHOLDS_FILE);
+  const table = { contractsPath, defaultsPath, version: null, byType: new Map(), byId: new Map(), unvalidated: new Set(), defaults: null, error: null };
+  try {
+    const contracts = readJsonFile(contractsPath);
+    table.version = contracts.rule_table ? contracts.rule_table.version : null;
+    for (const rule of contracts.surface_rules || []) {
+      table.byId.set(rule.id, rule);
+      for (const type of rule.check_ai_patterns_types || []) table.byType.set(type, rule);
+    }
+    for (const type of (contracts.rule_table && contracts.rule_table.unvalidated_detectors) || []) table.unvalidated.add(type);
+    if (!table.version || table.byId.size === 0) throw new Error('surface_rules 为空');
+  } catch (error) {
+    table.error = `规则表不可用（${error.message}）：全部检测按 advisory 输出，破折号逐处列出`;
+  }
+  try {
+    table.defaults = readJsonFile(defaultsPath);
+  } catch (error) {
+    table.error = `${table.error ? `${table.error}；` : ''}缺省阈值表不可用（${error.message}）：不做章级阈值判定`;
+  }
+  return table;
+}
+
+// 从正文所在目录逐级向上找最近的书目录阈值文件；不回退调用者 cwd（同 .deslop-whitelist）。
+function findBookThresholds(filePath) {
+  let current = path.dirname(filePath);
+  while (true) {
+    const candidate = path.join(current, BOOK_THRESHOLDS_FILE);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function resolveThresholds(filePath) {
+  const defaults = RULE_TABLE.defaults;
+  const ctx = { source: 'default', path: RULE_TABLE.defaultsPath, pool: null, writerFamily: null, rules: {}, disabled: new Set(), minHan: 1000, warnings: [] };
+  let book = null;
+  const bookPath = options.thresholdsPath || findBookThresholds(filePath);
+  if (bookPath) {
+    try {
+      book = readJsonFile(bookPath);
+      if (book.schema !== 'deslop-thresholds/v1') throw new Error(`schema 应为 deslop-thresholds/v1，实际 ${book.schema}`);
+      ctx.source = options.thresholdsPath ? 'explicit' : 'book';
+      ctx.path = bookPath;
+    } catch (error) {
+      ctx.warnings.push(`书目录阈值文件无效，已回退仓内缺省表：${bookPath}（${error.message}）`);
+      book = null;
+    }
+  }
+  if (!defaults) return ctx;
+  ctx.minHan = Number.isFinite(defaults.min_han) ? defaults.min_han : ctx.minHan;
+  const poolName = options.pool || (book && book.pool) || defaults.default_pool;
+  const pool = defaults.pools && defaults.pools[poolName];
+  if (!pool) {
+    ctx.warnings.push(`题材池「${poolName}」不在缺省表里，已改用 ${defaults.default_pool}`);
+  }
+  ctx.pool = pool ? poolName : defaults.default_pool;
+  const basePool = defaults.pools[ctx.pool] || { rules: {} };
+  if (basePool.warning) ctx.warnings.push(`${ctx.pool}：${basePool.warning}`);
+  for (const [id, rule] of Object.entries(basePool.rules || {})) ctx.rules[id] = { ...rule };
+  if (book) {
+    for (const [id, override] of Object.entries(book.rules || {})) ctx.rules[id] = { ...(ctx.rules[id] || {}), ...override, overridden: true };
+    for (const id of book.disabled_rules || []) ctx.disabled.add(id);
+    if (Number.isFinite(book.min_han)) ctx.minHan = book.min_han;
+    if (book.baseline && book.baseline.source) ctx.baselineSource = book.baseline.source;
+  }
+  ctx.writerFamily = options.writerFamily || (book && book.writer_family) || null;
+  return ctx;
+}
+
+// 与 voice_profile.normalized_lines 同口径：去空行、跳首个标题行、跳整行 HTML 注释。
+function rateLines(input) {
+  const lines = [];
+  let titleSkipped = false;
+  for (const raw of input.replace(/\r\n?/g, '\n').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (!titleSkipped && (RT_TITLE_PATTERN.test(line) || RT_CHAPTER_PATTERN.test(line.replace(RT_TITLE_PATTERN, '')))) {
+      titleSkipped = true;
+      continue;
+    }
+    if (line.startsWith('<!--') && line.endsWith('-->')) continue;
+    lines.push(line);
+  }
+  return lines;
+}
+
+// 与 corpus_rules/detectors.py quote_spans 同口径：中文引号可嵌套，未闭合视为到段尾；英文直引号奇偶配对。
+function rateQuoteSpans(text) {
+  const spans = [];
+  let depth = 0;
+  let start = 0;
+  let straight = null;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (RT_OPEN_QUOTES.includes(ch)) {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (RT_CLOSE_QUOTES.includes(ch) && depth > 0) {
+      depth -= 1;
+      if (depth === 0) spans.push([start, i + 1]);
+    } else if (ch === '"' && depth === 0) {
+      if (straight === null) straight = i;
+      else { spans.push([straight, i + 1]); straight = null; }
+    }
+  }
+  if (depth > 0) spans.push([start, text.length]);
+  if (straight !== null) spans.push([straight, text.length]);
+  return spans;
+}
+
+function chapterRates(input) {
+  const lines = rateLines(input);
+  let han = 0;
+  const counts = Object.fromEntries(Object.keys(CHAPTER_RATE_PATTERNS).map((id) => [id, 0]));
+  for (const line of lines) {
+    const hanMatches = line.match(RT_HAN_PATTERN);
+    han += hanMatches ? hanMatches.length : 0;
+    const spans = rateQuoteSpans(line);
+    for (const [id, pattern] of Object.entries(CHAPTER_RATE_PATTERNS)) {
+      const re = new RegExp(pattern.source, 'g');
+      let match;
+      while ((match = re.exec(line)) !== null) {
+        if (NARRATION_ONLY_RULES.has(id) && insideRanges(match.index, spans)) continue;
+        counts[id] += 1;
+      }
+    }
+  }
+  const rates = {};
+  for (const [id, n] of Object.entries(counts)) rates[id] = han ? (n * 1000) / han : 0;
+  return { han, counts, rates };
+}
+
+function patternCandidates(proseLines, pattern) {
+  const out = [];
+  for (const { text, lineNo } of proseLines) {
+    const re = new RegExp(pattern.source, 'g');
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      out.push({ line: lineNo, column: match.index + 1, excerpt: compact(text.slice(Math.max(0, match.index - 10), match.index + match[0].length + 10)) });
+      if (out.length >= RT_MAX_CANDIDATES) return out;
+    }
+  }
+  return out;
+}
+
+function fmtRate(value) {
+  return Number(value).toFixed(2);
+}
+
+function ruleName(id) {
+  const rule = RULE_TABLE.byId.get(id);
+  return rule ? rule.name : id;
+}
+
+function thresholdTag(th) {
+  const src = th.source === 'default' ? '仓内缺省表' : th.source === 'explicit' ? '指定阈值文件' : '书目录阈值';
+  return `${src}·${th.pool || '无池'}`;
+}
+
+function applyRuleTable(raw, input, proseLines, th) {
+  const findings = [];
+  const dashCandidates = [];
+  let retiredSuppressed = 0;
+  const unavailable = Boolean(RULE_TABLE.error && RULE_TABLE.byId.size === 0);
+
+  for (const finding of raw) {
+    if (finding.severity === 'info') {
+      findings.push(finding);
+      continue;
+    }
+    const detectorSeverity = finding.severity;
+    const rule = unavailable ? null : RULE_TABLE.byType.get(finding.type);
+    if (!rule) {
+      // 未进语料统计的读感提示，或规则表缺失时的兜底：一律 advisory（决定 9：表层不再 blocking）。
+      findings.push({ ...finding, severity: 'advisory', detector_severity: detectorSeverity, rule_status: unavailable ? 'rule-table-unavailable' : 'unvalidated' });
+      continue;
+    }
+    if (finding.type === 'em-dash') {
+      dashCandidates.push({ line: finding.line, column: finding.column, excerpt: finding.excerpt });
+      continue;
+    }
+    if (rule.status === 'retired') {
+      retiredSuppressed += 1;
+      if (options.includeRetired) {
+        findings.push({ ...finding, severity: 'retired', detector_severity: detectorSeverity, rule_id: rule.id, rule_status: 'retired', rule_R: rule.R });
+      }
+      continue;
+    }
+    findings.push({ ...finding, severity: 'advisory', detector_severity: detectorSeverity, rule_id: rule.id, rule_status: rule.status, rule_R: rule.R });
+  }
+
+  const chapter = chapterRates(input);
+  const meta = {
+    rule_table_version: RULE_TABLE.version,
+    thresholds: { source: th.source, path: th.path, pool: th.pool, writer_family: th.writerFamily, min_han: th.minHan, baseline_source: th.baselineSource || null, warnings: th.warnings },
+    chapter: { han: chapter.han, counts: chapter.counts, rates: Object.fromEntries(Object.entries(chapter.rates).map(([k, v]) => [k, Number(v.toFixed(4))])) },
+    retired_suppressed: retiredSuppressed,
+    threshold_judged: false,
+  };
+  const firstLine = proseLines.find((entry) => entry.text.trim()) || { lineNo: 1 };
+
+  if (unavailable || !RULE_TABLE.defaults) {
+    for (const c of dashCandidates) findings.push({ ...c, type: 'em-dash', severity: 'advisory', message: '破折号按功能改写；规则表不可用，逐处列出供复核。' });
+  } else if (chapter.han < th.minHan) {
+    meta.note = `正文 ${chapter.han} 汉字 < ${th.minHan}，不做章级阈值判定`;
+  } else {
+    meta.threshold_judged = true;
+    for (const id of SURPLUS_THRESHOLD_RULES) {
+      const bound = th.rules[id] && th.rules[id].chapter_p90;
+      if (th.disabled.has(id) || !Number.isFinite(bound) || chapter.rates[id] <= bound) continue;
+      const candidates = id === 'L04' ? dashCandidates.slice(0, RT_MAX_CANDIDATES) : patternCandidates(proseLines, CHAPTER_RATE_PATTERNS[id]);
+      const rule = RULE_TABLE.byId.get(id) || {};
+      findings.push({
+        line: candidates[0] ? candidates[0].line : firstLine.lineNo,
+        column: candidates[0] ? candidates[0].column : 1,
+        type: 'rule-threshold',
+        severity: 'advisory',
+        rule_id: id,
+        rule_status: rule.status || null,
+        value: Number(chapter.rates[id].toFixed(4)),
+        threshold: Number(bound.toFixed(4)),
+        threshold_source: thresholdTag(th),
+        message: `${ruleName(id)} ${fmtRate(chapter.rates[id])}/千字，高于${thresholdTag(th)}真人章级 P90（${fmtRate(bound)}）；只看候选位置有没有无功能的，作者决定是否改，不自动改写。`,
+        excerpt: `${chapter.counts[id]} 处`,
+        candidates,
+      });
+    }
+    if (th.writerFamily) {
+      for (const id of FAMILY_HINT_RULES) {
+        const rule = RULE_TABLE.byId.get(id);
+        const families = (rule && rule.family_hint && rule.family_hint.families) || [];
+        const bound = th.rules[id] && th.rules[id].chapter_p90;
+        if (!families.includes(th.writerFamily) || th.disabled.has(id) || !Number.isFinite(bound) || chapter.rates[id] <= bound) continue;
+        const candidates = patternCandidates(proseLines, CHAPTER_RATE_PATTERNS[id]);
+        findings.push({
+          line: candidates[0] ? candidates[0].line : firstLine.lineNo,
+          column: candidates[0] ? candidates[0].column : 1,
+          type: 'family-hint',
+          severity: 'advisory',
+          rule_id: id,
+          rule_status: rule.status,
+          value: Number(chapter.rates[id].toFixed(4)),
+          threshold: Number(bound.toFixed(4)),
+          threshold_source: thresholdTag(th),
+          message: `${th.writerFamily} 写手族提示：${ruleName(id)} ${fmtRate(chapter.rates[id])}/千字，高于${thresholdTag(th)}真人章级 P90（${fmtRate(bound)}）；只对该族成立，保留有功能的比喻，不换成新比喻。`,
+          excerpt: `${chapter.counts[id]} 处`,
+          candidates,
+        });
+      }
+    }
+    for (const id of DEFICIT_RULES) {
+      const bound = th.rules[id] && th.rules[id].chapter_p10;
+      if (th.disabled.has(id) || !Number.isFinite(bound) || chapter.rates[id] >= bound) continue;
+      const rule = RULE_TABLE.byId.get(id) || {};
+      findings.push({
+        line: firstLine.lineNo,
+        column: 1,
+        type: 'deficit-floor',
+        severity: 'advisory',
+        rule_id: id,
+        rule_status: rule.deficit ? rule.deficit.status : 'preregistered_deficit',
+        value: Number(chapter.rates[id].toFixed(4)),
+        threshold: Number(bound.toFixed(4)),
+        threshold_source: thresholdTag(th),
+        message: `${ruleName(id)} ${fmtRate(chapter.rates[id])}/千字，低于${thresholdTag(th)}真人章级 P10（${fmtRate(bound)}）：AI 稿常见「少了」的信号，可能是写作提示把它压过头。只提示，不改稿、不自动加字。`,
+        excerpt: `${chapter.counts[id]} 处`,
+      });
+    }
+  }
+
+  const parts = [`规则表 ${RULE_TABLE.version || '不可用'}`, `阈值 ${thresholdTag(th)}`];
+  if (th.source === 'default') parts.push('未找到书目录 .deslop-thresholds.json，回退仓内缺省表');
+  if (meta.note) parts.push(meta.note);
+  if (retiredSuppressed) parts.push(options.includeRetired ? `已退役规则命中 ${retiredSuppressed} 处以 retired 列出，不计退出码` : `已退役规则命中 ${retiredSuppressed} 处未输出（--include-retired 可见）`);
+  if (RULE_TABLE.error) parts.push(RULE_TABLE.error);
+  for (const w of th.warnings) parts.push(w);
+  meta.summary = parts.join('；');
+  return { findings: findings.sort((a, b) => a.line - b.line || a.column - b.column), meta };
 }

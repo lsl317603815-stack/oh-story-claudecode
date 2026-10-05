@@ -227,6 +227,15 @@
       ]
     },
     {
+      "name": "reference-deslop-thresholds-default",
+      "source": "skills/story-deslop/references/deslop-thresholds.default.json",
+      "targets": [
+        "skills/story-long-write/references/deslop-thresholds.default.json",
+        "skills/story-review/references/deslop-thresholds.default.json",
+        "skills/story-short-write/references/deslop-thresholds.default.json"
+      ]
+    },
+    {
       "name": "scan-cdp-utils",
       "source": "skills/story-long-scan/scripts/cdp-utils.js",
       "targets": [

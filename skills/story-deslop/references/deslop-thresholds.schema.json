@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deslop-thresholds/v1",
+  "title": "书目录 .deslop-thresholds.json",
+  "description": "放在书目录（与 .deslop-whitelist 同级），按题材池选一份去味阈值。check-ai-patterns.js 与 deslop_guard.py 从正文所在目录逐级向上找最近的一份；找不到时回退仓内 deslop-thresholds.default.json 的 default_pool，并在输出里标注来源。阈值只决定告警，不改稿。",
+  "type": "object",
+  "required": ["schema"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "deslop-thresholds/v1" },
+    "pool": {
+      "type": "string",
+      "description": "借用仓内缺省表的哪个题材池：东方玄幻修仙／幻言魔法学院／游戏求生玄幻脑洞／都市脑洞游戏制作／都市高武系统。省略时用缺省表的 default_pool。"
+    },
+    "writer_family": {
+      "enum": ["claude", "doubao", "gpt", "unknown"],
+      "description": "本书主力写手模型族；只用于族别提示（如 L23 比喻密度只对 claude／doubao 提示）。命令行 --writer-family 优先。"
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": ["external", "book"],
+          "description": "external＝借外部真人池（新书缺省）；book＝已用本书作者亲笔正文标过。作者亲笔不足时必须写 external，不冒充本书基线。"
+        },
+        "han": { "type": "integer", "minimum": 0, "description": "标阈值所用正文汉字数" },
+        "note": { "type": "string" }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "description": "逐条覆盖缺省值，键为规则 id（见 pattern-contracts.json 的 surface_rules）。上限规则写 chapter_p90，赤字规则写 chapter_p10。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chapter_p90": { "type": "number", "minimum": 0 },
+          "chapter_p10": { "type": "number", "minimum": 0 },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "disabled_rules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "本书停用的阈值提示（例如作者把破折号定为本书文风时写 L04）。停用只关提示，不改规则表。"
+    },
+    "min_han": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "章级率判定的最短篇幅；缺省沿用仓内表的 min_han。"
+    }
+  }
+}

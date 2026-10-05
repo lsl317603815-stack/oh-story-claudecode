@@ -22,6 +22,9 @@ for detector_copy in "${DETECTOR_COPIES[@]}"; do
     exit 1
   }
 done
+# 本文件前半部分是检测器回归：验证各检测器找得到、排除得对，断言的是检测器原始 severity。
+# 规则表层（语料验证规则表 v1：retired 不输出、表层不 blocking、破折号按池 P90 告警）在文末单独测。
+export DESLOP_RULE_TABLE=off
 TMP_DIR="$(mktemp -d)"
 
 cleanup() {
@@ -1306,3 +1309,98 @@ if (ss.length !== 1 || ss[0].line !== 4 || !ss[0].excerpt.includes('香气')) {
 NODE
 
 echo "sensory-subject-mismatch (感官对象误作感知主体) regression tests passed."
+
+# ───────────── 语料验证规则表 v1（2026-10-06 决定 9–13）：规则表层回归 ─────────────
+unset DESLOP_RULE_TABLE
+RT_BOOK="$TMP_DIR/rule-table-book"
+mkdir -p "$RT_BOOK/正文"
+RT_FILE="$RT_BOOK/正文/第001章.md"
+node - "$RT_FILE" <<'NODE'
+const fs = require('fs');
+// ≥1000 汉字：每段 23 汉字，含 retired（not-is）、pending（voice-contrast）、破折号、「猛地」；无感叹号、无问号。
+const lines = ['# 第1章 测试'];
+for (let i = 0; i < 50; i += 1) lines.push('他推开门，屋里很暗，地上堆着旧纸箱，墙角还靠着一把伞。');
+lines.splice(3, 0, '他不是冷漠，而是绝望。');
+lines.splice(6, 0, '声音不高，第一句却稳稳压住了整个大厅。');
+for (let i = 0; i < 4; i += 1) lines.splice(9 + i * 3, 0, '他猛地停下——门外有人。');
+fs.writeFileSync(process.argv[2], lines.join('\n') + '\n');
+NODE
+
+set +e
+node "$SCRIPT" --json --fail-on=blocking "$RT_FILE" > "$OUT"
+rt_blk=$?
+node "$SCRIPT" --fail-on=all "$RT_FILE" > /dev/null 2>&1
+rt_all=$?
+set -e
+[ "$rt_blk" -eq 0 ] || { echo "FAIL: 规则表下表层检测不得 blocking，--fail-on=blocking 应退出 0，实际 $rt_blk" >&2; exit 1; }
+[ "$rt_all" -eq 1 ] || { echo "FAIL: 有 advisory 告警时默认 --fail-on=all 应退出 1，实际 $rt_all" >&2; exit 1; }
+node - "$OUT" <<'NODE'
+const fs = require('fs');
+const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const f = r.findings;
+if (!r.rule_table || r.rule_table.version !== 'v1-2026-10-06') throw new Error('缺规则表版本: ' + JSON.stringify(r.rule_table));
+const meta = r.rule_table.files[0];
+if (meta.thresholds.source !== 'default' || meta.thresholds.pool !== '都市高武系统') throw new Error('无书目录阈值时应回退仓内缺省表并标注: ' + JSON.stringify(meta.thresholds));
+if (!/回退仓内缺省表/.test(meta.summary)) throw new Error('回退缺省表须在 summary 标注: ' + meta.summary);
+if (f.some((x) => x.severity === 'blocking')) throw new Error('规则表下不得出现 blocking: ' + JSON.stringify(f));
+if (f.some((x) => x.type === 'not-is-comparison')) throw new Error('retired 的 not-is 默认不输出');
+if (meta.retired_suppressed < 1) throw new Error('retired 命中应计入 retired_suppressed');
+const vc = f.find((x) => x.type === 'voice-contrast');
+if (!vc || vc.severity !== 'advisory' || vc.rule_status !== 'pending' || vc.detector_severity !== 'blocking') throw new Error('pending 的 voice-contrast 应降为 advisory 并保留检测器原始 severity: ' + JSON.stringify(vc));
+if (f.some((x) => x.type === 'em-dash')) throw new Error('破折号不再逐处报，改为章级阈值告警');
+const dash = f.find((x) => x.type === 'rule-threshold' && x.rule_id === 'L04');
+if (!dash || dash.candidates.length !== 4 || !(dash.value > dash.threshold)) throw new Error('破折号超池 P90 应出一条 rule-threshold 并附 4 个候选位置: ' + JSON.stringify(dash));
+const w = f.find((x) => x.type === 'rule-threshold' && x.rule_id === 'W01');
+if (!w || w.candidates.length !== 4) throw new Error('「猛地」候选应按池 P90 告警并附候选位置: ' + JSON.stringify(w));
+const deficits = f.filter((x) => x.type === 'deficit-floor').map((x) => x.rule_id).sort();
+if (JSON.stringify(deficits) !== JSON.stringify(['L16', 'L21', 'P11', 'P12'])) throw new Error('无感叹号/问号/口语连接词时应出四条赤字告警: ' + JSON.stringify(deficits));
+NODE
+
+# --include-retired 以 retired 列出，仍不计退出码；书目录阈值文件优先于缺省表，可停用提示。
+set +e
+node "$SCRIPT" --json --include-retired "$RT_FILE" > "$OUT"
+set -e
+node - "$OUT" <<'NODE'
+const fs = require('fs');
+const f = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).findings;
+const ni = f.find((x) => x.type === 'not-is-comparison');
+if (!ni || ni.severity !== 'retired' || ni.rule_id !== 'D12') throw new Error('--include-retired 应以 retired 列出 not-is（D12）: ' + JSON.stringify(ni));
+NODE
+cat > "$RT_BOOK/.deslop-thresholds.json" <<'JSON'
+{"schema": "deslop-thresholds/v1", "pool": "都市脑洞游戏制作", "baseline": {"source": "external"}, "disabled_rules": ["L04", "P12", "P11", "L21", "L16"], "rules": {"W01": {"chapter_p90": 100}}}
+JSON
+set +e
+node "$SCRIPT" --json "$RT_FILE" > "$OUT"
+set -e
+node - "$OUT" <<'NODE'
+const fs = require('fs');
+const r = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const meta = r.rule_table.files[0];
+if (meta.thresholds.source !== 'book' || meta.thresholds.pool !== '都市脑洞游戏制作') throw new Error('应读取书目录 .deslop-thresholds.json: ' + JSON.stringify(meta.thresholds));
+if (r.findings.some((x) => ['rule-threshold', 'deficit-floor'].includes(x.type))) throw new Error('书目录停用与覆盖阈值后不应再告警: ' + JSON.stringify(r.findings));
+NODE
+rm "$RT_BOOK/.deslop-thresholds.json"
+
+# 比喻密度（L23）只对 claude／doubao 写手族作族别提示；gpt 不提示。
+RT_SIMILE="$RT_BOOK/正文/第002章.md"
+node - "$RT_SIMILE" <<'NODE'
+const fs = require('fs');
+const lines = ['# 第2章 比喻'];
+for (let i = 0; i < 50; i += 1) lines.push('她像一只受惊的猫缩在墙角，屋里很暗，地上堆着旧纸箱！');
+fs.writeFileSync(process.argv[2], lines.join('\n') + '\n');
+NODE
+for fam in doubao gpt; do
+  set +e
+  node "$SCRIPT" --json --writer-family=$fam "$RT_SIMILE" > "$OUT"
+  set -e
+  node - "$OUT" "$fam" <<'NODE'
+const fs = require('fs');
+const f = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).findings;
+const hint = f.filter((x) => x.type === 'family-hint' && x.rule_id === 'L23');
+if (process.argv[3] === 'doubao' && hint.length !== 1) throw new Error('doubao 族应出 L23 族别提示: ' + JSON.stringify(f));
+if (process.argv[3] === 'gpt' && hint.length !== 0) throw new Error('gpt 族不应出 L23 族别提示: ' + JSON.stringify(hint));
+if (f.some((x) => x.type === 'metaphor-density-tic')) throw new Error('retired 的 metaphor-density-tic 默认不输出');
+NODE
+done
+
+echo "rule table v1 (语料验证规则表) policy-layer tests passed."

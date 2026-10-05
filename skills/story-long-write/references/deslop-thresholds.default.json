@@ -1,0 +1,2154 @@
+{
+  "schema": "deslop-thresholds/v1",
+  "version": "v1-2026-10-06",
+  "source": "repo-default",
+  "basis": "H 层全章（训练+留出），题材池内书等权：均值＝各书合并率的平均；放过上限＝各书章级 P90 的平均（方向为 AI 偏低的规则给 P10 下限）；L23、W01 按同口径从 H 全章补算",
+  "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
+  "default_pool": "都市高武系统",
+  "default_pool_reason": "五个池里唯一的多书池（H02＋H04）；其余四池是单书池，阈值等于那本书的文风",
+  "min_han": 1000,
+  "min_han_reason": "章级率在千字以下波动过大，短于此不做阈值判定，只列候选位置",
+  "pools": {
+    "东方玄幻修仙": {
+      "books": [
+        "H06"
+      ],
+      "chapters": 200,
+      "han": 374035,
+      "han_by_book": {
+        "H06": 374035
+      },
+      "warning": "单书池：阈值＝该书文风，不是题材均值",
+      "rules": {
+        "D01": {
+          "name": "一级禁用词·情态类",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.3662,
+          "chapter_p10": 0.4658
+        },
+        "D03": {
+          "name": "一级禁用词·表情类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0294,
+          "chapter_p90": 0.0
+        },
+        "D05": {
+          "name": "一级禁用词·判断类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0187,
+          "chapter_p90": 0.0
+        },
+        "D06": {
+          "name": "一级禁用词·形容类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.131,
+          "chapter_p90": 0.556
+        },
+        "D07": {
+          "name": "一级禁用词·过渡类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0187,
+          "chapter_p90": 0.0
+        },
+        "D10": {
+          "name": "二级禁用词·书面腔",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D11": {
+          "name": "模板化套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0401,
+          "chapter_p90": 0.0
+        },
+        "D13": {
+          "name": "跨句否定排列「不是A。也不是B。只是C。」",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D14": {
+          "name": "「，带着……」万能状语",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0508,
+          "chapter_p90": 0.0
+        },
+        "D15": {
+          "name": "声音描写套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0134,
+          "chapter_p90": 0.0
+        },
+        "D16": {
+          "name": "心理直述（他／她知道·感到·意识到）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0535,
+          "chapter_p90": 0.0462
+        },
+        "D18": {
+          "name": "公式化对话标签",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.3421,
+          "chapter_p10": 0.0
+        },
+        "D19": {
+          "name": "结尾升华句",
+          "tier": "待定",
+          "denominator": "per_100_chapters",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 3.5,
+          "chapter_p90": 0.0
+        },
+        "D20": {
+          "name": "总结／顿悟句式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1497,
+          "chapter_p90": 0.5539
+        },
+        "D22": {
+          "name": "上帝视角剧透",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0321,
+          "chapter_p90": 0.0
+        },
+        "D26": {
+          "name": "文言比喻词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.4652,
+          "chapter_p10": 0.0
+        },
+        "D28": {
+          "name": "问答教学对",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0188,
+          "chapter_p90": 0.0
+        },
+        "D29": {
+          "name": "工整决策栏／否定清单",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0107,
+          "chapter_p90": 0.0
+        },
+        "D30": {
+          "name": "抽象情绪告知（标志词版）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.008,
+          "chapter_p90": 0.0
+        },
+        "L01": {
+          "name": "翻案腔",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.278,
+          "chapter_p10": 0.0
+        },
+        "L03b": {
+          "name": "相邻句结构同款（连续三句）",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0751,
+          "chapter_p90": 0.0
+        },
+        "L04": {
+          "name": "破折号",
+          "tier": "条件纳入",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.3984,
+          "chapter_p90": 1.1294
+        },
+        "L05a": {
+          "name": "提示语冒号",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0134,
+          "chapter_p90": 0.0
+        },
+        "L05b": {
+          "name": "空转句引列表",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L06": {
+          "name": "序数词当小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L07": {
+          "name": "拟人化喻体",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L08": {
+          "name": "材料密度（数字与时间锚点）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": true,
+          "human_mean": 2.5586,
+          "chapter_p90": 4.7622
+        },
+        "L09": {
+          "name": "禁用起手式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.008,
+          "chapter_p90": 0.0
+        },
+        "L10a": {
+          "name": "过长前置定语",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.2486,
+          "chapter_p10": 0.0
+        },
+        "L10b": {
+          "name": "当…时前置从句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0267,
+          "chapter_p90": 0.0
+        },
+        "L10e": {
+          "name": "这意味着式复述",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L11": {
+          "name": "段首零主语评论",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.025,
+          "chapter_p90": 0.0
+        },
+        "L16": {
+          "name": "口语连接词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.4116,
+          "chapter_p10": 0.5013
+        },
+        "L17": {
+          "name": "反复写全称（少用代词）",
+          "tier": "淘汰",
+          "denominator": "per_100_sentences",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.9032,
+          "chapter_p10": 0.0
+        },
+        "L18": {
+          "name": "抽象被动",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0348,
+          "chapter_p90": 0.0
+        },
+        "L20": {
+          "name": "问句小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L21": {
+          "name": "正文问句（叙述层）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.5989,
+          "chapter_p10": 0.0
+        },
+        "L24": {
+          "name": "抽象名词配具体动词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0027,
+          "chapter_p90": 0.0
+        },
+        "L25": {
+          "name": "动词名词化",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L26": {
+          "name": "正文序数词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.008,
+          "chapter_p90": 0.0
+        },
+        "P11": {
+          "name": "问号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 4.1788,
+          "chapter_p10": 1.6106
+        },
+        "P12": {
+          "name": "感叹号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 3.6948,
+          "chapter_p10": 1.6308
+        },
+        "P15": {
+          "name": "解释标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0187,
+          "chapter_p90": 0.0
+        },
+        "P16": {
+          "name": "身体反应标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L23": {
+          "name": "比喻本身（比喻标记词）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.7058,
+          "chapter_p90": 1.6817,
+          "use": "仅 claude／豆包写手族的族别提示"
+        },
+        "W01": {
+          "name": "逐词候选「猛地」",
+          "tier": "候选",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        }
+      }
+    },
+    "幻言魔法学院": {
+      "books": [
+        "H01"
+      ],
+      "chapters": 648,
+      "han": 2250099,
+      "han_by_book": {
+        "H01": 2250099
+      },
+      "warning": "单书池：阈值＝该书文风，不是题材均值",
+      "rules": {
+        "D01": {
+          "name": "一级禁用词·情态类",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.3222,
+          "chapter_p10": 0.0
+        },
+        "D03": {
+          "name": "一级禁用词·表情类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0031,
+          "chapter_p90": 0.0
+        },
+        "D05": {
+          "name": "一级禁用词·判断类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0222,
+          "chapter_p90": 0.0
+        },
+        "D06": {
+          "name": "一级禁用词·形容类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1498,
+          "chapter_p90": 0.5153
+        },
+        "D07": {
+          "name": "一级禁用词·过渡类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0262,
+          "chapter_p90": 0.0
+        },
+        "D10": {
+          "name": "二级禁用词·书面腔",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0022,
+          "chapter_p90": 0.0
+        },
+        "D11": {
+          "name": "模板化套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0182,
+          "chapter_p90": 0.0
+        },
+        "D13": {
+          "name": "跨句否定排列「不是A。也不是B。只是C。」",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D14": {
+          "name": "「，带着……」万能状语",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0236,
+          "chapter_p90": 0.0
+        },
+        "D15": {
+          "name": "声音描写套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0071,
+          "chapter_p90": 0.0
+        },
+        "D16": {
+          "name": "心理直述（他／她知道·感到·意识到）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.092,
+          "chapter_p90": 0.2925
+        },
+        "D18": {
+          "name": "公式化对话标签",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.524,
+          "chapter_p10": 0.0
+        },
+        "D19": {
+          "name": "结尾升华句",
+          "tier": "待定",
+          "denominator": "per_100_chapters",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 2.3148,
+          "chapter_p90": 0.0
+        },
+        "D20": {
+          "name": "总结／顿悟句式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0889,
+          "chapter_p90": 0.2947
+        },
+        "D22": {
+          "name": "上帝视角剧透",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.008,
+          "chapter_p90": 0.0
+        },
+        "D26": {
+          "name": "文言比喻词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.1538,
+          "chapter_p10": 0.0
+        },
+        "D28": {
+          "name": "问答教学对",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.2676,
+          "chapter_p90": 0.8403
+        },
+        "D29": {
+          "name": "工整决策栏／否定清单",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0231,
+          "chapter_p90": 0.0
+        },
+        "D30": {
+          "name": "抽象情绪告知（标志词版）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0231,
+          "chapter_p90": 0.0
+        },
+        "L01": {
+          "name": "翻案腔",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.1098,
+          "chapter_p10": 0.0
+        },
+        "L03b": {
+          "name": "相邻句结构同款（连续三句）",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0654,
+          "chapter_p90": 0.0
+        },
+        "L04": {
+          "name": "破折号",
+          "tier": "条件纳入",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 1.1884,
+          "chapter_p90": 2.3684
+        },
+        "L05a": {
+          "name": "提示语冒号",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0076,
+          "chapter_p90": 0.0
+        },
+        "L05b": {
+          "name": "空转句引列表",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0023,
+          "chapter_p90": 0.0
+        },
+        "L06": {
+          "name": "序数词当小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L07": {
+          "name": "拟人化喻体",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L08": {
+          "name": "材料密度（数字与时间锚点）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": true,
+          "human_mean": 2.0155,
+          "chapter_p90": 4.0264
+        },
+        "L09": {
+          "name": "禁用起手式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L10a": {
+          "name": "过长前置定语",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.6502,
+          "chapter_p10": 0.0
+        },
+        "L10b": {
+          "name": "当…时前置从句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0049,
+          "chapter_p90": 0.0
+        },
+        "L10e": {
+          "name": "这意味着式复述",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0031,
+          "chapter_p90": 0.0
+        },
+        "L11": {
+          "name": "段首零主语评论",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.028,
+          "chapter_p90": 0.0
+        },
+        "L16": {
+          "name": "口语连接词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 2.7128,
+          "chapter_p10": 1.3562
+        },
+        "L17": {
+          "name": "反复写全称（少用代词）",
+          "tier": "淘汰",
+          "denominator": "per_100_sentences",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 3.9566,
+          "chapter_p10": 1.2658
+        },
+        "L18": {
+          "name": "抽象被动",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0133,
+          "chapter_p90": 0.0
+        },
+        "L20": {
+          "name": "问句小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L21": {
+          "name": "正文问句（叙述层）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.419,
+          "chapter_p10": 0.2666
+        },
+        "L24": {
+          "name": "抽象名词配具体动词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0004,
+          "chapter_p90": 0.0
+        },
+        "L25": {
+          "name": "动词名词化",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0076,
+          "chapter_p90": 0.0
+        },
+        "L26": {
+          "name": "正文序数词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0262,
+          "chapter_p90": 0.0
+        },
+        "P11": {
+          "name": "问号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 7.5757,
+          "chapter_p10": 4.2225
+        },
+        "P12": {
+          "name": "感叹号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 4.2047,
+          "chapter_p10": 0.5939
+        },
+        "P15": {
+          "name": "解释标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0218,
+          "chapter_p90": 0.0
+        },
+        "P16": {
+          "name": "身体反应标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0067,
+          "chapter_p90": 0.0
+        },
+        "L23": {
+          "name": "比喻本身（比喻标记词）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.5173,
+          "chapter_p90": 1.1638,
+          "use": "仅 claude／豆包写手族的族别提示"
+        },
+        "W01": {
+          "name": "逐词候选「猛地」",
+          "tier": "候选",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1173,
+          "chapter_p90": 0.2971
+        }
+      }
+    },
+    "游戏求生玄幻脑洞": {
+      "books": [
+        "H05"
+      ],
+      "chapters": 200,
+      "han": 366920,
+      "han_by_book": {
+        "H05": 366920
+      },
+      "warning": "单书池：阈值＝该书文风，不是题材均值",
+      "rules": {
+        "D01": {
+          "name": "一级禁用词·情态类",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.6407,
+          "chapter_p10": 0.5407
+        },
+        "D03": {
+          "name": "一级禁用词·表情类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.3543,
+          "chapter_p90": 1.0552
+        },
+        "D05": {
+          "name": "一级禁用词·判断类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0354,
+          "chapter_p90": 0.0
+        },
+        "D06": {
+          "name": "一级禁用词·形容类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0273,
+          "chapter_p90": 0.0
+        },
+        "D07": {
+          "name": "一级禁用词·过渡类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.03,
+          "chapter_p90": 0.0
+        },
+        "D10": {
+          "name": "二级禁用词·书面腔",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D11": {
+          "name": "模板化套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0518,
+          "chapter_p90": 0.0
+        },
+        "D13": {
+          "name": "跨句否定排列「不是A。也不是B。只是C。」",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D14": {
+          "name": "「，带着……」万能状语",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0354,
+          "chapter_p90": 0.0
+        },
+        "D15": {
+          "name": "声音描写套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0136,
+          "chapter_p90": 0.0
+        },
+        "D16": {
+          "name": "心理直述（他／她知道·感到·意识到）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1172,
+          "chapter_p90": 0.5496
+        },
+        "D18": {
+          "name": "公式化对话标签",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.6271,
+          "chapter_p10": 0.0
+        },
+        "D19": {
+          "name": "结尾升华句",
+          "tier": "待定",
+          "denominator": "per_100_chapters",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 1.5,
+          "chapter_p90": 0.0
+        },
+        "D20": {
+          "name": "总结／顿悟句式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0954,
+          "chapter_p90": 0.5401
+        },
+        "D22": {
+          "name": "上帝视角剧透",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0027,
+          "chapter_p90": 0.0
+        },
+        "D26": {
+          "name": "文言比喻词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.3189,
+          "chapter_p10": 0.0
+        },
+        "D28": {
+          "name": "问答教学对",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0045,
+          "chapter_p90": 0.0
+        },
+        "D29": {
+          "name": "工整决策栏／否定清单",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0109,
+          "chapter_p90": 0.0
+        },
+        "D30": {
+          "name": "抽象情绪告知（标志词版）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0082,
+          "chapter_p90": 0.0
+        },
+        "L01": {
+          "name": "翻案腔",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.06,
+          "chapter_p10": 0.0
+        },
+        "L03b": {
+          "name": "相邻句结构同款（连续三句）",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.6384,
+          "chapter_p90": 1.0428
+        },
+        "L04": {
+          "name": "破折号",
+          "tier": "条件纳入",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.2071,
+          "chapter_p90": 0.5726
+        },
+        "L05a": {
+          "name": "提示语冒号",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L05b": {
+          "name": "空转句引列表",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L06": {
+          "name": "序数词当小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L07": {
+          "name": "拟人化喻体",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L08": {
+          "name": "材料密度（数字与时间锚点）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": true,
+          "human_mean": 10.5364,
+          "chapter_p90": 24.4963
+        },
+        "L09": {
+          "name": "禁用起手式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L10a": {
+          "name": "过长前置定语",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.139,
+          "chapter_p10": 0.0
+        },
+        "L10b": {
+          "name": "当…时前置从句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0082,
+          "chapter_p90": 0.0
+        },
+        "L10e": {
+          "name": "这意味着式复述",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0382,
+          "chapter_p90": 0.0
+        },
+        "L11": {
+          "name": "段首零主语评论",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.018,
+          "chapter_p90": 0.0
+        },
+        "L16": {
+          "name": "口语连接词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 2.63,
+          "chapter_p10": 1.0293
+        },
+        "L17": {
+          "name": "反复写全称（少用代词）",
+          "tier": "淘汰",
+          "denominator": "per_100_sentences",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.9232,
+          "chapter_p10": 0.0
+        },
+        "L18": {
+          "name": "抽象被动",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0082,
+          "chapter_p90": 0.0
+        },
+        "L20": {
+          "name": "问句小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L21": {
+          "name": "正文问句（叙述层）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.7415,
+          "chapter_p10": 0.0
+        },
+        "L24": {
+          "name": "抽象名词配具体动词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L25": {
+          "name": "动词名词化",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0136,
+          "chapter_p90": 0.0
+        },
+        "L26": {
+          "name": "正文序数词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0382,
+          "chapter_p90": 0.0
+        },
+        "P11": {
+          "name": "问号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 7.0097,
+          "chapter_p10": 3.1604
+        },
+        "P12": {
+          "name": "感叹号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 6.7508,
+          "chapter_p10": 1.6884
+        },
+        "P15": {
+          "name": "解释标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.03,
+          "chapter_p90": 0.0
+        },
+        "P16": {
+          "name": "身体反应标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L23": {
+          "name": "比喻本身（比喻标记词）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.4143,
+          "chapter_p90": 1.0951,
+          "use": "仅 claude／豆包写手族的族别提示"
+        },
+        "W01": {
+          "name": "逐词候选「猛地」",
+          "tier": "候选",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        }
+      }
+    },
+    "都市脑洞游戏制作": {
+      "books": [
+        "H03"
+      ],
+      "chapters": 182,
+      "han": 343041,
+      "han_by_book": {
+        "H03": 343041
+      },
+      "warning": "单书池：阈值＝该书文风，不是题材均值",
+      "rules": {
+        "D01": {
+          "name": "一级禁用词·情态类",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.2798,
+          "chapter_p10": 0.0
+        },
+        "D03": {
+          "name": "一级禁用词·表情类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0087,
+          "chapter_p90": 0.0
+        },
+        "D05": {
+          "name": "一级禁用词·判断类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "D06": {
+          "name": "一级禁用词·形容类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0233,
+          "chapter_p90": 0.0
+        },
+        "D07": {
+          "name": "一级禁用词·过渡类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0321,
+          "chapter_p90": 0.0
+        },
+        "D10": {
+          "name": "二级禁用词·书面腔",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D11": {
+          "name": "模板化套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "D13": {
+          "name": "跨句否定排列「不是A。也不是B。只是C。」",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D14": {
+          "name": "「，带着……」万能状语",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0466,
+          "chapter_p90": 0.0
+        },
+        "D15": {
+          "name": "声音描写套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0029,
+          "chapter_p90": 0.0
+        },
+        "D16": {
+          "name": "心理直述（他／她知道·感到·意识到）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0583,
+          "chapter_p90": 0.0
+        },
+        "D18": {
+          "name": "公式化对话标签",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.1603,
+          "chapter_p10": 0.0
+        },
+        "D19": {
+          "name": "结尾升华句",
+          "tier": "待定",
+          "denominator": "per_100_chapters",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.5495,
+          "chapter_p90": 0.0
+        },
+        "D20": {
+          "name": "总结／顿悟句式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1603,
+          "chapter_p90": 0.5664
+        },
+        "D22": {
+          "name": "上帝视角剧透",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "D26": {
+          "name": "文言比喻词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.0875,
+          "chapter_p10": 0.0
+        },
+        "D28": {
+          "name": "问答教学对",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.009,
+          "chapter_p90": 0.0
+        },
+        "D29": {
+          "name": "工整决策栏／否定清单",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0204,
+          "chapter_p90": 0.0
+        },
+        "D30": {
+          "name": "抽象情绪告知（标志词版）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0087,
+          "chapter_p90": 0.0
+        },
+        "L01": {
+          "name": "翻案腔",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.1866,
+          "chapter_p10": 0.0
+        },
+        "L03b": {
+          "name": "相邻句结构同款（连续三句）",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1702,
+          "chapter_p90": 0.7795
+        },
+        "L04": {
+          "name": "破折号",
+          "tier": "条件纳入",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.4985,
+          "chapter_p90": 1.1886
+        },
+        "L05a": {
+          "name": "提示语冒号",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "L05b": {
+          "name": "空转句引列表",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L06": {
+          "name": "序数词当小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L07": {
+          "name": "拟人化喻体",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L08": {
+          "name": "材料密度（数字与时间锚点）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": true,
+          "human_mean": 4.8158,
+          "chapter_p90": 9.29
+        },
+        "L09": {
+          "name": "禁用起手式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0233,
+          "chapter_p90": 0.0
+        },
+        "L10a": {
+          "name": "过长前置定语",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.2157,
+          "chapter_p10": 0.0
+        },
+        "L10b": {
+          "name": "当…时前置从句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "L10e": {
+          "name": "这意味着式复述",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0146,
+          "chapter_p90": 0.0
+        },
+        "L11": {
+          "name": "段首零主语评论",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0582,
+          "chapter_p90": 0.0
+        },
+        "L16": {
+          "name": "口语连接词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 3.2183,
+          "chapter_p10": 1.0248
+        },
+        "L17": {
+          "name": "反复写全称（少用代词）",
+          "tier": "淘汰",
+          "denominator": "per_100_sentences",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 1.1494,
+          "chapter_p10": 0.0
+        },
+        "L18": {
+          "name": "抽象被动",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L20": {
+          "name": "问句小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L21": {
+          "name": "正文问句（叙述层）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 8.9902,
+          "chapter_p10": 3.0874
+        },
+        "L24": {
+          "name": "抽象名词配具体动词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L25": {
+          "name": "动词名词化",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0087,
+          "chapter_p90": 0.0
+        },
+        "L26": {
+          "name": "正文序数词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0962,
+          "chapter_p90": 0.5113
+        },
+        "P11": {
+          "name": "问号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 14.3219,
+          "chapter_p10": 7.2054
+        },
+        "P12": {
+          "name": "感叹号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 16.4703,
+          "chapter_p10": 6.7198
+        },
+        "P15": {
+          "name": "解释标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0233,
+          "chapter_p90": 0.0
+        },
+        "P16": {
+          "name": "身体反应标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0087,
+          "chapter_p90": 0.0
+        },
+        "L23": {
+          "name": "比喻本身（比喻标记词）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.5218,
+          "chapter_p90": 1.352,
+          "use": "仅 claude／豆包写手族的族别提示"
+        },
+        "W01": {
+          "name": "逐词候选「猛地」",
+          "tier": "候选",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1574,
+          "chapter_p90": 0.5576
+        }
+      }
+    },
+    "都市高武系统": {
+      "books": [
+        "H02",
+        "H04"
+      ],
+      "chapters": 426,
+      "han": 783671,
+      "han_by_book": {
+        "H02": 742774,
+        "H04": 40897
+      },
+      "rules": {
+        "D01": {
+          "name": "一级禁用词·情态类",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.7122,
+          "chapter_p10": 0.0
+        },
+        "D03": {
+          "name": "一级禁用词·表情类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0088,
+          "chapter_p90": 0.0
+        },
+        "D05": {
+          "name": "一级禁用词·判断类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0195,
+          "chapter_p90": 0.0
+        },
+        "D06": {
+          "name": "一级禁用词·形容类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.1273,
+          "chapter_p90": 0.4813
+        },
+        "D07": {
+          "name": "一级禁用词·过渡类",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0128,
+          "chapter_p90": 0.0
+        },
+        "D10": {
+          "name": "二级禁用词·书面腔",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0007,
+          "chapter_p90": 0.0
+        },
+        "D11": {
+          "name": "模板化套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D13": {
+          "name": "跨句否定排列「不是A。也不是B。只是C。」",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D14": {
+          "name": "「，带着……」万能状语",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0519,
+          "chapter_p90": 0.2646
+        },
+        "D15": {
+          "name": "声音描写套句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "D16": {
+          "name": "心理直述（他／她知道·感到·意识到）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.138,
+          "chapter_p90": 0.4903
+        },
+        "D18": {
+          "name": "公式化对话标签",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.6224,
+          "chapter_p10": 0.0
+        },
+        "D19": {
+          "name": "结尾升华句",
+          "tier": "待定",
+          "denominator": "per_100_chapters",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 1.2255,
+          "chapter_p90": 0.0
+        },
+        "D20": {
+          "name": "总结／顿悟句式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0985,
+          "chapter_p90": 0.3402
+        },
+        "D22": {
+          "name": "上帝视角剧透",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0061,
+          "chapter_p90": 0.0
+        },
+        "D26": {
+          "name": "文言比喻词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.7672,
+          "chapter_p10": 0.0
+        },
+        "D28": {
+          "name": "问答教学对",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0917,
+          "chapter_p90": 0.1579
+        },
+        "D29": {
+          "name": "工整决策栏／否定清单",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0182,
+          "chapter_p90": 0.0
+        },
+        "D30": {
+          "name": "抽象情绪告知（标志词版）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0047,
+          "chapter_p90": 0.0
+        },
+        "L01": {
+          "name": "翻案腔",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.2571,
+          "chapter_p10": 0.0
+        },
+        "L03b": {
+          "name": "相邻句结构同款（连续三句）",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0642,
+          "chapter_p90": 0.0
+        },
+        "L04": {
+          "name": "破折号",
+          "tier": "条件纳入",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0957,
+          "chapter_p90": 0.2125
+        },
+        "L05a": {
+          "name": "提示语冒号",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L05b": {
+          "name": "空转句引列表",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L06": {
+          "name": "序数词当小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L07": {
+          "name": "拟人化喻体",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L08": {
+          "name": "材料密度（数字与时间锚点）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": true,
+          "human_mean": 5.7312,
+          "chapter_p90": 10.8789
+        },
+        "L09": {
+          "name": "禁用起手式",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L10a": {
+          "name": "过长前置定语",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 0.3254,
+          "chapter_p10": 0.0
+        },
+        "L10b": {
+          "name": "当…时前置从句",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0122,
+          "chapter_p90": 0.0
+        },
+        "L10e": {
+          "name": "这意味着式复述",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0156,
+          "chapter_p90": 0.0
+        },
+        "L11": {
+          "name": "段首零主语评论",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0749,
+          "chapter_p90": 0.1376
+        },
+        "L16": {
+          "name": "口语连接词",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 3.812,
+          "chapter_p10": 1.933
+        },
+        "L17": {
+          "name": "反复写全称（少用代词）",
+          "tier": "淘汰",
+          "denominator": "per_100_sentences",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 2.3543,
+          "chapter_p10": 0.4704
+        },
+        "L18": {
+          "name": "抽象被动",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.002,
+          "chapter_p90": 0.0
+        },
+        "L20": {
+          "name": "问句小标题",
+          "tier": "待定",
+          "denominator": "per_100_paragraphs",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L21": {
+          "name": "正文问句（叙述层）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 3.3916,
+          "chapter_p10": 1.2412
+        },
+        "L24": {
+          "name": "抽象名词配具体动词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L25": {
+          "name": "动词名词化",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0101,
+          "chapter_p90": 0.0
+        },
+        "L26": {
+          "name": "正文序数词",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0549,
+          "chapter_p90": 0.0
+        },
+        "P11": {
+          "name": "问号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 6.6824,
+          "chapter_p10": 2.8302
+        },
+        "P12": {
+          "name": "感叹号",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏低→下限",
+          "reverse_indicator": true,
+          "human_mean": 7.2487,
+          "chapter_p10": 3.6227
+        },
+        "P15": {
+          "name": "解释标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0522,
+          "chapter_p90": 0.193
+        },
+        "P16": {
+          "name": "身体反应标记（voice_profile）",
+          "tier": "待定",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        },
+        "L23": {
+          "name": "比喻本身（比喻标记词）",
+          "tier": "淘汰",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 1.031,
+          "chapter_p90": 2.4378,
+          "use": "仅 claude／豆包写手族的族别提示"
+        },
+        "W01": {
+          "name": "逐词候选「猛地」",
+          "tier": "候选",
+          "denominator": "per_1000_han",
+          "direction": "AI偏高→上限",
+          "reverse_indicator": false,
+          "human_mean": 0.0,
+          "chapter_p90": 0.0
+        }
+      }
+    }
+  }
+}
