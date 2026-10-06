@@ -132,6 +132,8 @@ auto 模式另有两个选项：`--review-policy lean`（去味审查只看门�
 
 `close` 要求 `last_committed_chapter` 精确等于本章且 `state_revision` 已推进，把正文摘要、状态修订和派生视图摘要追加到 `追踪/投影日志.jsonl`，并按全部提交凭证与质检回执重建 `追踪/质检进度.md`。该表不要手改；已有的手工旧表第一次重建时会原样改名为 `追踪/质检进度_旧版手工记录.md`。需要单独重建时运行 `chapter_candidate.py progress --project "{项目根}"`。
 
+`close` 最后一步把本章已接纳正文（M 层）和谱系里的写手初稿／独立去味快照（A1／A2）幂等追加进仓外去 AI 味语料池，供 story-deslop 规则表重验证。池目录按 `--corpus-pool`、环境变量 `STORY_DESLOP_CORPUS_POOL`、缺省 `~/Documents/小说/_去AI味语料/网文` 取，传 `off` 关闭；池不存在、项目未在池的建池脚本登记或追加失败时只在 stderr 提示，不影响接纳。
+
 声音画像尚未配置时 `update` 安全返回 `not_configured`；已经配置时必须把新回执纳入。`doctor` 复核：
 
 - `_tracking-state.json` 与全部派生视图一致；到期伏笔、久别角色等追踪提醒列为 warning；

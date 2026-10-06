@@ -1259,6 +1259,11 @@ const TOXIC_SENTENCE_PATTERNS = [
   [/是[^。！？!?\n，,]{1,12}[，,]\s*(?:而)?不是[^。！？!?\n]{1,20}/g, "reverse-not-is", "删否定铺垫，直接写肯定项，或改成动作细节。"],
   [/不是[^。！？!?\n]{1,16}[，,]\s*(?:而)?是/g, "not-is-comparison", "删否定铺垫，直接写肯定项，或改成动作细节。"],
 ]
+// 语料退役的毒句式：story-deslop references/pattern-contracts.json 中 surface_rules 的 status=retired、
+// check_ai_patterns_types 落在本网的规则（2026-10-06 规则表 v1，D12「不是A，(而)是B」本代模型 R 0.46）。
+// 部署后的 hook 读不到 story-deslop 的 references（Claude 端只部署 story-setup 的 agent-references），
+// 故此处留最小退役清单；scripts/check-hook-regex-sync.sh 逐条核对它与规则表一致。退役规则不报、不进欠账门。
+const TOXIC_RETIRED_LABELS = new Set(["not-is-comparison", "reverse-not-is"])
 // 「正式拉开序幕/帷幕」是场内事件的报幕式陈述，不是叙述者预告，lookbehind 排除（同 check-ai-patterns.js）。
 const TOXIC_TRAILER_PATTERN = /没人知道|谁也不知道|谁也没想到|殊不知|(?:这)?才刚刚开(?:始|头)|正(?:朝着|向着)[^。！？!?\n]{0,24}(?:压|涌|袭|逼)(?:了?过去|了?过来|来)|(?<!正式)拉开(?:序幕|帷幕)|即将(?:开始|来临|降临)/
 // 章尾状态总结体：与 trailer-ending 共用文末窗口，盖章过去而非预告将来（同 check-ai-patterns.js）。
@@ -1308,6 +1313,7 @@ function toxicReverseNotIsExcluded(line, matched, start) {
 // 每行只报第一条命中的句式规则（复扫到净哲学：改完一处再扫下一处）。
 function matchToxicSentence(line) {
   for (const [regex, label, fix] of TOXIC_SENTENCE_PATTERNS) {
+    if (TOXIC_RETIRED_LABELS.has(label)) continue
     regex.lastIndex = 0
     let match
     while ((match = regex.exec(line)) !== null) {
@@ -1344,9 +1350,9 @@ function toxicPhraseFindings(text) {
   }
   for (let i = cut; i < content.length; i++) {
     const [lineNo, masked] = content[i]
-    const match = masked.match(TOXIC_TRAILER_PATTERN)
+    const match = TOXIC_RETIRED_LABELS.has("trailer-ending") ? null : masked.match(TOXIC_TRAILER_PATTERN)
     if (match) findings.push(`第${lineNo}行 毒句式[trailer-ending]：『${match[0].slice(0, 20)}』——删章尾预告腔，用正在发生的动作或画面收章。`)
-    const summary = masked.match(TOXIC_TRAILER_SUMMARY_PATTERN)
+    const summary = TOXIC_RETIRED_LABELS.has("trailer-summary") ? null : masked.match(TOXIC_TRAILER_SUMMARY_PATTERN)
     if (summary) findings.push(`第${lineNo}行 毒句式[trailer-summary]：『${summary[0].slice(0, 20)}』——删章尾状态总结句，收束状态是细纲的规划口径，正文落到具体动作、画面或台词上。`)
   }
   if (findings.length) findings.push("毒句式是确定性 AI 指纹：本章须清零后再继续。完整扫描：node <skill>/scripts/check-ai-patterns.js --check <正文文件>")

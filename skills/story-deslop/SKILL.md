@@ -18,7 +18,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 42` 不一致时（标记缺失、字段缺失/非整数、小于或大于 42）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 42）` 并提示重新运行 `/story-setup` 后新开会话；大于 42 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 ## 核心哲学
 
@@ -516,6 +516,7 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 | [scripts/check-ai-patterns.js](scripts/check-ai-patterns.js) | 文件模式「AI味扫描」预检与「确定性收尾」复扫；按规则表与阈值告警并给候选位置，只报告不改写 |
 | [scripts/deslop_guard.py](scripts/deslop_guard.py) | 候选稿保真（init／diff／check／apply）；`scan` 用同口径检测器跑全量表层规则，只读 |
 | [scripts/corpus_rules/detectors.py](scripts/corpus_rules/detectors.py) | 规则表每条规则的确定性检测器；`measure.py` 在语料池上重算（语料路径作参数传入），供重验证使用 |
+| [scripts/corpus_rules/revalidate.py](scripts/corpus_rules/revalidate.py) | 规则表重验证：在语料池上重跑 `measure.py` 与 [p2_stats.py](scripts/corpus_rules/p2_stats.py)（规则表 v1 同口径），对比当前规则表出差异报告（新增／淘汰／档位变动／阈值漂移，带新旧 R）；不改规则表，作者拍板后才 `--apply --version <新版本号>` 写回。建议每新增 5 万字语料或换主力写手模型跑一次 |
 | [scripts/check-degeneration.js](scripts/check-degeneration.js) | 文件模式预检与「确定性收尾」复扫；中文正文显式用 `--language=zh --fail-on=blocking` |
 | [scripts/prose_metrics.py](scripts/prose_metrics.py) | 文件模式实测短/中/长句、平均句长、段落均长与句段比；只作节奏证据 |
 | [scripts/check-outline-copy.js](scripts/check-outline-copy.js) | 长篇且对应细纲明确时检测连续照搬，并消费 `复沓锚句` 精确豁免 |

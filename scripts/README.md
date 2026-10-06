@@ -43,7 +43,7 @@
 | 脚本 | 测什么 | 何时跑 |
 |---|---|---|
 | `test-ai-patterns.sh` | 确定性 AI 句式检测器 `check-ai-patterns.js` 回归（检测器原始 severity），以及语料验证规则表 v1 层：retired 不输出、表层不 blocking、按题材池阈值告警 | CI |
-| `test-deslop-corpus-rules.py` | `story-deslop/scripts/corpus_rules` 检测器正负样例、规则表 v1 状态与可追溯字段、缺省阈值覆盖、JS／Python 章级计数同口径 | 统一 gate（可用 pytest 跑） |
+| `test-deslop-corpus-rules.py` | `story-deslop/scripts/corpus_rules` 检测器正负样例、规则表 v1 状态与可追溯字段、缺省阈值覆盖、JS／Python 章级计数同口径；`revalidate.py` 在本机语料池上报「无变动」、能报出档位变动与 R 漂移且不写规则表（池不在本机时跳过）；接纳钩子追加语料不阻断 | 统一 gate（可用 pytest 跑） |
 | `test-degeneration.sh` | 模型退化检测器 `check-degeneration.js` 回归 | CI |
 | `test-prose-net-parity.sh` | 正文兜底「轻量确定性网」Claude/OpenCode/Codex/ZCode parity | CI（调 check-hook-regex-sync） |
 | `test-prose-backstop-hook.sh` | `check-prose-after-write.sh` 回归 | CI |

@@ -285,8 +285,8 @@ def test_versions(project: Path) -> None:
     cases = (
         ("target_cli: workbuddy\n", "缺失或无效"),
         ("agents_version: invalid\ntarget_cli: workbuddy\n", "缺失或无效"),
-        ("agents_version: 40\ntarget_cli: workbuddy\n", "低于当前要求的 41"),
-        ("agents_version: 42\ntarget_cli: workbuddy\n", "高于当前适配器支持的 41"),
+        ("agents_version: 41\ntarget_cli: workbuddy\n", "低于当前要求的 42"),
+        ("agents_version: 43\ntarget_cli: workbuddy\n", "高于当前适配器支持的 42"),
     )
     for payload, expected in cases:
         sentinel.write_text(payload, encoding="utf-8")
@@ -302,7 +302,7 @@ def test_versions(project: Path) -> None:
     # setup_skill_version has an independent lifecycle. It must not be compared
     # to the agent bundle number or turn a current agents_version into a stale warning.
     sentinel.write_text(
-        "agents_version: 41\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
+        "agents_version: 42\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     output, _ = run_hook(
@@ -311,7 +311,7 @@ def test_versions(project: Path) -> None:
         {"hook_event_name": "SessionStart", "source": "startup"},
         runner=runner,
     )
-    require(output == "", f"agents=41 with old setup_skill_version must not warn: {output}")
+    require(output == "", f"agents=42 with old setup_skill_version must not warn: {output}")
 
 
 def test_plugin_runner_ignores_project_sentinel(project: Path) -> None:
@@ -352,7 +352,7 @@ def test_project_hook_commands_cross_shell(temp: Path) -> None:
     shutil.copy2(RUNNER, hook_dir / RUNNER.name)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 41\ntarget_cli: workbuddy\n",
+        "agents_version: 42\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     config = json.loads((WB / "hooks/project-hooks.json").read_text(encoding="utf-8"))
@@ -407,7 +407,7 @@ def test_guarded_outer_fail_closed(temp: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 41\ntarget_cli: workbuddy\n",
+        "agents_version: 42\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
 
@@ -474,7 +474,7 @@ def test_historical_copy_discovery(project: Path) -> None:
         (old / "正文").mkdir(parents=True)
         (old / "正文/第1章.md").write_text("历史副本。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
+        "agents_version: 42\nsetup_skill_version: 1.5.1\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -500,7 +500,7 @@ def test_tracking_advisories(project: Path) -> None:
     (book / "正文").mkdir(parents=True)
     (book / "正文/第1章.md").write_text("正文。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
+        "agents_version: 42\nsetup_skill_version: 1.5.1\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -564,7 +564,7 @@ def test_removed_target_runner_gate(project: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 41\nsetup_skill_version: 1.5.1\n"
+        "agents_version: 42\nsetup_skill_version: 1.5.1\n"
         "target_cli: generic\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -823,7 +823,7 @@ def main() -> int:
         version_project = temp / "versions"
         version_project.mkdir()
         test_versions(version_project)
-        print("  OK SessionStart agents_version invalid/<41/=41/>41 cases")
+        print("  OK SessionStart agents_version invalid/<42/=42/>42 cases")
         test_plugin_runner_ignores_project_sentinel(temp / "plugin-sentinel")
         print("  OK plugin-only runner ignores non-WorkBuddy/stale project sentinel diagnostics")
         test_project_hook_commands_cross_shell(temp / "cross-shell")

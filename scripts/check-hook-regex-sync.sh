@@ -207,6 +207,36 @@ for needle in "${TOXIC_SYNC[@]}"; do
   done
 done
 
+# 毒句式退役清单 ↔ story-deslop 规则表：部署后的 hook 读不到 story-deslop 的 references，
+# 两份核各留一份最小退役清单（JS TOXIC_RETIRED_LABELS / PY _TOXIC_RETIRED_LABELS）。这里按
+# pattern-contracts.json 的 surface_rules 重算「status=retired 且 check_ai_patterns_types 落在本网」
+# 的标签集，两份清单都必须与之逐项相等；规则表升版改了状态而 hook 没跟，即 fail。
+CONTRACTS="$REPO_ROOT/skills/story-deslop/references/pattern-contracts.json"
+if ! python3 - "$CONTRACTS" "$JS_CORE" "$PY_HOOK" <<'PY'
+import json, re, sys
+contracts, js_path, py_path = sys.argv[1:4]
+hook_labels = {"voice-contrast", "negation-parade", "reverse-not-is", "not-is-comparison", "trailer-ending", "trailer-summary"}
+rules = json.load(open(contracts, encoding="utf-8"))["surface_rules"]
+covered = {t for r in rules for t in r.get("check_ai_patterns_types", [])}
+missing = sorted(hook_labels - covered)
+expected = {t for r in rules if r.get("status") == "retired" for t in r.get("check_ai_patterns_types", []) if t in hook_labels}
+js = re.search(r"const TOXIC_RETIRED_LABELS = new Set\(\[([^\]]*)\]\)", open(js_path, encoding="utf-8").read())
+py = re.search(r"_TOXIC_RETIRED_LABELS = frozenset\(\(([^)]*)\)\)", open(py_path, encoding="utf-8").read())
+ok = True
+if missing:
+    print(f"FAIL: 规则表 surface_rules 未覆盖 hook 毒句式标签 {missing}"); ok = False
+for name, m in (("story_hook_core.js", js), ("story_codex_hook.py", py)):
+    if not m:
+        print(f"FAIL: {name} 缺少毒句式退役清单常量"); ok = False; continue
+    got = set(re.findall(r'"([^"]+)"', m.group(1)))
+    if got != expected:
+        print(f"FAIL: {name} 退役清单 {sorted(got)} ≠ 规则表 retired {sorted(expected)}"); ok = False
+sys.exit(0 if ok else 1)
+PY
+then
+  toxic_fail=1
+fi
+
 # 中文正文语言网 js↔py 同步锁：保护区、blocking 阈值、分类文案、精确白名单与跨章旧债
 # 必须两端同时变化。JS 的 \b 是 ASCII 边界、Python 的 \b 是 Unicode 边界，故边界表达不做
 # 源码逐字比较；共同的模式主体 + fixture 行为 parity 足以锁住规格。
@@ -263,4 +293,4 @@ if [ "$toxic_fail" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: 毒句式 + 中文语言网正则/常量/文案 js↔py 逐字同步（欠账门含 bash 前置门同步，正文 HTML 跳过标记不生效）"
+echo "OK: 毒句式 + 中文语言网正则/常量/文案 js↔py 逐字同步（退役清单与 pattern-contracts.json 一致；欠账门含 bash 前置门同步，正文 HTML 跳过标记不生效）"

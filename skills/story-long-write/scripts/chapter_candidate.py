@@ -1494,6 +1494,40 @@ def cmd_promote(args: argparse.Namespace) -> int:
     return 0
 
 
+CORPUS_POOL_ENV = "STORY_DESLOP_CORPUS_POOL"
+DEFAULT_CORPUS_POOL = Path("~/Documents/小说/_去AI味语料/网文")
+
+
+def append_deslop_corpus(project: Path, chapter: int, pool_arg: str | None) -> None:
+    """接纳闭环后把本章 M 层与谱系 A1/A2 快照幂等追加进去 AI 味语料池（仓外，规则表滚动维护用）。
+
+    语料池目录按 --corpus-pool、环境变量 STORY_DESLOP_CORPUS_POOL、缺省 ~/Documents/小说/_去AI味语料/网文 取；
+    追加器是池旁 ../_工具/build_corpus.py。池或追加器不存在只提示跳过；追加失败只告警。都不阻断接纳。
+    --corpus-pool off（或环境变量为 off）关闭本步。
+    """
+    raw = pool_arg if pool_arg is not None else os.environ.get(CORPUS_POOL_ENV)
+    if raw is not None and raw.strip().lower() in {"off", "none", "0", ""}:
+        return
+    pool = Path(raw).expanduser() if raw else DEFAULT_CORPUS_POOL.expanduser()
+    tool = pool.parent / "_工具" / "build_corpus.py"
+    if not (pool / "manifest.json").is_file() or not tool.is_file():
+        print(f"语料池不存在（{pool}），跳过去 AI 味语料追加；不影响接纳", file=sys.stderr)
+        return
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(tool), "append", "--project", str(project), "--chapter", str(chapter), "--pool-dir", str(pool)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=180, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"去 AI 味语料追加未完成（{exc}）；不影响接纳，可稍后在池旁运行 build_corpus.py build 补齐", file=sys.stderr)
+        return
+    message = (completed.stdout or "").strip() or (completed.stderr or "").strip()
+    if completed.returncode != 0:
+        print(f"去 AI 味语料追加失败（退出 {completed.returncode}）：{message[-300:]}；不影响接纳", file=sys.stderr)
+    elif message:
+        print(message.splitlines()[-1], file=sys.stderr)
+
+
 def cmd_close(args: argparse.Namespace) -> int:
     project, manifest_path, data = load_run(args.run)
     if data.get("status") != "promoted":
@@ -1528,6 +1562,7 @@ def cmd_close(args: argparse.Namespace) -> int:
         receipt=receipt,
     )
     write_progress(project)
+    append_deslop_corpus(project, chapter, getattr(args, "corpus_pool", None))
     print(receipt)
     return 0
 
@@ -1903,6 +1938,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     close = sub.add_parser("close", help="追踪提交后闭环本章提交凭证并重建质检进度")
     close.add_argument("--run", required=True)
+    close.add_argument("--corpus-pool", help="去 AI 味语料池目录；off 关闭追加（缺省读 STORY_DESLOP_CORPUS_POOL，再缺省 ~/Documents/小说/_去AI味语料/网文）")
     close.set_defaults(func=cmd_close)
 
     abandon = sub.add_parser("abandon", help="放弃尚未写入正式正文的候选")

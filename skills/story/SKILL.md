@@ -85,7 +85,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ## 查询降级
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 41` 不一致时（标记缺失、字段缺失/非整数、小于或大于 41）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 41）` 并提示重新运行 `/story-setup` 后新开会话；大于 41 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 42` 不一致时（标记缺失、字段缺失/非整数、小于或大于 42）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 42）` 并提示重新运行 `/story-setup` 后新开会话；大于 42 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 「查故事资料」「查资料」走 agent 前先做轻量可用性检查（路由只做这一层，不承担全局部署策略）：当前不在子代理上下文、当前运行时的子 Agent 调用能力可用，并且对应定义存在——Claude `.claude/agents/{story-explorer|story-researcher}.md`、OpenCode `.opencode/agents/{story-explorer|story-researcher}.md`、TRAE Code `.trae/agents/{story-explorer|story-researcher}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{story-explorer|story-researcher}.md`、Codex `.codex/agents/{story-explorer|story-researcher}.toml`——才可尝试调用。TRAE Code 使用内置 `Agent` 智能体按 `.trae/agents/<name>.md` 的名称选择同名 Subagent 并传入路由表中的结构化 prompt，不把 `subagent_type` 当成 TRAE 参数；Claude/OpenCode 使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用内置 `Agent` 与原始 `subagent_type`；plugin-only 模式只有当前 Agent registry 真实返回 `oh-story:story-explorer` / `oh-story:story-researcher` 时才使用对应精确值，不由 plugin manifest 或磁盘文件推测已注册。任一条件不满足、TRAE/WorkBuddy/Codex 未暴露对应 registry，或 Codex 返回 `unknown agent_type`，则降级，不硬失败：
 

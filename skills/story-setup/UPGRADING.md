@@ -3,11 +3,18 @@
 ## 当前版本
 
 - `setup_skill_version: 1.5.1`
-- `agents_version: 41`
+- `agents_version: 42`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `41`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `41`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `42`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `42`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+
+## v42（去 AI 味语料验证：写手模板松绑、hook 退役清单）
+
+- 依据 2026-10-06 语料验证（三族无约束 AI 稿约 10 万字对六本外部热门网文约 412 万字；作者拍板）：narrative-writer 模板的「去AI味（7 Gate）」「禁止事项」「文风优先级」改写——问号、感叹号、口语连接词、对话标签不再压制也不刻意多加；去掉「禁感叹收尾」「排比＝AI 指纹」「通篇同长度＝AI 腔」；Gate A 从硬禁降为候选词复核，「猛地」单列；「不是A而是B」改为成口癖才改；破折号按本书声线，超题材池 P90 才改。
+- hook 兜底网改读退役清单（与 story-deslop `pattern-contracts.json` v2 的 retired 一致，`check-hook-regex-sync.sh` 核对），已退役句式不再拦截。
+- story-deslop 1.4.0 换表、题材池阈值、`deslop_guard scan`；章节接纳后自动追加去 AI 味语料池（池不存在跳过）。
+- 部署载荷（agents、hooks、模板）有变，所有项目需重跑 `/story-setup`。
 
 ## v41（接纳前流水线、状态卡补强）
 
@@ -167,7 +174,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 41` 与 `setup_skill_version: 1.5.1`。
+2. 确认 `.story-deployed` 写入 `agents_version: 42` 与 `setup_skill_version: 1.5.1`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
@@ -203,7 +210,12 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 
 ## 版本变更
 
-### v41（当前）
+### v42（当前）
+
+- `.story-deployed` 的 `agents_version` 升级到 `42`，`setup_skill_version` 保持 `1.5.1`。
+- 去 AI 味语料验证落地：narrative-writer 模板松绑（问号、感叹号、口语连接词、对话标签不再压制，Gate A 降为候选词复核）；hook 兜底网改读与 story-deslop `pattern-contracts.json` v2 一致的退役清单；story-deslop 1.4.0 换表，章节接纳后追加去 AI 味语料。
+
+### v41
 
 - `.story-deployed` 的 `agents_version` 升级到 `41`，`setup_skill_version` 升级到 `1.5.1`；产品版本升级到 v0.12.0。
 - 长篇接纳前流水线（门禁 + 两份审查回执）、consistency-checker 改用 sonnet 并新增候选审查模式、narrative-writer 候选去味审查模式、story-explorer 本书世界观加载；Claude hooks 的提示改用 `additionalContext` JSON，新增伏笔到期提醒、前向兼容的 schema 提示和 `render` 修复指引。

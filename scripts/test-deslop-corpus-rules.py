@@ -271,6 +271,104 @@ def test_js_and_python_chapter_rates_agree():
         assert meta["counts"][rid] == len(D.REGISTRY[rid](paras)), rid
 
 
+# ───────────────────────── P4 滚动维护：revalidate 与接纳追加钩子 ─────────────────────────
+import os  # noqa: E402
+
+POOL = Path(os.environ.get("DESLOP_CORPUS_POOL", "~/Documents/小说/_去AI味语料/网文")).expanduser()
+_REVAL: dict = {}
+
+
+def _revalidate(*extra: str, out: Path | None = None) -> subprocess.CompletedProcess:
+    cmd = [sys.executable, str(HERE / "revalidate.py"), "--pool", str(POOL), "--skip-words", *extra]
+    if out is not None:
+        cmd += ["--out-dir", str(out)]
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+
+def _pool_run() -> dict | None:
+    """在当前语料池上真跑一次 measure＋P2 统计（约 15 秒）；池不在本机（CI）时返回 None 并跳过。"""
+    if not (POOL / "manifest.json").is_file():
+        return None
+    if not _REVAL:
+        out = Path(tempfile.mkdtemp(prefix="deslop-revalidate-"))
+        done = _revalidate(out=out)
+        assert done.returncode == 0, done.stderr[-800:]
+        _REVAL.update(out=out, stdout=done.stdout,
+                      diff=json.loads((out / "revalidate-diff.json").read_text(encoding="utf-8")))
+    return _REVAL
+
+
+def test_revalidate_reports_no_change_on_current_pool():
+    run = _pool_run()
+    if run is None:
+        print("SKIP test_revalidate_reports_no_change_on_current_pool：本机无语料池")
+        return
+    diff = run["diff"]
+    assert not diff["changed"], json.dumps(diff["diff"], ensure_ascii=False)[:1500]
+    assert "重验证 无变动" in run["stdout"], run["stdout"]
+    # 已知差异只允许三类：W01 口径差、A0g_ctx 旁存层排除、接纳追加导致的 manifest 指纹变化（R 基线不变）
+    for note in diff["diff"]["known"]:
+        assert note.startswith(("W01 ", "A0g_ctx ", "manifest 指纹变了")), note
+        if note.startswith("manifest"):
+            assert "与 v1 相同" in note, note
+    assert (run["out"] / "revalidate-report.md").read_text(encoding="utf-8").count("## ") >= 9
+
+
+def test_revalidate_flags_tier_change_and_r_drift_without_writing():
+    run = _pool_run()
+    if run is None:
+        print("SKIP test_revalidate_flags_tier_change_and_r_drift_without_writing：本机无语料池")
+        return
+    contracts = json.loads((SKILL / "references" / "pattern-contracts.json").read_text(encoding="utf-8"))
+    for r in contracts["surface_rules"]:
+        if r["id"] == "D12":
+            r["status"] = "pending"          # 实为 retired → 应报「淘汰」
+        if r["id"] == "L12":
+            r["R"] = r["R"] * 1.5            # 档位不变 → 应报 R 漂移
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        fake = tmp / "pattern-contracts.json"
+        text = json.dumps(contracts, ensure_ascii=False)
+        fake.write_text(text, encoding="utf-8")
+        done = _revalidate("--units", str(run["out"] / "measure_units.jsonl"), "--contracts", str(fake), out=tmp / "out")
+        assert done.returncode == 0, done.stderr[-800:]
+        diff = json.loads((tmp / "out" / "revalidate-diff.json").read_text(encoding="utf-8"))["diff"]
+        assert [r["id"] for r in diff["retired"]] == ["D12"], diff["retired"]
+        assert [r["id"] for r in diff["r_drift"]] == ["L12"], diff["r_drift"]
+        assert fake.read_text(encoding="utf-8") == text, "未传 --apply 时不得改规则表"
+
+
+def test_revalidate_apply_requires_explicit_version():
+    done = subprocess.run([sys.executable, str(HERE / "revalidate.py"), "--apply"], capture_output=True, text=True, check=False)
+    assert done.returncode != 0 and "--version" in done.stderr, done.stderr
+
+
+def test_acceptance_hook_appends_corpus_without_blocking():
+    """chapter_candidate close 之后的语料追加：调用池旁 build_corpus.py append；池缺失或 off 时静默跳过，不抛错。"""
+    sys.path.insert(0, str(ROOT / "skills" / "story-long-write" / "scripts"))
+    import chapter_candidate as CC  # noqa: E402
+    with tempfile.TemporaryDirectory() as raw:
+        base = Path(raw)
+        pool = base / "_去AI味语料" / "网文"
+        tools = base / "_去AI味语料" / "_工具"
+        pool.mkdir(parents=True)
+        tools.mkdir(parents=True)
+        (pool / "manifest.json").write_text("[]", encoding="utf-8")
+        log = base / "calls.txt"
+        (tools / "build_corpus.py").write_text(
+            "import sys\nopen(%r, 'a', encoding='utf-8').write(' '.join(sys.argv[1:]) + '\\n')\nprint('语料池追加 测试')\n" % str(log),
+            encoding="utf-8")
+        project = base / "书"
+        CC.append_deslop_corpus(project, 7, str(pool))
+        call = log.read_text(encoding="utf-8")
+        assert call.startswith("append --project ") and "--chapter 7" in call and f"--pool-dir {pool}" in call, call
+        CC.append_deslop_corpus(project, 8, "off")
+        CC.append_deslop_corpus(project, 9, str(base / "不存在"))
+        assert log.read_text(encoding="utf-8") == call, "off 或池缺失时不得调用追加器"
+        (tools / "build_corpus.py").write_text("import sys\nsys.exit(3)\n", encoding="utf-8")
+        CC.append_deslop_corpus(project, 10, str(pool))   # 追加器失败只告警，不抛错
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

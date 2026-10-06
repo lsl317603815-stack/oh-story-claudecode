@@ -69,7 +69,7 @@ write_sentinel() {
   local root="$1"
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.5.1
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
@@ -632,7 +632,7 @@ setup_git_repo "$bad_sentinel_root"
 copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.5.1
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -657,7 +657,7 @@ printf '# ref
 ' > "$multi_refs_root/skills/story-setup/references/agent-references/ref.md"
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.5.1
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
@@ -683,14 +683,14 @@ setup_git_repo "$stale_previous_root"
 copy_hooks "$stale_previous_root"
 cat > "$stale_previous_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 40
+agents_version: 41
 setup_skill_version: 1.2.22
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 stale_previous_out="$(run_from_nested "$stale_previous_root" session-start.sh 2>&1 || true)"
-echo "$stale_previous_out" | grep -q '低于 v41' || fail "session-start did not warn for agents_version 40 stale v41 deployment"
+echo "$stale_previous_out" | grep -q '低于 v42' || fail "session-start did not warn for agents_version 41 stale v42 deployment"
 
 newer_project_root="$TMP_DIR/newer-project"
 mkdir -p "$newer_project_root/.claude/skills/story-setup/references/agent-references"
@@ -698,14 +698,14 @@ setup_git_repo "$newer_project_root"
 copy_hooks "$newer_project_root"
 cat > "$newer_project_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 42
+agents_version: 43
 setup_skill_version: 1.6.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 newer_project_out="$(run_from_nested "$newer_project_root" session-start.sh 2>&1 || true)"
-echo "$newer_project_out" | grep -q '高于本 hook 支持的 v41' || fail "session-start did not reject agents_version 42 downgrade"
+echo "$newer_project_out" | grep -q '高于本 hook 支持的 v42' || fail "session-start did not reject agents_version 43 downgrade"
 echo "$newer_project_out" | grep -q '不要降级覆盖' || fail "session-start did not explain future-version safety"
 
 mixed_version_root="$TMP_DIR/mixed-version"
@@ -715,7 +715,7 @@ copy_hooks "$mixed_version_root"
 touch "$mixed_version_root/.claude/skills/story-setup/references/agent-references/dummy.md"
 cat > "$mixed_version_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.2.6
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
@@ -723,11 +723,11 @@ references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 mixed_version_out="$(run_from_nested "$mixed_version_root" session-start.sh 2>&1 || true)"
 # agents_version 是唯一运行时过期权威；setup_skill_version 落后不触发重部署（设计如此）
-if echo "$mixed_version_out" | grep -q '低于 v41'; then
-  fail "session-start incorrectly nagged '低于 v41' for current agents_version=41 just because setup_skill_version lags"
+if echo "$mixed_version_out" | grep -q '低于 v42'; then
+  fail "session-start incorrectly nagged '低于 v42' for current agents_version=42 just because setup_skill_version lags"
 fi
 if echo "$mixed_version_out" | grep -q '高于本 hook'; then
-  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=41 just because setup_skill_version lags"
+  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=42 just because setup_skill_version lags"
 fi
 
 # 多端部署的 references_dir 是逗号分隔多条路径。整串当一条路径查会每次开会话都误报缺失，
@@ -741,7 +741,7 @@ touch "$multi_end_root/.claude/skills/story-setup/references/agent-references/du
 touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dummy.md"
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 41
+agents_version: 42
 setup_skill_version: 1.5.1
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
@@ -855,14 +855,14 @@ echo "  OK TS9 settings JSON"
 # agent 模板要带住关键行为规则。原先还夹着一批「UPGRADING.md/README 必须写到某句话」
 # 的文档完整性断言——那种改一个词就红、测的是措辞不是行为，已随 check-story-long-write-contract.sh
 # 一并去掉，发版是否补 UPGRADING 由发版清单和人把关，不靠 CI 钉死措辞。
-assert_grep 'AGENTS_VERSION.*-lt 41|AGENTS_VERSION" -lt 41' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 40 under v41 deployment"
-assert_grep 'AGENTS_VERSION.*-gt 41|AGENTS_VERSION" -gt 41' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
+assert_grep 'AGENTS_VERSION.*-lt 42|AGENTS_VERSION" -lt 42' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 41 under v42 deployment"
+assert_grep 'AGENTS_VERSION.*-gt 42|AGENTS_VERSION" -gt 42' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/guard-outline-before-prose.sh" "Claude bash tracking gate must activate at agents_version 28"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/story_hook_cli.js" "Claude CLI tracking gate must activate at agents_version 28"
-assert_grep 'agents_version.*小于 `41`|版本 < 41' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 40 as stale"
-assert_grep 'agents_version.*大于 `41`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
+assert_grep 'agents_version.*小于 `42`|版本 < 42' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 41 as stale"
+assert_grep 'agents_version.*大于 `42`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
-assert_grep '大于 41 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
+assert_grep '大于 42 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
 assert_grep '^version:[[:space:]]*1\.5\.1$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
@@ -909,7 +909,9 @@ assert_no_grep '正文.*不使用.*……|正文和对话都.*不用.*——|正
 assert_grep '语气标点谱系' "$AGENT_REFS_DIR/format-and-structure.md" "agent references must include v13 tone punctuation format rules"
 assert_grep '吞咽、未尽、截断、拖音.*保留|确有吞回话、拖音或悬置功能.*保留' "$AGENT_REFS_DIR/format-and-structure.md" "agent references must review pause punctuation by function"
 assert_no_grep '正文不使用破折号|正文和对话都禁止.*——' "$AGENT_REFS_DIR/format-and-structure.md" "agent references must not universally ban pause punctuation"
-assert_grep '禁止高置信否定铺垫后再肯定翻转|禁止高置信否定翻转句式' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must hard-ban high-confidence not-then-is flips"
+assert_grep '否定翻转按口癖处理.*同章反复、成为口癖时' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must treat not-then-is flips as a habit check (corpus rule table v1 retired D12)"
+assert_no_grep '硬禁同句先否定再肯定|禁止高置信否定' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must not hard-ban the corpus-retired not-then-is flip"
+assert_no_grep '质问才用问号|爆发峰值才少量感叹|禁感叹收尾' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must not suppress ? / ! (corpus deficit indicators)"
 assert_grep '跨段.*不是A / 也不是B / 只是C.*(只作语义复核|advisory)' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must treat cross-paragraph negation as advisory"
 assert_grep '承担辩解、悬念排除或情绪递进时可保留|承担辩解、悬念排除、情绪递进等功能时可保留' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must preserve functional cross-paragraph negation"
 assert_grep '至于X不X，怎么X' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must review formulaic dialogue too"

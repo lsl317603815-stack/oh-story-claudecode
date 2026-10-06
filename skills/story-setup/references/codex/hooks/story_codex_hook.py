@@ -556,6 +556,10 @@ _TOXIC_SENTENCE_PATTERNS = [
     (re.compile(r"是[^。！？!?\n，,]{1,12}[，,]\s*(?:而)?不是[^。！？!?\n]{1,20}"), "reverse-not-is", "删否定铺垫，直接写肯定项，或改成动作细节。"),
     (re.compile(r"不是[^。！？!?\n]{1,16}[，,]\s*(?:而)?是"), "not-is-comparison", "删否定铺垫，直接写肯定项，或改成动作细节。"),
 ]
+# 语料退役的毒句式（与 JS 核 TOXIC_RETIRED_LABELS 同一份）：story-deslop references/pattern-contracts.json
+# 中 surface_rules 的 status=retired、check_ai_patterns_types 落在本网的规则。部署后读不到 story-deslop 的
+# references，故留最小退役清单；scripts/check-hook-regex-sync.sh 核对它与规则表一致。退役规则不报、不进欠账门。
+_TOXIC_RETIRED_LABELS = frozenset(("not-is-comparison", "reverse-not-is"))
 # 「正式拉开序幕/帷幕」是场内事件的报幕式陈述，不是叙述者预告，lookbehind 排除（同 check-ai-patterns.js）。
 _TOXIC_TRAILER = re.compile(r"没人知道|谁也不知道|谁也没想到|殊不知|(?:这)?才刚刚开(?:始|头)|正(?:朝着|向着)[^。！？!?\n]{0,24}(?:压|涌|袭|逼)(?:了?过去|了?过来|来)|(?<!正式)拉开(?:序幕|帷幕)|即将(?:开始|来临|降临)")
 # 章尾状态总结体：与 trailer-ending 共用文末窗口，盖章过去而非预告将来（同 story_hook_core.js）。
@@ -616,6 +620,8 @@ def _toxic_reverse_not_is_excluded(line: str, matched: str, start: int) -> bool:
 def _toxic_match_sentence(line: str) -> tuple[str, str, str] | None:
     """每行只报第一条命中的句式规则（复扫到净哲学：改完一处再扫下一处）。"""
     for rx, label, fix in _TOXIC_SENTENCE_PATTERNS:
+        if label in _TOXIC_RETIRED_LABELS:
+            continue
         for m in rx.finditer(line):
             if label == "not-is-comparison" and _toxic_not_is_excluded(line, m.group(0), m.start()):
                 continue
@@ -647,10 +653,10 @@ def toxic_phrase_findings(text: str) -> list[str]:
         cut -= 1
         acc += len(content[cut][1])
     for line_no, masked in content[cut:]:
-        m = _TOXIC_TRAILER.search(masked)
+        m = None if "trailer-ending" in _TOXIC_RETIRED_LABELS else _TOXIC_TRAILER.search(masked)
         if m:
             findings.append(f"第{line_no}行 毒句式[trailer-ending]：『{m.group(0)[:20]}』——删章尾预告腔，用正在发生的动作或画面收章。")
-        ms = _TOXIC_TRAILER_SUMMARY.search(masked)
+        ms = None if "trailer-summary" in _TOXIC_RETIRED_LABELS else _TOXIC_TRAILER_SUMMARY.search(masked)
         if ms:
             findings.append(f"第{line_no}行 毒句式[trailer-summary]：『{ms.group(0)[:20]}』——删章尾状态总结句，收束状态是细纲的规划口径，正文落到具体动作、画面或台词上。")
     if findings:
