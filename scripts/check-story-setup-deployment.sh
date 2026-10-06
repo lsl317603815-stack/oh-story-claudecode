@@ -863,7 +863,7 @@ assert_grep 'agents_version.*小于 `42`|版本 < 42' "$SKILL_DIR/SKILL.md" "sto
 assert_grep 'agents_version.*大于 `42`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
 assert_grep '大于 42 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
-assert_grep '^version:[[:space:]]*1\.5\.1$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
+assert_grep '^version:[[:space:]]*1\.5\.2$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
 # 漏写一个 → 半装的包检不出；名单里多出已删除的目录 → 完好的包被判残缺，fail-closed 卡死所有部署。
