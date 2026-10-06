@@ -2,7 +2,7 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.5.1`
+- `setup_skill_version: 1.5.2`
 - `agents_version: 42`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
@@ -174,7 +174,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 42` 与 `setup_skill_version: 1.5.1`。
+2. 确认 `.story-deployed` 写入 `agents_version: 42` 与 `setup_skill_version: 1.5.2`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
@@ -212,7 +212,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 
 ### v42（当前）
 
-- `.story-deployed` 的 `agents_version` 升级到 `42`，`setup_skill_version` 保持 `1.5.1`。
+- `.story-deployed` 的 `agents_version` 升级到 `42`，`setup_skill_version` 升级到 `1.5.2`（story-setup SKILL.md 部署说明随 agents bundle 变更）。
 - 去 AI 味语料验证落地：narrative-writer 模板松绑（问号、感叹号、口语连接词、对话标签不再压制，Gate A 降为候选词复核）；hook 兜底网改读与 story-deslop `pattern-contracts.json` v2 一致的退役清单；story-deslop 1.4.0 换表，章节接纳后追加去 AI 味语料。
 
 ### v41

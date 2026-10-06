@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "setup_skill_version": "1.5.1",
+  "setup_skill_version": "1.5.2",
   "agents_version": 42,
   "topic_decision_phase": 5,
   "progress_schema_version": 2,

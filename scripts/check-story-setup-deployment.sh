@@ -70,7 +70,7 @@ write_sentinel() {
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 42
-setup_skill_version: 1.5.1
+setup_skill_version: 1.5.2
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -633,7 +633,7 @@ copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 42
-setup_skill_version: 1.5.1
+setup_skill_version: 1.5.2
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
@@ -658,7 +658,7 @@ printf '# ref
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 42
-setup_skill_version: 1.5.1
+setup_skill_version: 1.5.2
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references,skills/story-setup/references/agent-references
@@ -742,7 +742,7 @@ touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dum
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
 agents_version: 42
-setup_skill_version: 1.5.1
+setup_skill_version: 1.5.2
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references

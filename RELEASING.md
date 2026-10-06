@@ -17,7 +17,7 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 | 版本轴 | 当前权威 | 用途 | 何时变更 |
 |---|---|---|---|
 | 产品 SemVer | `skills/story/VERSION`，当前 `0.12.0` | GitHub Release、安装包和各 plugin manifest 的公开版本 | 每次正式发版；用 `scripts/manage-version.py` 同步所有公开版本面 |
-| `setup_skill_version` | `scripts/current-contract.json`，当前 `1.5.1` | `story-setup` 部署流程/哨兵协议的版本 | 只在该部署协议本身需要新版识别时改 |
+| `setup_skill_version` | `scripts/current-contract.json`，当前 `1.5.2` | `story-setup` 部署流程/哨兵协议的版本 | 只在该部署协议本身需要新版识别时改 |
 | `agents_version` | `scripts/current-contract.json`，当前 `42` | 已部署 hooks / agents / rules / references 是否过期的唯一运行时权威 | 只在部署包行为变更、需要用户重跑 `story-setup` 时改 |
 
 三条轴互相独立。发一个产品 patch 不代表必须改 `setup_skill_version` 或 `agents_version`；只改文档/打包管道时不要顺手 bump 后两者。
