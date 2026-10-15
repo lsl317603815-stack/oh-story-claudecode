@@ -44,6 +44,16 @@ SKILL.md 只保留场景路由与停靠规则；进入任一 Phase 前读本文�
 - 节奏感好 → 推荐：都市爽文、重生文、游戏文
 - 生活经验丰富 → 推荐：行业文、都市日常、种田文
 
+#### 没有故事点子时：开头池与三栏组合
+
+用户有题材方向、但说不出具体故事时，先攒点子再定方向，不要直接替用户拍一个：
+
+1. **开头池**：按选定题材出 10 个开头，每个不超过 100 字，只写"谁、陷在什么处境里、接下来要做什么选择"。用户也可以自己每天写几个，攒一周再一起筛。
+2. **三栏组合**：开头池里没有满意的，就分三栏列素材：零散的有趣情节、人设（性格与特点）、故事背景与必有场景。跨栏随机配对 3-5 组，把怪人设放进不搭的场景、配上不搭的情节，看能不能撞出新点子。组合结果进开头池一起筛。
+3. **筛选**：逐个问三件事——能不能撑到预计字数（至少撑到第一个大高潮）？开头三句话能不能勾起"然后呢"？主角处境里有没有常人选择可以翻转（见 `plot-core-methods.md`「反常人选择法」）？留下 1-3 个给用户挑，选中的进 Phase 2 的「一句话梗概」。
+
+点子池只是候选，不落盘；用户选定前不写任何设定文件。
+
 #### Agent 调用：story-architect
 
 story-architect 属于高层级结构设计 agent。轻量题材定位优先由主会话完成；只有涉及复杂世界观、多线结构、强反转工程或用户明确要求时，才调用 story-architect。确认选题方向后，按当前运行时检查 story-architect（Claude `.claude/agents/story-architect.md`、OpenCode `.opencode/agents/story-architect.md`、TRAE Code `.trae/agents/story-architect.md`、WorkBuddy 项目模式 `.codebuddy/agents/story-architect.md`、Codex `.codex/agents/story-architect.toml`）。可用时调用同名 agent：TRAE Code 只用内置 `Agent` 按 `.trae/agents/story-architect.md` 的名称选择同名 Subagent，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "story-architect", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:story-architect` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`。统一任务正文为 `项目目录：{dir}\n任务类型：题材定位\n查询参数：{用户选择的方向+对标信息}`。如 agent 不可用，由主线程直接执行。
