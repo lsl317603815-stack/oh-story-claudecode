@@ -24,6 +24,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 短篇扫榜 | 短篇排行、知乎盐言排行 | `/story-short-scan` |
 | 去 AI 味 | 去 AI 味、太 AI、去味 | `/story-deslop` |
 | 审查稿件 | 审查、审稿、帮我审一下、一致性检查、看看有没有问题 | `/story-review` |
+| 读者视角审读 | 读者审读、读者视角、多读者、读者团、读者怎么看这章 | `/story-review reader` |
 | 封面 | 封面、封面图 | `/story-cover` |
 | 发布材料 | 准备发布、发布文案、书名简介标签 | `/story-release-package` |
 | 平台发布 | 发到番茄、自动发布、存草稿、修改线上章节、排期发布 | `/story-publish`；只在用户明确授权对应远程动作时执行 |

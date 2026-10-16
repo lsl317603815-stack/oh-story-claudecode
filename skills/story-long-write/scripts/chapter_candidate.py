@@ -1904,7 +1904,7 @@ def reader_review_hint(project: Path, chapter: int, current_sha: str) -> tuple[l
                    if (base / ".claude" / "models" / "run-reader-review.py").is_file()), None)
     if script is None:
         return [], ""
-    return [f'{{PYTHON}} "{script}" start {chapter}  # 读者审读（建议性）：单车道默认 opus；作者要多视角时先 lanes 列车道让作者选，再 panel {chapter} --readers 车道1,车道2'], (
+    return [f'{{PYTHON}} "{script}" start {chapter}  # 读者审读（建议性，入口 /story-review reader）：单车道默认 opus；作者要多视角时先 lanes 列车道让作者选，再 panel {chapter} --readers 车道1,车道2'], (
         "建议先跑读者审读（只作建议、不卡定稿；输出 RUNNING 时用 wait 续等），再展示。")
 
 

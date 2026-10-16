@@ -1,7 +1,7 @@
 ---
 name: story-review
-version: 1.1.2
-description: "多视角对抗式审查。full/lean 模式在已部署 reviewer agents 时并行 spawn；缺失/异常 agents 或 spawn 失败时自动降级 solo，参考文件不可读时使用内置 rubric fallback。触发方式：/story-review、/审查、「审查一下」「帮我审一下」。"
+version: 1.2.0
+description: "多视角对抗式审查。full/lean 模式在已部署 reviewer agents 时并行 spawn；缺失/异常 agents 或 spawn 失败时自动降级 solo，参考文件不可读时使用内置 rubric fallback。触发方式：/story-review、/审查、「审查一下」「帮我审一下」；读者视角审读用 /story-review reader、/读者审读、「读者审读」「读者视角」「多读者」「读者团」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story-review：多视角对抗式审查
@@ -19,15 +19,33 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - `/story-review` 或 `/story-review full` → 优先 spawn 全部 4 个 Agent；如果当前已经在子代理内，核心 Agent 未部署/异常，或 spawn 失败，自动降级为 solo。
 - `/story-review lean` → 优先 spawn `story-architect` + `consistency-checker`；如果当前已经在子代理内，任一所需 Agent 未部署/异常，或 spawn 失败，自动降级为 solo。
 - `/story-review solo` → 不 spawn Agent，由当前会话执行基础审查。
+- `/story-review reader`（别名 `/读者审读`、`/审查 读者`，口令「读者审读」「读者视角」「多读者」「读者团」）→ 读者视角审读，只作建议、不卡定稿；按下方「读者审读模式」执行，不走 Phase 0-4。
 - 未指定 → 默认 full，并在报告里写明最终实际执行模式。
 
 > AI味 / 文字自然度这一维度只有文字审查员审（默认 `narrative-writer`；项目启用模型分工的 deslop 角色、即 `.claude/models/config.json` 里 `deslop.enabled` 为 true 且存在 `.claude/agents/deslop-reviewer.md` 时，Claude Code 改用 `deslop-reviewer`，避免写手模型自审），仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
 
 ---
 
+## 读者审读模式（reader）
+
+让模型扮演目标平台读者，从第一章顺读到指定章，写读感并打十分制追读分。读者只读书名、标签、读者画像、已接纳前文和本章正文，不读细纲、设定和追踪文件；本模式不改任何正文、大纲、设定或追踪文件。它依赖 story-setup 第 8 步「可选模型分工」的 `reader` 角色（仅 Claude Code）。
+
+1. **确认已启用**：从项目根找 `.claude/models/run-reader-review.py`，并读 `.claude/models/config.json` 的 `reader.enabled`。脚本不存在或未启用时停止，告诉作者重跑 `/story-setup`，在第 8 步勾选「读者审读」后新开会话；不要用当前会话自己扮演读者代替。
+2. **确定章号**：作者点名的章优先；否则取 `追踪/候选章/` 下最新一个仍在进行中的候选章（未 promote、未 abandon）；都没有就取 `正文/` 里最后一章。脚本按章号自动选文本：有正式正文读正文，否则读最新候选稿。
+3. **选单车道还是读者团**：
+   - 作者没提多读者、也没点名车道 → 单车道，默认 `opus`（Opus 5.5），用核心读者画像。作者点名了一条车道就用那条。
+   - 作者说「多读者」「多视角」「读者团」，或点名了两条以上车道 → 读者团。没点名车道时，先运行 `{PYTHON} .claude/models/run-reader-review.py lanes` 列出可选车道（含已分配的读者身份），再让作者多选至少两条（有结构化提问组件时用多选题，没有时列编号让作者回复编号）；作者要换掉已有读者身份时加 `--reassign`。
+4. **运行**（`{PYTHON}` 先按平台探测可用的 Python 3 解释器；Bash `timeout` 设为 600000）：
+   - 单车道：`{PYTHON} .claude/models/run-reader-review.py start {章号} [--lane 车道]`
+   - 读者团：`{PYTHON} .claude/models/run-reader-review.py panel {章号} --readers 车道1,车道2[,…] [--reassign]`
+   - 输出最后一行是 `RUNNING {运行ID}` 时运行 `{PYTHON} .claude/models/run-reader-review.py wait {运行ID}` 续等，直到结束；不要重复启动。
+5. **汇报**：结果在 `读者审读/第NNN章.md`（读者团时是汇总，每位读者原文在 `读者审读/第NNN章/`）。向作者转述追读分（读者团给平均分和各读者分数）、想跳过/出戏/想划走的段落、章尾感受和优先意见，并给出文件路径。只转述，不替读者加意见；要不要按意见改稿由作者决定。脚本报错时原样转述错误，常见原因是缺少方舟 key、`codex` 或 `claude` 命令行，或方舟套餐不支持某个模型。
+
+---
+
 ## Phase 0：预检与降级（必须先执行）
 
-1. **确定请求模式**：解析用户输入中的 `full`、`lean`、`solo`；未指定时目标模式为 `full`。
+1. **确定请求模式**：解析用户输入中的 `full`、`lean`、`solo`、`reader`；`reader` 直接按上方「读者审读模式」执行，不进入本流程；其余未指定时目标模式为 `full`。
 2. **确认是否允许 spawn**：如果当前已经在子代理/Agent 内执行，不再递归 spawn，直接降级为 `solo`。
 3. **识别 ZCode 能力边界**：如果当前运行于 ZCode 且项目使用 `.zcode/`，ZCode 3.3.4 不执行项目/plugin custom agents；不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn，直接降级 `solo` 并报告 `Fallback: project custom agents unavailable -> solo`。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
 4. **检查核心 Agent 部署状态**（先识别当前运行时，只检查对应目录/registry；无法识别运行时才按 Claude → OpenCode → TRAE Code → WorkBuddy → Codex 的顺序探测，禁止拿其他端残留文件冒充已注册 agent）：

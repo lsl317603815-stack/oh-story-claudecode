@@ -383,7 +383,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 **可选模型分工（仅 Claude Code，story-setup 部署时按项目开关）**：项目存在 `.claude/models/config.json` 时，按其中各角色的 `enabled` 改变执行者，未启用的角色一律保持原流程。
 - `writer`：`narrative-writer` 是转发器，正文交给 agy 上的写作模型；调用方式不变。
 - `deslop`：审查包的 `agent` 字段是 `deslop-reviewer`（转发方舟上的审查模型，与写手分开模型族），照包里的 agent 名派发即可；`next` 与回执都以包为准。
-- `reader`：两道审查通过、展示给作者前，`next` 会给出读者审读命令。读者只读书名、标签、核心或读者团画像、已接纳前文和本章正文，顺读后写读感并打十分制追读分，不给细纲、设定和追踪文件。单车道默认 `{PYTHON} .claude/models/run-reader-review.py start {章号}`（`{PYTHON}` 先按平台探测可用的 Python 3 解释器）；作者要多视角时先 `lanes` 列出车道让作者选，再 `panel {章号} --readers 车道1,车道2,…`，由总控模型分配读者身份并汇总平均分与综合意见。输出 `RUNNING {运行ID}` 时用 `wait {运行ID}` 续等。结果在 `读者审读/第NNN章.md`，展示候选时附上追读分和要点；它不出回执、不阻断 approve。
+- `reader`：两道审查通过、展示给作者前，`next` 会给出读者审读命令。读者只读书名、标签、核心或读者团画像、已接纳前文和本章正文，顺读后写读感并打十分制追读分，不给细纲、设定和追踪文件。作者也可以随时用 `/story-review reader`（`/读者审读`）手动触发。单车道默认 `{PYTHON} .claude/models/run-reader-review.py start {章号}`（`{PYTHON}` 先按平台探测可用的 Python 3 解释器）；作者要多视角时先 `lanes` 列出车道让作者选，再 `panel {章号} --readers 车道1,车道2,…`，由总控模型分配读者身份并汇总平均分与综合意见。输出 `RUNNING {运行ID}` 时用 `wait {运行ID}` 续等。结果在 `读者审读/第NNN章.md`，展示候选时附上追读分和要点；它不出回执、不阻断 approve。
 
 写后 hook 仍会扫描落盘正文，那是兜底网，不是替代；hook 报出的命中当轮清零。**正文内不设去味豁免标记**：不得添加 HTML 注释绕过检查；blocking 必须结合剧情功能改写并复扫清零。
 
