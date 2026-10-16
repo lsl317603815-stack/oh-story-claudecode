@@ -233,6 +233,8 @@ Dashboard 的自动化测试使用仓库内即时生成的中性夹具，不依�
 
 Agent 按需加载 `references/` 中的写作理论（角色设计、对话技法、反转工具箱等 100+ 份方法论文件），不预占上下文。
 
+**可选模型分工（Claude Code，按项目开关，默认关闭）**：`/story-setup` 部署时可以勾选三个角色——写手转发到 agy 上的模型（默认 Gemini 4 Argon），去AI味审查与 `/story-review` 文字审查交给方舟上的模型（默认豆包 2.1 Pro，新增 `deslop-reviewer`），以及逐章读者审读（单车道默认 Opus 5.5；多读者时作者选 opus / gpt / doubao / kimi / glm / deepseek 车道，由总控分配不同读者身份并汇总十分制平均分与综合意见，只作建议、不卡定稿）。依赖已登录的 agy、方舟 Agent Plan key、`claude` / `codex` 命令行；配置在项目 `.claude/models/config.json`。
+
 TRAE 项目部署时，以上 8 个通用 Agent 与 5 个数据分析精确角色会实际注册为 13 个中文主包 Agent。WorkBuddy 项目部署会实际注册 10 个 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）；`story-data-readonly-runner` 按任务加载 Skill 内对应角色规则，可承担其余四种只读数据分析职责，这四种职责不额外占用 registry 名额。WorkBuddy 的 19 个 Agent 上限仅是平台容量边界，中文主包实际注册 10 个。
 
 ## 自动化 Hooks

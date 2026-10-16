@@ -52,6 +52,7 @@
 | `test-tracking-commit.py` | 单权威追踪行为：state 最后提交、失败同事务重跑、派生一致性、修订语义、导入截止章 | CI |
 | `test-outline-forecast.py` | 分支推演隔离、追踪修订陈旧判定、用户选择凭证与禁止自动写回 | CI |
 | `test-chapter-candidate.py` | 精确一章许可、候选接纳、正文摘要失效、追踪闭环与 doctor | CI |
+| `test-deploy-model-routing.py` | story-setup 可选模型分工：按角色开关、幂等、关闭后恢复标准写手、保留作者配置 | CI |
 | `test-voice-profile.py` | 已接纳正文声音画像、回执/旧章授权、双向漂移 advisory、摘要陈旧与盲测包 | CI |
 | `test-cold-read-ledger.py` | 顺序冷读游标、追加式问题事件与未解决 S1/S2 阻断 | CI |
 | `test-codex-hooks.sh` | Codex hook 合成 stdin/stdout 契约 | CI |

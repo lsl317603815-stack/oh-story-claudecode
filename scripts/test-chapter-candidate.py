@@ -462,6 +462,36 @@ class ChapterCandidateTests(unittest.TestCase):
         self.assertEqual(doctor["status"], "pass", doctor)
         self.assertTrue(any(item["code"] == "quality-receipts-legacy" for item in doctor["warnings"]), doctor)
 
+    # ── 可选模型分工 ─────────────────────────────────────────────────────
+    def test_model_routing_moves_deslop_to_the_reviewer_and_hints_reader_review(self) -> None:
+        self.init()
+        self.candidate.write_text(PROSE, encoding="utf-8")
+        self.check()
+        self.assertEqual(self.packet("deslop")["agent"], "narrative-writer")  # 未启用时保持原样
+
+        models = self.project / ".claude" / "models"
+        write_json(models / "config.json", {"deslop": {"enabled": True}, "reader": {"enabled": True}})
+        (models / "run-reader-review.py").write_text("# 占位\n", encoding="utf-8")
+        packet = self.packet("deslop")
+        self.assertEqual(packet["agent"], "deslop-reviewer")
+        self.assertEqual(self.next()["why"].count("deslop-reviewer"), 1)
+        self.attest("deslop", self.report(packet))
+        self.assertEqual(self.manifest()["reviews"]["deslop"]["agent"], "deslop-reviewer")
+        self.check()
+        self.consistency()
+
+        waiting = self.next()
+        self.assertEqual(waiting["step"], "await-author")
+        self.assertIn("run-reader-review.py", waiting["commands"][0])
+        self.assertIn("start 1", waiting["commands"][0])
+        self.assertIn("approve", waiting["commands"][-1])
+
+        sha = __import__("hashlib").sha256(self.candidate.read_bytes()).hexdigest()
+        write_json(self.project / "读者审读" / "第001章.json", {"_meta": {"source_sha256": sha}})
+        fresh = self.next()
+        self.assertEqual(len(fresh["commands"]), 1)
+        self.assertIn("读者审读结果见", fresh["why"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

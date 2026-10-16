@@ -96,7 +96,7 @@ auto 模式另有两个选项：`--review-policy lean`（去味审查只看门�
 ```
 
 1. `review-packet` 要求当前候选稿已通过 `check`。它输出审查包 JSON，其中 `prompt` 字段是交给 agent 的完整任务，`report_path` 是报告存放位置。去味审查包还会把候选稿复制成运行目录下 reviews/deslop/ 里的工作副本（路径见审查包 `work_copy` 字段），agent 只改这个副本。
-2. 把 `prompt` 原样交给 narrative-writer（去味）或 consistency-checker（一致性）。agent 不可用时由主线程按同一 prompt 执行，同样出报告。
+2. 把 `prompt` 原样交给审查包 `agent` 字段指定的 agent：去味默认 narrative-writer，启用模型分工的 deslop 角色时为 deslop-reviewer；一致性为 consistency-checker。agent 不可用时由主线程按同一 prompt 执行，同样出报告。
 3. agent 在回复末尾给出 JSON 报告：`kind`、`nonce`、`candidate_sha256`、`scope` 必须与审查包一致；`verdict` 为 `PASS / CONCERNS / REJECT`；`findings` 每条含 `severity`（S1–S4）、`category`、`quote`、`issue`，去味另含 `action`（`edited / flagged`），一致性可加 `source` 指明证据所在文件；`coverage` 列出实际核对过的角色、伏笔 ID 或检查项，没有 findings 时至少 3 项。
 4. 主会话把回复原样存到 `report_path`（整份 JSON，或末尾带 json 代码块的回复原文，都可以），再运行 `attest`。`attest` 校验校验码与候选稿摘要，要求每条 `quote` 能在被审文本里逐字找到（至少 4 个字）；去味审查的工作副本在这一步写回候选稿，写回后必须重新 `check`。
 

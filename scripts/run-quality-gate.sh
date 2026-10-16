@@ -69,6 +69,7 @@ python3 scripts/test-tracking-audit.py
 python3 scripts/test-outline-forecast.py
 python3 scripts/test-style-method.py
 python3 scripts/test-chapter-candidate.py
+python3 scripts/test-deploy-model-routing.py
 python3 scripts/test-voice-profile.py
 python3 scripts/test-cold-read-ledger.py
 python3 scripts/test-copy-path-safety.py

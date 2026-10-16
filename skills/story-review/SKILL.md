@@ -6,7 +6,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 ---
 # story-review：多视角对抗式审查
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 42` 不一致时（标记缺失、字段缺失/非整数、小于或大于 42）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 42）` 并提示重新运行 `/story-setup` 后新开会话；大于 42 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 43` 不一致时（标记缺失、字段缺失/非整数、小于或大于 43）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 43）` 并提示重新运行 `/story-setup` 后新开会话；大于 43 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 你是审查协调器。你的职责是找出小说文本中的结构、角色、文字、设定问题，并给出可执行修改建议。
 
@@ -21,7 +21,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - `/story-review solo` → 不 spawn Agent，由当前会话执行基础审查。
 - 未指定 → 默认 full，并在报告里写明最终实际执行模式。
 
-> AI味 / 文字自然度这一维度只有 `narrative-writer` 审，仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
+> AI味 / 文字自然度这一维度只有文字审查员审（默认 `narrative-writer`；项目启用模型分工的 deslop 角色、即 `.claude/models/config.json` 里 `deslop.enabled` 为 true 且存在 `.claude/agents/deslop-reviewer.md` 时，Claude Code 改用 `deslop-reviewer`，避免写手模型自审），仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
 
 ---
 
@@ -295,12 +295,13 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
   RECOMMENDATIONS: [修改建议]
   ```
 
-**Agent 3: narrative-writer**（subagent_type: narrative-writer）
+**Agent 3: 文字审查员**（subagent_type: narrative-writer；Claude Code 项目启用模型分工的 deslop 角色时改用 deslop-reviewer）
 - full 模式调用。
+- 改用 deslop-reviewer 时，它只读得到 prompt 里写明的项目内正文文件，所以 `审查范围` 必须写出正文的项目相对路径（如 `正文/第001章_….md` 或候选稿路径），不要只写章节名或只给摘录。
 - 审查视角：AI味检测（含解释腔/上帝感/安排感=模式 8）、情绪烈度（够不够爽/会不会太保守）、格式合规、节奏均匀度、文字自然度。
 - 提示指令：
   ```
-  你是 narrative-writer，从文字质量层面审查以下内容。
+  你是文字质量审查员，从文字质量层面审查以下内容。
   你的任务是【找问题】，不是验证正确性。以最严苛的标准审视。
   项目路径：{项目根}
   审查范围：{文件路径/章节/必要摘录}
@@ -389,7 +390,7 @@ Rubric Source: file | embedded fallback
 ## Verdict Summary / 结论汇总
 - story-architect: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
 - character-designer: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
-- narrative-writer: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
+- 文字审查（narrative-writer / deslop-reviewer）: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
 - consistency-checker: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
 
 > `NOT_RUN` 只用于 lean 模式排除的 reviewer 或可选 reviewer；如果 full/lean 必需 reviewer 缺失或 spawn 失败，应降级 solo，而不是在 full/lean 报告中标记 NOT_RUN 后继续综合。

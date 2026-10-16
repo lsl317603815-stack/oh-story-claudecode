@@ -1,6 +1,6 @@
 ---
 name: story-setup
-version: 1.5.2
+version: 1.6.0
 description: "网文写作工具集基础设施部署。为 Claude Code / OpenCode / Codex / ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix 提供内置适配；Web AI / 通用 Agent 可走 skills + AGENTS.md 文件模式。触发方式：/story-setup、$story-setup、「准备写书」「帮我搭一下环境」「配置写作项目」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
@@ -21,9 +21,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 > 判据是「有没有 `SKILL.md`」：只看正在执行的 `SKILL.md` 同级的 `references/`。项目内 `.claude/skills/story-setup/`、`.codex/skills/story-setup/` 和 OpenCode 的 `skills/story-setup/` 只有 `references/agent-references/`、不含 `SKILL.md`，不会是执行目录，也不要拿它们核对。ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix / generic 的项目副本是整份 skill 拷贝、自带 `SKILL.md`，10 个子目录本就齐全，照常核对即可。
 
 1. 检查当前目录是否已部署过（存在 `.story-deployed`）
-   - `agents_version` 缺失、非整数或小于 `42` → 标记为待更新，继续执行当前部署
-   - `agents_version: 42` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
-   - `agents_version` 大于 `42` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
+   - `agents_version` 缺失、非整数或小于 `43` → 标记为待更新，继续执行当前部署
+   - `agents_version: 43` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
+   - `agents_version` 大于 `43` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
    - 同时读 `target_cli` 字段。**已部署项目以 sentinel 里的值为准**：非空时（逗号分隔的多端组合原样保留）跳过下面第 5-14 步的环境探测与选择，直接按这些端重新部署。只有字段缺失或为空，才回落到探测。用户明确要求增删目标端时，用 AskUserQuestion 在现有值基础上改，改完的值写回 sentinel。
 2. 检查是否有书名目录（包含 `追踪/` 子目录的目录，或用户自定义结构）
    - 有 → 识别为长篇项目，显示当前项目信息
@@ -108,6 +108,11 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/references/agent-references/*.md` | `.claude/skills/story-setup/references/agent-references/*.md` | story-setup managed | replace | every `story-setup/references/agent-references/*.md` reference resolves |
 | `skills/story-setup/references/templates/settings-hooks.json` | `.claude/settings.local.json` | user+managed | replace managed registrations by stable hook identity | hook JSON valid；旧 matcher 注册已迁移、当前模板命令各一份、用户 hook 保留 |
 | `skills/story-setup/scripts/merge-claude-settings.py` | 部署时执行，不复制到项目 | story-setup helper | execute | 替换已知 story hook 注册、保留用户 hooks/顶层字段，历史 matcher 迁移与重复执行幂等 |
+| `skills/story-setup/references/templates/models/`（除 `agents/` 与 `config.default.json`） | `.claude/models/` | story-setup managed | replace managed files（`config.json`、`runs/` 不动） | 启用任一模型分工角色时由 `scripts/deploy-model-routing.py` 写入 | target_cli 含 claude-code 且启用模型分工 |
+| `skills/story-setup/references/templates/models/config.default.json` | `.claude/models/config.json` | user state | create only if absent；之后只改各角色 `enabled` | JSON 可解析，含 `writer` / `deslop` / `reader` | 同上 |
+| `skills/story-setup/references/templates/models/agents/narrative-writer-forwarder.md` | `.claude/agents/narrative-writer.md` | story-setup managed | 启用 `writer` 时覆盖 Step 5 的标准版，关闭时写回标准版 | 转发器与 `.claude/models/narrative-writer-prompt.md` 同时存在 | 同上 |
+| `skills/story-setup/references/templates/models/agents/deslop-reviewer.md` | `.claude/agents/deslop-reviewer.md` | story-setup managed by `oh-story-managed` marker | 启用 `deslop` 时写入，关闭时移除 | 文件含 `name: deslop-reviewer` | 同上 |
+| `skills/story-setup/scripts/deploy-model-routing.py` | 部署时执行，不复制到项目 | story-setup helper | execute | `check` 只读；`deploy` 幂等 | target_cli 含 claude-code |
 | `skills/story-setup/references/templates/质检进度.md.tmpl` | `{书名}/追踪/质检进度.md` | user state | create only if absent | never overwrite existing progress table |
 | generated sentinel | `.story-deployed` | story-setup managed | replace | contains `agents_version`, `setup_skill_version`, `target_cli`, `resolver_strategy`, `references_dir` |
 | `skills/story-setup/references/opencode/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains story skill routing sections | target_cli 含 opencode |
@@ -484,21 +489,37 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 4. `.story-deployed` 的 `target_cli` 写入 `generic` 或多端组合；`references_dir` 对 generic 写 `skills/story-setup/references/agent-references`。
 5. 安装报告提示项见 Phase 3 第 13 步。
 
-### Step 8：创建部署标记
+### Step 8：可选部署模型分工（target_cli 含 claude-code 时）
+
+模型分工按项目开关，默认关闭；关闭时项目与原流程完全一致。三个角色可以分别开关：
+
+| 角色 | 作用 | 依赖 |
+|---|---|---|
+| `writer` | `narrative-writer` 改成转发器，正文写作交给 agy（Antigravity CLI）上的模型（默认 `gemini-4-argon-medium`） | 已登录的 `agy` |
+| `deslop` | 新增 `deslop-reviewer`：接纳前去AI味审查（改工作副本）与 `/story-review` 的文字审查（只审不改）交给方舟上的模型（默认豆包 `doubao-seed-2-1-pro-260915`），与写手分开模型族 | 方舟 Agent Plan（或 Coding Plan）key 存在钥匙串 `ARK_AGENT_PLAN_API_KEY`（或 `ARK_API_KEY`）或同名环境变量 |
+| `reader` | 逐章读者审读：单车道默认 Opus 5.5；多读者时作者选车道（opus、gpt、doubao、kimi、glm、deepseek），总控分配读者身份并汇总十分制平均分与综合意见；只作建议，不卡定稿 | `claude` 命令行；gpt 车道需要 `codex`，其余车道需要方舟 key |
+
+1. 本步在 Step 5 之后执行（它会覆盖或恢复 `narrative-writer.md`）。`target_cli` 不含 claude-code 时跳过本步。
+2. 用 Step 7 探测到的 `$PYBIN` 运行 `"$PYBIN" "{story-setup skill目录}/scripts/deploy-model-routing.py" check`，只读检查依赖（只查钥匙串条目是否存在，不读取 key）。
+3. 读取项目现有 `.claude/models/config.json`（如有）里各角色的 `enabled` 作为默认勾选，用 AskUserQuestion 多选询问要开启哪些角色；每个选项写明作用与依赖，`check` 里依赖未就绪的角色标明“本机缺少依赖，开启后该角色会失败”。用户一个都不选即全部关闭。
+4. 运行 `"$PYBIN" "{story-setup skill目录}/scripts/deploy-model-routing.py" deploy --project "{项目}" --roles "{逗号分隔的角色，全部关闭时为空字符串}"`。它把受管脚本与提示词写入 `.claude/models/`，只在不存在时创建 `config.json`（之后只改 `enabled`，保留作者改过的模型与车道），按 `writer` 覆盖或恢复 `narrative-writer.md`（转发器所用写作规范由标准模板生成），按 `deslop` 部署或移除带 `oh-story-managed` 标记的 `.claude/agents/deslop-reviewer.md`。重复执行结果一致。
+5. 安装报告列出开启的角色、各自模型与 `.claude/models/config.json` 路径，并提醒：改模型或车道直接编辑该文件；开关角色重跑本步即可。
+
+### Step 9：创建部署标记
 
 - 创建 `.story-deployed` 文件（sentinel file）
 - 写入以下字段（YAML `key: value` 格式，hook 用 `references/templates/hooks/lib/sentinel.sh` 读取）：
   ```
   deployed_at: <date -u +"%Y-%m-%dT%H:%M:%SZ">
-  agents_version: 42
-  setup_skill_version: 1.5.2
+  agents_version: 43
+  setup_skill_version: 1.6.0
   target_cli: claude-code（或 opencode、codex、zcode、trae、workbuddy、openclaw、reasonix、generic，或其任意组合）
   resolver_strategy: project-local-skill-reference
   references_dir: .claude/skills/story-setup/references/agent-references（Codex 写 .codex/skills/...；ZCode 写 .zcode/skills/...；TRAE 写 .trae/skills/...；WorkBuddy 写 .codebuddy/skills/...；OpenClaw / Reasonix / generic 写 skills/...；多端用逗号分隔）
   ```
 - 此文件供 session-start.sh 和写作 skill 检测部署状态，避免重复提示
 - target_cli 含 claude-code 时，同时创建一次性标记文件 `.claude/.agents-pending-restart`（空文件即可）。session-start.sh 在下一个会话启动时据此确认 agents 已随新会话注册，并自动删除该标记——用来向用户确认「重启已生效」。ZCode 不创建该标记，因为它不部署项目 agents。
-- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `42`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `42` 时已在 Phase 1 停止，不得降级覆盖
+- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `43`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `43` 时已在 Phase 1 停止，不得降级覆盖
 
 ## Phase 3：验证安装
 
@@ -510,11 +531,12 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
    - 检查 `.claude/rules/` 下的规则文件是否存在且包含 `paths` frontmatter
 3. 验证 agents：
    - 检查 `.claude/agents/` 下的 8 个 agent 定义文件是否存在
+   - 启用模型分工时：`writer` 开启则 `narrative-writer.md` 是转发器且 `.claude/models/narrative-writer-prompt.md` 存在；`deslop` 开启则存在 `.claude/agents/deslop-reviewer.md`；`.claude/models/config.json` 的 `enabled` 与用户勾选一致
 4. 验证 agent reference bundle：
    - 检查 `.claude/skills/story-setup/references/agent-references/` 下 reference 文件完整
    - 检查所有 `story-setup/references/agent-references/<file>.md` 都能解析到 deployed bundle
 5. 验证部署标记：
-   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 42`、`setup_skill_version: 1.5.2`、`target_cli`、`resolver_strategy`、`references_dir`
+   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 43`、`setup_skill_version: 1.6.0`、`target_cli`、`resolver_strategy`、`references_dir`
 6. 输出安装报告：
    - 列出所有已部署的文件
    - 列出需要注意的事项（如已有配置已合并）
@@ -583,7 +605,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 检查 `.codebuddy/agents/` 的受管名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + WorkBuddy 数据物理 2 名（共 10 张），总数不超过 19，名称唯一，frontmatter 只使用 CodeBuddy 支持字段；pooled runner 的每个逻辑角色都必须唯一映射到 Skill 内真实卡。新会话中分别实调基础 Agent、`story-data-fetcher` 和 pooled runner 的一个逻辑角色，成功后才允许报告多 Agent 模式生效；设置页“全部开启”不能代替 Task registry 证据
     - 检查 `.codebuddy/rules/` 和唯一生效 memory 文件的管理块；项目原有 `AGENTS.md` 内容必须仍被直接读取或通过 `@AGENTS.md` / `@../AGENTS.md` 导入，模板条件占位不得残留；根与 `.codebuddy/` 两份 CODEBUDDY 同时存在时必须报告冲突而不是猜优先级
     - 检查 `.codebuddy/settings.json` 保留用户字段，且按互斥分支验证：project-local 模式当前 4 个 oh-story Hook 注册各恰好一次，事件只有 `SessionStart` / `PreToolUse` / `PostToolUse`；plugin 模式项目注册为零。运行 helper 两次必须字节幂等
-    - 用 fixture 调用 SessionStart（含 agents_version 41/42/43）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
+    - 用 fixture 调用 SessionStart（含 agents_version 42/43/44）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
     - 检查 plugin manifest 不含与 Skills 同名的 `commands` 字段，所有自定义路径以 `./` 开头；可用时运行真实 `codebuddy plugin validate .`。安装报告明确 project `/story-*` 与 plugin `/oh-story:story-*` 的差异、唯一 Hook 来源、PowerShell 硬门边界，并提示新开会话
 12. 验证 OpenClaw 部署（仅当 target_cli 含 openclaw 时）：
     - 检查 `AGENTS.md` 含 OpenClaw story skill routing sections
@@ -647,9 +669,9 @@ CodeBuddy 把根 `CODEBUDDY.md` 与 `.codebuddy/CODEBUDDY.md` 作为项目 memor
 ## 重新部署
 
 - `.story-deployed` 不存在 → 全新安装，Phase 2 全部执行
-- `.story-deployed` 存在且 `agents_version: 42` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
-- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `42` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
-- `.story-deployed` 存在且 `agents_version` 大于 `42` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
+- `.story-deployed` 存在且 `agents_version: 43` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
+- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `43` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
+- `.story-deployed` 存在且 `agents_version` 大于 `43` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
 
 ---
 
@@ -660,6 +682,8 @@ CodeBuddy 把根 `CODEBUDDY.md` 与 `.codebuddy/CODEBUDDY.md` 作为项目 memor
 | references/templates/hooks/ | 8 个 hook 脚本模板 + `story_hook_core.js`（正文网/字数/大纲守卫/连续性/commit 侦测的共享实现，与 OpenCode/ZCode 同一份）+ `story_hook_cli.js`（bash hook 调核的 node 桥）+ `lib/common.sh`/`lib/sentinel.sh`（`check-prose-after-write.sh` 负责 Write/Edit 的 PostToolUse 兜底；Bash 的重定向、`tee`、`touch`、`cp`、`mv`、`install` 写正文由 PreToolUse 共享核 best-effort 识别并执行大纲/追踪门，未识别的 Bash 写入仍由 Codex Stop 回合末 git 扫描兜底） |
 | references/templates/rules/ | 4 条 path-scoped 规则模板 |
 | references/templates/agents/ | 8 个 agent 定义模板（story-architect, character-designer, narrative-writer, consistency-checker, revision-governor, story-researcher, story-explorer, chapter-extractor） |
+| references/templates/models/ | 可选模型分工（Step 8）：方舟客户端、写手/去味/读者审读转发脚本与提示词、默认配置、`narrative-writer` 转发器（部署时改名为 `narrative-writer.md`）与 `deslop-reviewer` 两个 agent 模板 |
+| scripts/deploy-model-routing.py | 模型分工依赖检查（`check`）与按角色部署/关闭（`deploy`） |
 | references/agent-references/ | Agent 模板自带的参考资料副本；部署到 `.claude/skills/story-setup/references/agent-references/`，避免跨 skill references |
 | references/templates/settings-hooks.json | hooks 注册 JSON 片段 |
 | references/templates/质检进度.md.tmpl | 逐章质检表占位；此后由 `chapter_candidate.py close` 按接纳回执重建 |

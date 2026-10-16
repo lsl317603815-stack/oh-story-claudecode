@@ -12,7 +12,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > 运行环境兼容性：Claude Code / OpenCode / TRAE Code / WorkBuddy（CodeBuddy Code）/ Codex / ZCode / OpenClaw 是内置适配目标；NarraFork、Web AI、自定义 Agent 等能读取项目文件的环境，可按本 skill 执行长篇流程。先识别当前运行时，只检查对应的专业 agent 定义：Claude `.claude/agents/{agent}.md`、OpenCode `.opencode/agents/{agent}.md`、TRAE Code `.trae/agents/{agent}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{agent}.md`、Codex `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 智能体与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不凭磁盘文件猜注册名：只有当前 Agent registry 真实返回 `oh-story:{agent}` 时，才使用该精确命名空间值；未返回则按本 Skill 的 solo/direct fallback，不拿 plugin manifest 或另一端残留文件冒充 registry。Codex 使用同名 `agent_type`，Claude/OpenCode 保留 `subagent_type`。找不到当前运行时定义、当前运行时未暴露对应 Agent registry/tool，或 Codex 返回 `unknown agent_type` 时，直接 solo/direct 执行并报告 fallback。只有**当前运行时确实是 ZCode**时，才因 ZCode 3.3.4 不执行项目 custom agents 而强制 solo/direct；项目磁盘上仅仅并存 `.zcode/` 不是其他运行时降级的依据。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 42` 不一致时（标记缺失、字段缺失/非整数、小于或大于 42）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 42）` 并提示重新运行 `/story-setup` 后新开会话；大于 42 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 43` 不一致时（标记缺失、字段缺失/非整数、小于或大于 43）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 43）` 并提示重新运行 `/story-setup` 后新开会话；大于 43 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 **中文正文范围**：本 skill 只交付中文长篇正文。用户要求英文小说、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -374,10 +374,16 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 **全部在接纳前完成**：Phase 5 的每一项都作用于候选稿，在作者看到并接纳之前跑完；接纳之后正文只能走大修流程（`references/workflow-revision.md`）。顺序由 `scripts/chapter_candidate.py` 强制，主会话反复运行 `chapter_candidate.py next --project {项目目录}`，只执行它打印的那一步：
 
 ```text
-写候选稿 → check（不过就改稿；标点问题 fix）→ 去味审查（review-packet → narrative-writer → attest，改动由 attest 写回）
+写候选稿 → check（不过就改稿；标点问题 fix）→ 去味审查（review-packet → 审查包 agent 字段指定的 agent → attest，改动由 attest 写回）
 → check → 一致性审查（review-packet → consistency-checker → attest）
+→ （启用读者审读时）读者审读，建议性、不卡定稿
 → review 模式：向作者展示后停下 ｜ auto 模式：approve → promote → 追踪事务 → close → voice_profile update → story_doctor
 ```
+
+**可选模型分工（仅 Claude Code，story-setup 部署时按项目开关）**：项目存在 `.claude/models/config.json` 时，按其中各角色的 `enabled` 改变执行者，未启用的角色一律保持原流程。
+- `writer`：`narrative-writer` 是转发器，正文交给 agy 上的写作模型；调用方式不变。
+- `deslop`：审查包的 `agent` 字段是 `deslop-reviewer`（转发方舟上的审查模型，与写手分开模型族），照包里的 agent 名派发即可；`next` 与回执都以包为准。
+- `reader`：两道审查通过、展示给作者前，`next` 会给出读者审读命令。读者只读书名、标签、核心或读者团画像、已接纳前文和本章正文，顺读后写读感并打十分制追读分，不给细纲、设定和追踪文件。单车道默认 `{PYTHON} .claude/models/run-reader-review.py start {章号}`（`{PYTHON}` 先按平台探测可用的 Python 3 解释器）；作者要多视角时先 `lanes` 列出车道让作者选，再 `panel {章号} --readers 车道1,车道2,…`，由总控模型分配读者身份并汇总平均分与综合意见。输出 `RUNNING {运行ID}` 时用 `wait {运行ID}` 续等。结果在 `读者审读/第NNN章.md`，展示候选时附上追读分和要点；它不出回执、不阻断 approve。
 
 写后 hook 仍会扫描落盘正文，那是兜底网，不是替代；hook 报出的命中当轮清零。**正文内不设去味豁免标记**：不得添加 HTML 注释绕过检查；blocking 必须结合剧情功能改写并复扫清零。
 
@@ -410,7 +416,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > 历史教训：「可 spawn」的软性措辞曾让这一步被反复跳过。它是**独立于写作时脚本检测**的语义级复审（解释腔、上帝视角、精致戏剧反应堆叠只有通读才能判断），现在由回执强制：没有有效回执，`approve` 直接拒绝。
 
-`review-packet --kind deslop` 把候选稿复制成工作副本，并生成带一次性校验码的任务 prompt。把 prompt 原样交给 narrative-writer（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`；TRAE Code 只用内置 `Agent` 按名称选择同名 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 registry 真实返回 `oh-story:narrative-writer` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`）。它只改工作副本，在回复末尾给出 JSON 报告；主会话把回复原样存到审查包写明的 `report_path`，再运行 `attest --kind deslop --report …`。`attest` 校验校验码和逐字引文后把工作副本写回候选稿，随后必须重新 `check`。agent 不可用时由主线程按同一 prompt 执行并照样出报告，不得省略。
+`review-packet --kind deslop` 把候选稿复制成工作副本，并生成带一次性校验码的任务 prompt。把 prompt 原样交给审查包 `agent` 字段指定的 agent：默认 narrative-writer；启用模型分工的 deslop 角色时是 Claude Code 的 `deslop-reviewer`（`.claude/agents/deslop-reviewer.md`）。narrative-writer 的位置（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`；TRAE Code 只用内置 `Agent` 按名称选择同名 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 registry 真实返回 `oh-story:narrative-writer` 时用该精确值；Claude/OpenCode 可用等价 `subagent_type`，Codex 使用 `agent_type`）。它只改工作副本，在回复末尾给出 JSON 报告；主会话把回复原样存到审查包写明的 `report_path`，再运行 `attest --kind deslop --report …`。`attest` 校验校验码和逐字引文后把工作副本写回候选稿，随后必须重新 `check`。agent 不可用时由主线程按同一 prompt 执行并照样出报告，不得省略。
 
 review 模式和 auto 批次末章（`init --batch-last`）必须全文审；auto 模式可在 `init` 时选 `--review-policy lean`，只审门禁标记的段落与开头结尾。去味之后若主会话再改动约四分之一以上的正文，去味回执失效，需要重审。
 

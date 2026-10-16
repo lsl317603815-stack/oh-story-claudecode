@@ -41,6 +41,7 @@ OPEN_STATUSES = {"draft", "approved", "promoted"}
 REVIEW_KINDS = ("deslop", "consistency")
 REVIEW_LABELS = {"deslop": "去味审查", "consistency": "一致性审查"}
 REVIEW_AGENTS = {"deslop": "narrative-writer", "consistency": "consistency-checker"}
+MODEL_ROUTING_RELATIVE = ".claude/models/config.json"
 SEVERITIES = ("S1", "S2", "S3", "S4")
 BLOCKING_SEVERITIES = {"S1", "S2"}
 VERDICTS = ("PASS", "CONCERNS", "REJECT")
@@ -384,6 +385,31 @@ def lineage_index(data: dict[str, Any], sha: str | None) -> int | None:
     return None
 
 
+def model_routing(project: Path) -> dict[str, Any]:
+    """可选的模型分工配置（story-setup 部署）：从书项目根向上找最近的 .claude/models/config.json。"""
+    for base in (project, *project.parents[:2]):
+        path = base / MODEL_ROUTING_RELATIVE
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            return data if isinstance(data, dict) else {}
+    return {}
+
+
+def routing_enabled(project: Path, role: str) -> bool:
+    entry = model_routing(project).get(role)
+    return isinstance(entry, dict) and entry.get("enabled") is True
+
+
+def review_agent(project: Path, kind: str) -> str:
+    """去味审查在启用模型分工的 deslop 角色时交给 deslop-reviewer，否则仍是 narrative-writer。"""
+    if kind == "deslop" and routing_enabled(project, "deslop"):
+        return "deslop-reviewer"
+    return REVIEW_AGENTS[kind]
+
+
 def consistency_problem(data: dict[str, Any], current_sha: str) -> str | None:
     receipt = data.get("reviews", {}).get("consistency")
     if not receipt:
@@ -403,7 +429,7 @@ def consistency_problem(data: dict[str, Any], current_sha: str) -> str | None:
 def deslop_problem(data: dict[str, Any], current_sha: str, *, require_full: bool) -> str | None:
     receipt = data.get("reviews", {}).get("deslop")
     if not receipt:
-        return "缺少去味审查回执（review-packet --kind deslop → narrative-writer → attest）"
+        return "缺少去味审查回执（review-packet --kind deslop → 审查包指定的去味 agent → attest）"
     if require_full and receipt.get("scope") != "full":
         return "本章要求全文去味审查（review 模式或批次末章），当前回执只覆盖精简范围"
     start = lineage_index(data, receipt.get("output_sha256"))
@@ -1084,7 +1110,7 @@ def cmd_review_packet(args: argparse.Namespace) -> int:
         "scope": scope,
         "last_committed_chapter": last,
         "state_revision": revision,
-        "agent": REVIEW_AGENTS[kind],
+        "agent": review_agent(project, kind),
         "report_path": (reviews / f"{kind}.report.json").relative_to(project).as_posix(),
         "issued_at": utc_now(),
     }
@@ -1223,7 +1249,7 @@ def cmd_attest(args: argparse.Namespace) -> int:
     receipt: dict[str, Any] = {
         "schema_version": 1,
         "kind": kind,
-        "agent": REVIEW_AGENTS[kind],
+        "agent": packet.get("agent") or review_agent(project, kind),
         "nonce": packet["nonce"],
         "scope": packet["scope"],
         "verdict": report["verdict"],
@@ -1833,33 +1859,53 @@ def next_step(project: Path) -> dict[str, Any]:
                 "step": "attest",
                 "kind": kind,
                 "commands": [f'{tool} attest --run "{run}" --kind {kind} --report "{report}"'],
-                "why": f"审查包已发出：把 {REVIEW_AGENTS[kind]} 的回复原样存到 {report.name} 后登记回执。",
+                "why": f"审查包已发出：把 {packet.get('agent') or review_agent(project, kind)} 的回复原样存到 {report.name} 后登记回执。",
             }
         return {
             **base,
             "step": "review",
             "kind": kind,
-            "agent": REVIEW_AGENTS[kind],
+            "agent": review_agent(project, kind),
             "commands": [f'{tool} review-packet --run "{run}" --kind {kind}'],
-            "why": f"{problem}。发审查包，把输出里的 prompt 原样交给 {REVIEW_AGENTS[kind]}。",
+            "why": f"{problem}。发审查包，把输出里的 prompt 原样交给 {review_agent(project, kind)}。",
         }
     problems = review_problems(data, current_sha)
     if problems:
         return {**base, "step": "revise", "commands": [f'{tool} check --run "{run}"'], "why": "；".join(problems)}
+    reader_commands, reader_why = reader_review_hint(project, chapter, current_sha)
     if data.get("approval_mode") == "auto":
         return {
             **base,
             "step": "approve",
-            "commands": [f'{tool} approve --run "{run}" --confirm ACCEPT'],
-            "why": "全部门禁与审查已通过，自动定稿授权有效。",
+            "commands": reader_commands + [f'{tool} approve --run "{run}" --confirm ACCEPT'],
+            "why": "全部门禁与审查已通过，自动定稿授权有效。" + reader_why,
         }
     return {
         **base,
         "step": "await-author",
-        "commands": [f'{tool} approve --run "{run}" --confirm ACCEPT --approval-note "{{作者原话}}"'],
-        "why": "全部门禁与审查已通过。向作者展示标题、字数、关键变化、门禁提示和候选路径后停止；"
+        "commands": reader_commands + [f'{tool} approve --run "{run}" --confirm ACCEPT --approval-note "{{作者原话}}"'],
+        "why": "全部门禁与审查已通过。" + reader_why + "向作者展示标题、字数、关键变化、门禁提示和候选路径后停止；"
         "只有作者明确说“接受/定稿/采用这版”才 approve。",
     }
+
+
+def reader_review_hint(project: Path, chapter: int, current_sha: str) -> tuple[list[str], str]:
+    """启用模型分工的 reader 角色时，提示在展示前跑读者审读；它只作建议，不卡定稿。"""
+    if not routing_enabled(project, "reader"):
+        return [], ""
+    report = project / "读者审读" / f"第{chapter:03d}章.json"
+    try:
+        fresh = json.loads(report.read_text(encoding="utf-8")).get("_meta", {}).get("source_sha256") == current_sha
+    except (OSError, ValueError, AttributeError):
+        fresh = False
+    if fresh:
+        return [], f"读者审读结果见 读者审读/第{chapter:03d}章.md，展示时附上追读分与要点。"
+    script = next((base / ".claude" / "models" / "run-reader-review.py" for base in (project, *project.parents[:2])
+                   if (base / ".claude" / "models" / "run-reader-review.py").is_file()), None)
+    if script is None:
+        return [], ""
+    return [f'{{PYTHON}} "{script}" start {chapter}  # 读者审读（建议性）：单车道默认 opus；作者要多视角时先 lanes 列车道让作者选，再 panel {chapter} --readers 车道1,车道2'], (
+        "建议先跑读者审读（只作建议、不卡定稿；输出 RUNNING 时用 wait 续等），再展示。")
 
 
 def cmd_next(args: argparse.Namespace) -> int:

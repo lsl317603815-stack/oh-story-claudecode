@@ -236,6 +236,8 @@ Writing skills internally coordinate 8 general specialized agents:
 
 Agents load writing theory from `references/` on demand (character design, dialogue techniques, twist toolbox, etc. — 100+ methodology files), without reserving context window space.
 
+**Optional model routing (Claude Code, per project, off by default)**: `/story-setup` can enable three roles — the writer forwards to a model on agy (default Gemini 4 Argon); the pre-acceptance de-AI review and the `/story-review` prose review go to a model on Volcengine Ark (default Doubao 2.1 Pro, via the new `deslop-reviewer`); and a per-chapter reader review (single lane defaults to Opus 5.5; for a reader panel the author picks opus / gpt / doubao / kimi / glm / deepseek lanes, a controller model assigns distinct reader personas and summarizes the 10-point average and combined feedback — advisory only, never blocks acceptance). Requires a signed-in agy, an Ark Agent Plan key, and the `claude` / `codex` CLIs; configured in the project's `.claude/models/config.json`.
+
 In TRAE project deployments, these 8 general Agents plus 5 exact data-analysis roles are registered as 13 Chinese-core Agents. WorkBuddy registers 10 Agents (8 general Agents, `story-data-fetcher`, and `story-data-readonly-runner`); the read-only runner loads Skill-local role rules to perform four additional data-analysis responsibilities without consuming four more registry slots. WorkBuddy's 19-Agent ceiling is only a platform capacity boundary; the Chinese core package registers 10.
 
 ## Automation Hooks
