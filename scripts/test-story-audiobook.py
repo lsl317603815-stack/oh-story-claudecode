@@ -248,6 +248,14 @@ class FlowTests(unittest.TestCase):
         rc, out = self.run_cli("annotate", "1", "--allow-uncommitted")
         self.assertEqual(rc, 0, out)
 
+    def test_legacy_chapters_count_as_committed(self):
+        (self.root / "追踪" / "章节提交" / "第001章.json").unlink()
+        state = self.root / "追踪" / "_tracking-state.json"
+        state.write_text(json.dumps({"schema_version": 5, "last_committed_chapter": 1}), encoding="utf-8")
+        self.assertTrue(audiobook.committed_state(audiobook.Book(self.root), 1)[0])
+        state.write_text(json.dumps({"schema_version": 5, "last_committed_chapter": 0}), encoding="utf-8")
+        self.assertFalse(audiobook.committed_state(audiobook.Book(self.root), 1)[0])
+
     def test_relock_needs_flag(self):
         self.lock_cast()
         rc, out = self.run_cli("cast", "lock", "甲=zh_female_qinqienv_uranus_bigtts")

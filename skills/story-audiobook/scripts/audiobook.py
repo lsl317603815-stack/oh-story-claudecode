@@ -153,6 +153,13 @@ def committed_state(book: Book, n: int) -> Tuple[bool, str]:
         return True, "未建追踪（短篇或导入稿），不校验定稿回执"
     rec = track / "章节提交" / f"第{n:03d}章.json"
     if not rec.exists():
+        # 接纳回执协议之前定稿的章节没有回执，按追踪进度认定
+        try:
+            last = int(json.loads(read(track / "_tracking-state.json")).get("last_committed_chapter") or 0)
+        except (OSError, ValueError, TypeError):
+            last = 0
+        if n <= last:
+            return True, "已定稿（旧流程章节，没有接纳回执，按追踪进度认定）"
         return False, f"第 {n} 章还没有定稿回执（{rel(book, rec)}）"
     d = json.loads(read(rec))
     if d.get("status") != "committed":
