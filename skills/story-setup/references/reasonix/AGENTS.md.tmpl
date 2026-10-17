@@ -25,6 +25,7 @@ Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 
 | 资料研究 | story-research | 带来源的创作事实查证 |
 | 发布材料 | story-release-package | 整理已审批作品的发布文案与清单 |
 | 平台发布 | story-publish | 通过项目关联适配器预检、存草稿或正式发布 |
+| 有声书、配音、选音色、试音 | story-audiobook | 有声书 · 已定稿章节按角色卡选音色并试音，切成逐字有声稿后逐句合成 mp3 与字幕；需要 `ffmpeg` 与 `ARK_AGENT_PLAN_API_KEY` |
 | 网文工具箱 | story | 模糊意图自动分发 |
 | 准备写书 / 部署 | story-setup | 项目结构与 skill 使用入口 |
 | 浏览器登录态 / 抓取 | browser-cdp | 浏览器 CDP 工具；需平台允许本地脚本/浏览器控制 |
@@ -36,10 +37,11 @@ Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 
 - 涉及专业 Agent 的 Skill（story-review 多视角、story-long-write 的 narrative-writer/story-architect 等）按 solo/direct fallback 执行，并在结果里说明降级。
 - Windows 未启用 symlink 时改走根 `reasonix-plugin.json` 原生 plugin 安装。
 - `story-cover` 依赖 `GPT_IMAGE_API_KEY`，未配置时该 skill 不可用。
+- `story-audiobook` 依赖 `python3`、`ffmpeg` 与 `ARK_AGENT_PLAN_API_KEY`（火山方舟 Agent Plan），缺任一项时该 skill 不可用。
 
 ## 文件结构
 
-- `skills/` — 项目本地 skills，包含 oh-story 的 20 个 skill
+- `skills/` — 项目本地 skills，包含 oh-story 的 21 个 skill
 - `拆文库/` — 拆文分析结果存放目录
 - `{书名}/正文/` — 长篇小说正文章节
 - `{书名}/正文.md` — 短篇小说正文

@@ -1,6 +1,6 @@
 ---
 name: story-setup
-version: 1.6.0
+version: 1.7.0
 description: "网文写作工具集基础设施部署。为 Claude Code / OpenCode / Codex / ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix 提供内置适配；Web AI / 通用 Agent 可走 skills + AGENTS.md 文件模式。触发方式：/story-setup、$story-setup、「准备写书」「帮我搭一下环境」「配置写作项目」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
@@ -21,9 +21,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 > 判据是「有没有 `SKILL.md`」：只看正在执行的 `SKILL.md` 同级的 `references/`。项目内 `.claude/skills/story-setup/`、`.codex/skills/story-setup/` 和 OpenCode 的 `skills/story-setup/` 只有 `references/agent-references/`、不含 `SKILL.md`，不会是执行目录，也不要拿它们核对。ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix / generic 的项目副本是整份 skill 拷贝、自带 `SKILL.md`，10 个子目录本就齐全，照常核对即可。
 
 1. 检查当前目录是否已部署过（存在 `.story-deployed`）
-   - `agents_version` 缺失、非整数或小于 `43` → 标记为待更新，继续执行当前部署
-   - `agents_version: 43` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
-   - `agents_version` 大于 `43` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
+   - `agents_version` 缺失、非整数或小于 `44` → 标记为待更新，继续执行当前部署
+   - `agents_version: 44` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
+   - `agents_version` 大于 `44` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
    - 同时读 `target_cli` 字段。**已部署项目以 sentinel 里的值为准**：非空时（逗号分隔的多端组合原样保留）跳过下面第 5-14 步的环境探测与选择，直接按这些端重新部署。只有字段缺失或为空，才回落到探测。用户明确要求增删目标端时，用 AskUserQuestion 在现有值基础上改，改完的值写回 sentinel。
 2. 检查是否有书名目录（包含 `追踪/` 子目录的目录，或用户自定义结构）
    - 有 → 识别为长篇项目，显示当前项目信息
@@ -131,14 +131,14 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/scripts/copy-path-safety.py` | 每次递归目录复制前执行，不复制到项目 | story-setup helper | execute | same=no-op；祖先/后代嵌套=阻断；仅 safe 可复制 |
 | `skills/story-setup/references/agent-references/` | `.codex/skills/story-setup/references/agent-references/` | story-setup managed | replace | every reference resolves | target_cli 含 codex |
 | `skills/story-setup/references/zcode/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains ZCode `$story-*` routing and solo fallback | target_cli 含 zcode |
-| canonical repository `skills/{browser-cdp,story*}/` | `.zcode/skills/{browser-cdp,story*}/` | story-setup managed for 20 known skill names | replace known skill dirs only | `SKILL.md` 名字集与中文主包 20 Skill 清单一致并满足 ZCode frontmatter 限制 | target_cli 含 zcode |
-| `skills/story-setup/references/zcode/commands/` | `.zcode/commands/` | story-setup managed for 20 known command names | replace known command files only | commands have valid names/frontmatter and cover the canonical skill list | target_cli 含 zcode |
+| canonical repository `skills/{browser-cdp,story*}/` | `.zcode/skills/{browser-cdp,story*}/` | story-setup managed for 21 known skill names | replace known skill dirs only | `SKILL.md` 名字集与中文主包 21 Skill 清单一致并满足 ZCode frontmatter 限制 | target_cli 含 zcode |
+| `skills/story-setup/references/zcode/commands/` | `.zcode/commands/` | story-setup managed for 21 known command names | replace known command files only | commands have valid names/frontmatter and cover the canonical skill list | target_cli 含 zcode |
 | `skills/story-setup/references/zcode/hooks/story_zcode_hook.js` | `.zcode/hooks/story_zcode_hook.js` | story-setup managed | replace | Node syntax valid; hook contract tests pass | target_cli 含 zcode |
 | `skills/story-setup/references/zcode/hooks/story_hook_core.js` | `.zcode/hooks/story_hook_core.js` | story-setup managed | replace | Node syntax valid; hook contract tests pass | target_cli 含 zcode |
 | `skills/story-setup/references/zcode/config.json.patch` | merge into `.zcode/config.json` | user+managed | merge by event+matcher+process args | JSON valid; 按「ZCode 部署算法」第 4 步 hooks 互斥分支校验——未装 oh-story 插件时 `hooks.enabled=true`、only supported events；已装插件时校验 `.zcode/config.json` 不含（或已移除）这批 oh-story hooks 注册 | target_cli 含 zcode |
 | `skills/story-setup/references/trae/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains TRAE Code story routing and fallback contract | target_cli 含 trae |
-| canonical repository `skills/{browser-cdp,story*}/` | `.trae/skills/{skill-name}/` | story-setup managed for the fixed 20 source names | backup + replace managed dirs only | 目标 `SKILL.md` 数量/名字与中文主包 20 Skill 清单一致；源目标同一则 no-op | target_cli 含 trae |
-| `skills/story-setup/references/trae/commands/` | `.trae/commands/{skill-name}.md` | story-setup managed by `oh-story-managed` marker | backup + replace 20 managed files only | 每个 canonical skill 恰有一个同名 command，frontmatter 含 `name` / `description` | target_cli 含 trae |
+| canonical repository `skills/{browser-cdp,story*}/` | `.trae/skills/{skill-name}/` | story-setup managed for the fixed 21 source names | backup + replace managed dirs only | 目标 `SKILL.md` 数量/名字与中文主包 21 Skill 清单一致；源目标同一则 no-op | target_cli 含 trae |
+| `skills/story-setup/references/trae/commands/` | `.trae/commands/{skill-name}.md` | story-setup managed by `oh-story-managed` marker | backup + replace 21 managed files only | 每个 canonical skill 恰有一个同名 command，frontmatter 含 `name` / `description` | target_cli 含 trae |
 | `skills/story-setup/references/trae/agents/` | `.trae/agents/` | story-setup managed by `oh-story-managed` marker | backup + replace 精确通用名册（8 张） | 名字集精确为 `chapter-extractor`, `character-designer`, `consistency-checker`, `narrative-writer`, `revision-governor`, `story-architect`, `story-explorer`, `story-researcher`；TRAE frontmatter 可解析 | target_cli 含 trae |
 | repository `skills/story-data-analyze/agents/trae/` | `.trae/agents/` | story-setup managed by `oh-story-managed` marker | backup + replace 精确数据名册（5 张） | 名字集精确为 `story-data-fetcher`, `story-data-method-validator`, `story-data-metrics-analyst`, `story-data-supervisor`, `story-data-text-improvement-planner`；与通用角色无重名 | target_cli 含 trae |
 | `skills/story-setup/references/trae/rules/` | `.trae/rules/` | story-setup managed by `oh-story-managed` marker | backup + replace managed files only | rules frontmatter 含 `alwaysApply` / `globs` | target_cli 含 trae |
@@ -147,8 +147,8 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/scripts/merge-trae-hooks.py` | 部署时执行，不复制到项目 | story-setup helper | execute | 迁移旧 matcher/command、保留用户配置，重复执行字节幂等 | target_cli 含 trae |
 | `skills/story-setup/scripts/trae-core-ownership.py` + `references/trae/legacy-managed-sha256.json` | 部署时执行，不复制到项目 | story-setup ownership helper/registry | classify before replace | marker / legacy SHA 判 managed；unknown/error 保留并报告 | target_cli 含 trae |
 | `skills/story-setup/references/workbuddy/CODEBUDDY.md.tmpl` | 既有 `CODEBUDDY.md` / `.codebuddy/CODEBUDDY.md`，或无两者时的 `AGENTS.md` / `.codebuddy/CODEBUDDY.md` | user+managed | 按「WorkBuddy memory 合并策略」只合并 marker block | 无遮蔽已有 AGENTS；条件导入占位已解析；管理块唯一 | target_cli 含 workbuddy |
-| canonical repository `skills/{browser-cdp,story*}/` | `.codebuddy/skills/{skill-name}/` | story-setup managed for the fixed 20 source names | replace managed dirs only | `SKILL.md` 名字集与中文主包 20 Skill 清单一致；源目标同一则 no-op | target_cli 含 workbuddy |
-| `skills/story-setup/references/workbuddy/commands/` | `.codebuddy/commands/{skill-name}.md` | story-setup managed by `oh-story-managed` marker | replace 20 managed files only | commands 与 canonical skill 一一对应，frontmatter 仅用 CodeBuddy 支持字段 | target_cli 含 workbuddy |
+| canonical repository `skills/{browser-cdp,story*}/` | `.codebuddy/skills/{skill-name}/` | story-setup managed for the fixed 21 source names | replace managed dirs only | `SKILL.md` 名字集与中文主包 21 Skill 清单一致；源目标同一则 no-op | target_cli 含 workbuddy |
+| `skills/story-setup/references/workbuddy/commands/` | `.codebuddy/commands/{skill-name}.md` | story-setup managed by `oh-story-managed` marker | replace 21 managed files only | commands 与 canonical skill 一一对应，frontmatter 仅用 CodeBuddy 支持字段 | target_cli 含 workbuddy |
 | `skills/story-setup/references/workbuddy/agents/` | `.codebuddy/agents/` | story-setup managed by marker | replace 精确通用名册（8 张） | 名字集精确为 `chapter-extractor`, `character-designer`, `consistency-checker`, `narrative-writer`, `revision-governor`, `story-architect`, `story-explorer`, `story-researcher`；WorkBuddy frontmatter 合法，项目 Agent 名不带 plugin namespace | target_cli 含 workbuddy |
 | repository `skills/story-data-analyze/agents/workbuddy/` | `.codebuddy/agents/` | story-setup managed by marker | replace 精确数据物理名册（2 张） | 名字集精确为 `story-data-fetcher`, `story-data-readonly-runner`；4 张逻辑角色卡留在 Skill references | target_cli 含 workbuddy |
 | `skills/story-setup/references/workbuddy/rules/` | `.codebuddy/rules/` | story-setup managed by marker | replace managed files only | `alwaysApply` 可解析；用户 rules 保留 | target_cli 含 workbuddy |
@@ -158,7 +158,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/references/openclaw/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains OpenClaw story skill routing sections | target_cli 含 openclaw |
 | `skills/story-setup/references/generic/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains generic story skill routing sections | target_cli 含 generic |
 | `skills/story-setup/references/reasonix/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains Reasonix story skill routing sections and solo/direct fallback | target_cli 含 reasonix |
-| canonical repository `skills/{browser-cdp,story*}/` | `skills/{browser-cdp,story*}/` | story-setup managed for 20 known skill names | replace known skill dirs only | `SKILL.md` 名字集与中文主包 20 Skill 清单一致；OpenClaw 分支校验兼容 frontmatter | target_cli 含 openclaw 或 generic 或 reasonix |
+| canonical repository `skills/{browser-cdp,story*}/` | `skills/{browser-cdp,story*}/` | story-setup managed for 21 known skill names | replace known skill dirs only | `SKILL.md` 名字集与中文主包 21 Skill 清单一致；OpenClaw 分支校验兼容 frontmatter | target_cli 含 openclaw 或 generic 或 reasonix |
 | `skills/story-setup/references/agent-references/` | `skills/story-setup/references/agent-references/` | story-setup managed | replace via full skill copy | every reference resolves | target_cli 含 openclaw 或 generic 或 reasonix |
 
 ### opencode.json 合并算法
@@ -364,12 +364,12 @@ Codex 项目 hooks 部署到 `.codex/hooks.json`；运行脚本部署到 `.codex
 2. 已部署项目另外枚举这些可验证候选：当前已启用 plugin 的 `${CODEBUDDY_PLUGIN_ROOT}/skills/story-setup`、`~/.agents/skills/story-setup`、`~/.claude/skills/story-setup`、`~/.codex/skills/story-setup`，以及用户本次显式给出的本地安装目录。不搜索整个磁盘，不从网页或浮动仓库直接执行未验证内容。
 3. 候选只有在以下条件全部成立时才有效：`SKILL.md` frontmatter 的 `name=story-setup`、`version` 为可比较的三段数字 SemVer、`metadata.openclaw.source` 指向本 oh-story 仓库，且 Phase 1 列出的 references 与 helper 自检全部通过。无效候选只报告，不读其他内容。
 4. 在有效候选与 `bootstrap_root` 中按 SemVer 选最新完整包为 `canonical_root`；版本相同时优先项目外的安装包，版本较低的外部包不得反向降级项目。安装报告必须写出 `bootstrap_root`、`canonical_root`、各自版本/用途与选择原因。
-5. 后续模板、helper 与 20 个中文主包 Skill 全部从 `canonical_root` 读取；项目自定义 Skill 不进入 TRAE/WorkBuddy 本轮适配部署源，已有用户 Skill 保留不动。
+5. 后续模板、helper 与 21 个中文主包 Skill 全部从 `canonical_root` 读取；项目自定义 Skill 不进入 TRAE/WorkBuddy 本轮适配部署源，已有用户 Skill 保留不动。
 6. `copy-path-safety.py` 的 `status=same` 只让当前那一个 source/target 项 no-op；不得因项目内 `story-setup` 副本指向自身，就跳过从 `canonical_root` 刷新其他 Skills、Commands、Agents、Rules 和 Hooks。
 
 ### canonical 中文主包 Skill 清单（所有 skills 复制分支共用）
 
-1. `canonical_root/skills/` 必须精确包含这 20 个可部署 Skill：`browser-cdp`、`story`、`story-cover`、`story-data-analyze`、`story-deslop`、`story-drama-write`、`story-explore`、`story-grill`、`story-import`、`story-long-analyze`、`story-long-scan`、`story-long-write`、`story-publish`、`story-release-package`、`story-research`、`story-review`、`story-setup`、`story-short-analyze`、`story-short-scan`、`story-short-write`。
+1. `canonical_root/skills/` 必须精确包含这 21 个可部署 Skill：`browser-cdp`、`story`、`story-audiobook`、`story-cover`、`story-data-analyze`、`story-deslop`、`story-drama-write`、`story-explore`、`story-grill`、`story-import`、`story-long-analyze`、`story-long-scan`、`story-long-write`、`story-publish`、`story-release-package`、`story-research`、`story-review`、`story-setup`、`story-short-analyze`、`story-short-scan`、`story-short-write`。
 2. 按上述固定名字集读取每个 `SKILL.md` frontmatter 的 `name` / `description`；任一缺失、目录名与 `name` 不一致或重名时停止部署。不因项目根出现额外 `story*` 目录而扩张主包。
 3. 对每个源 Skill 目录与对应目标目录逐项执行 `copy-path-safety.py`；`same` 记录为 no-op，`unsafe/error` 停止，仅 `safe` 可复制。不对整个用户 skills 根目录做删除或整体替换。
 
@@ -384,7 +384,7 @@ Codex 项目 hooks 部署到 `.codex/hooks.json`；运行脚本部署到 `.codex
 
 ZCode 首版部署 Skills、Commands、AGENTS.md 和支持事件内的 Hooks；不部署 `.zcode/agents` 或 `.zcode/rules`。
 
-1. 按「canonical 中文主包 Skill 清单」复制到 `.zcode/skills/{skill-name}/`；仅替换这 20 个已知目录，保留用户其他 Skills。
+1. 按「canonical 中文主包 Skill 清单」复制到 `.zcode/skills/{skill-name}/`；仅替换这 21 个已知目录，保留用户其他 Skills。
 2. 复制 `references/zcode/commands/*.md` 到 `.zcode/commands/`；仅替换与 canonical skill 同名的管理命令，保留用户其他 Commands。若主包某个 skill 缺预生成模板，视为包不完整并停止，不临时为项目扩展生成 command。
 3. 复制 `references/zcode/hooks/story_zcode_hook.js` 和 `references/zcode/hooks/story_hook_core.js` 到 `.zcode/hooks/`。
 4. 读取 `references/zcode/config.json.patch` 和现有 `.zcode/config.json`（如只有根 `zcode.json`，仍创建 `.zcode/config.json` 承载 oh-story 项目 Hooks，不改写根文件）：
@@ -409,15 +409,15 @@ Plugin 安装不经过本算法：仓库根 `.zcode-plugin/plugin.json` 直接�
 
 TRAE 分支部署原生 Skills / Subagents / Commands / Rules / Hooks，不走 generic skills-only 降级模式。
 
-1. 按「canonical 中文主包 Skill 清单」确认固定 20 个 Skill。在任何写入前，按「TRAE 归属与备份门」为本次将改动的已存管理资产建立带 UTC 时间戳的备份；遇到无 `oh-story-managed` 标记的同名文件则保留、记录冲突并停止该资产写入。
-2. 逐项过 `copy-path-safety.py` 后，把 20 个 canonical Skill 复制到 `.trae/skills/{skill-name}/`。目标缺失则创建；已是 oh-story skill（`SKILL.md` 的 `metadata.openclaw.source` 指向本仓库，或含精确标记 `<!-- oh-story-managed: skill/{skill-name} -->`）才可备份后替换。现有 sentinel 不能代替单个 Skill 的归属证据；无证据则保留并报告。`status=same` 的 Skill 只验证，不复制进自身。
-3. 对 20 个 canonical 名字逐一部署 `references/trae/commands/{name}.md`；任一模板缺失即按部署包不完整停止，不为项目额外 Skill 生成 fallback command。只替换带相同管理标记的文件。
+1. 按「canonical 中文主包 Skill 清单」确认固定 21 个 Skill。在任何写入前，按「TRAE 归属与备份门」为本次将改动的已存管理资产建立带 UTC 时间戳的备份；遇到无 `oh-story-managed` 标记的同名文件则保留、记录冲突并停止该资产写入。
+2. 逐项过 `copy-path-safety.py` 后，把 21 个 canonical Skill 复制到 `.trae/skills/{skill-name}/`。目标缺失则创建；已是 oh-story skill（`SKILL.md` 的 `metadata.openclaw.source` 指向本仓库，或含精确标记 `<!-- oh-story-managed: skill/{skill-name} -->`）才可备份后替换。现有 sentinel 不能代替单个 Skill 的归属证据；无证据则保留并报告。`status=same` 的 Skill 只验证，不复制进自身。
+3. 对 21 个 canonical 名字逐一部署 `references/trae/commands/{name}.md`；任一模板缺失即按部署包不完整停止，不为项目额外 Skill 生成 fallback command。只替换带相同管理标记的文件。
 4. 按「部署 TRAE Agents」与「TRAE / WorkBuddy 固定 Agent 名册」把通用 8 名与 TRAE 数据 5 名的精确并集（13 张）部署到 `.trae/agents/`。仅 Agent 内置 Agent 才能调用子 Agent；skill 流程遇到子 Agent 不可用必须走已定义的 `solo/direct` fallback。
 5. 将 `references/trae/rules/*.md` 写入 `.trae/rules/`，只替换带 `<!-- oh-story-managed: rule/... -->` 标记的文件；TRAE rule frontmatter 使用 `alwaysApply: false` 和 `globs`，不复制 Claude `paths` frontmatter。将 `references/trae/AGENTS.md.tmpl` 按「AGENTS.md 合并策略」写入根 `AGENTS.md`，只替换 `<!-- BEGIN oh-story-managed: trae -->` 与 `<!-- END oh-story-managed: trae -->` 之间的块，保留用户其他段落。
 6. 将 `references/trae/hooks/story_trae_hook.js` 与 `story_hook_core.js` 写入 `.trae/hooks/`；runner 只替换头注释证明为 oh-story TRAE adapter 的同名文件。既有 shared core 必须先运行 `trae-core-ownership.py --candidate <文件> --registry references/trae/legacy-managed-sha256.json`，或证明与同项目受信 sibling core 字节一致；退出 3（unmanaged）/2（registry error）都保留并报告，不覆盖。替换后执行 `node --check` 与跨 adapter byte-parity 校验，再按「TRAE hooks.json 合并算法」合并 `.trae/hooks.json`；禁止用模板整体覆盖用户配置。
    Windows 的原生 `RunCommand` 由 PowerShell 提供，runner 必须同时覆盖已测试的静态 `Set-Content`、`Add-Content`、`Out-File`、`Copy-Item`、`Move-Item`、`New-Item` 写盘形式；动态表达式、splatting、`.NET` API 和未识别外部程序仍由 Skill 自检与写后门兜底，不得声称全部 PowerShell 写入都能在 PreToolUse 硬拦。
-7. 校验 `.trae/skills/` 与 `.trae/commands/` 的受管名字集都精确等于 canonical 20，受管 Agent 名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的 TRAE 13 名并集，rule/hooks/AGENTS 标记齐全，hooks 契约测试通过。用户其他 `.trae` 资产必须仍在。
-8. `.story-deployed` 的 `target_cli` 写 `trae` 或多端组合，`references_dir` 写 `.trae/skills/story-setup/references/agent-references`。安装报告列出备份目录、冲突/no-op、20 Skill / 20 Command / 13 Agent 验证结果与 Agent 可用性，并提示新开 TRAE 会话刷新 Skills / Commands / Rules / Subagents / Hooks。
+7. 校验 `.trae/skills/` 与 `.trae/commands/` 的受管名字集都精确等于 canonical 21，受管 Agent 名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的 TRAE 13 名并集，rule/hooks/AGENTS 标记齐全，hooks 契约测试通过。用户其他 `.trae` 资产必须仍在。
+8. `.story-deployed` 的 `target_cli` 写 `trae` 或多端组合，`references_dir` 写 `.trae/skills/story-setup/references/agent-references`。安装报告列出备份目录、冲突/no-op、21 Skill / 21 Command / 13 Agent 验证结果与 Agent 可用性，并提示新开 TRAE 会话刷新 Skills / Commands / Rules / Subagents / Hooks。
 
 ### WorkBuddy settings.json 合并算法（target_cli 含 workbuddy 时）
 
@@ -431,12 +431,12 @@ TRAE 分支部署原生 Skills / Subagents / Commands / Rules / Hooks，不走 g
 
 WorkBuddy Desktop 内嵌 CodeBuddy Code CLI；项目模式原生发现 `.codebuddy/skills/`、`.codebuddy/commands/`、`.codebuddy/agents/`、`.codebuddy/rules/` 与 `.codebuddy/settings.json`。不得把它降级成 generic skills-only。
 
-1. 按「canonical 中文主包 Skill 清单」复制 20 个 Skill 到 `.codebuddy/skills/{skill-name}/`；只替换能由本仓库 metadata 或精确 marker 证明归属的主包目录，保留用户其他 Skills。源目标相同时记 no-op。
-2. 对 20 个 canonical Skill 逐一复制 `references/workbuddy/commands/{name}.md` 到 `.codebuddy/commands/{name}.md`；模板缺失即按包不完整停止，不为项目扩展生成 fallback command。这里是项目裸命令 `/story-*`；plugin manifest 不加载这批 Commands。
+1. 按「canonical 中文主包 Skill 清单」复制 21 个 Skill 到 `.codebuddy/skills/{skill-name}/`；只替换能由本仓库 metadata 或精确 marker 证明归属的主包目录，保留用户其他 Skills。源目标相同时记 no-op。
+2. 对 21 个 canonical Skill 逐一复制 `references/workbuddy/commands/{name}.md` 到 `.codebuddy/commands/{name}.md`；模板缺失即按包不完整停止，不为项目扩展生成 fallback command。这里是项目裸命令 `/story-*`；plugin manifest 不加载这批 Commands。
 3. 按「部署 WorkBuddy Agents」与「TRAE / WorkBuddy 固定 Agent 名册」把通用 8 名与 WorkBuddy 数据物理 2 名的精确并集（10 张）部署到 `.codebuddy/agents/`；项目卡使用裸 agent 名，由 `Agent` 工具的 `subagent_type` 字段调用。数据分析的四个只读逻辑角色按映射调用 pooled runner，不把逻辑卡复制到 registry。plugin-only 名称 `oh-story:<name>` 只能在当前 registry 真实返回时使用。
 4. 将 `references/workbuddy/rules/*.md` 合并到 `.codebuddy/rules/`，只替换同管理标记文件；再按「WorkBuddy memory 合并策略」处理当前唯一生效的 memory 文件，禁止用一份很短的 CODEBUDDY 文件遮住已有 `AGENTS.md`。
 5. 按「WorkBuddy settings.json 合并算法」选择 project-local 或 plugin 互斥分支，并运行 Node 语法、共享 core byte-parity、中文正文写前/写后门与合并幂等 fixture。Windows 若使用 PowerShell，只有专项 fixture 已覆盖的静态写入命令属于硬门；动态表达式、splatting、.NET API 或未识别外部写盘程序仍必须依赖 Skill 自检与写后兜底，安装报告不得声称“所有 PowerShell 写入均可硬拦截”。
-6. 校验 `.codebuddy/skills/` 与 `.codebuddy/commands/` 的受管名字集精确等于 canonical 20，受管 Agent 名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的 WorkBuddy 10 名并集，rule/memory marker 唯一，用户其他 `.codebuddy` 资产仍在。校验 pooled runner 的四个逻辑角色映射全集、唯一且指向 Skill 内真实卡；若本机可找到 WorkBuddy 内嵌或独立 `codebuddy`，还要在仓库根运行 `codebuddy plugin validate .` 验证 plugin manifest；命令不可用时明确记为未执行，不能伪称通过。
+6. 校验 `.codebuddy/skills/` 与 `.codebuddy/commands/` 的受管名字集精确等于 canonical 21，受管 Agent 名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的 WorkBuddy 10 名并集，rule/memory marker 唯一，用户其他 `.codebuddy` 资产仍在。校验 pooled runner 的四个逻辑角色映射全集、唯一且指向 Skill 内真实卡；若本机可找到 WorkBuddy 内嵌或独立 `codebuddy`，还要在仓库根运行 `codebuddy plugin validate .` 验证 plugin manifest；命令不可用时明确记为未执行，不能伪称通过。
 7. `.story-deployed` 的 `target_cli` 写 `workbuddy` 或多端组合，`references_dir` 写 `.codebuddy/skills/story-setup/references/agent-references`。安装报告分别列出：project 命令 `/story-*`；plugin-only Skill `/oh-story:story-*`；Hook 当前唯一注册源；Agent registry 结果；PowerShell 硬门边界。部署后完整执行 `references/workbuddy/runtime-activation.md`，新开 WorkBuddy / CodeBuddy 会话刷新发现结果；未进 `/skills`、`/agents`、`/hooks` 实际确认时只能报告静态/合成运行时通过。
 
 Plugin 安装不经过项目复制算法：仓库根 `.codebuddy-plugin/plugin.json` 是唯一规范 manifest，路径均以 `./` 开头，只暴露 Skills、Agents、Hooks，不暴露同名 Commands。plugin hooks 与项目 hooks 必须互斥；即使随后运行了项目 `story-setup` 部署 Skills/Commands/Agents/Rules，也仍以 plugin hooks 为唯一注册源，并用 `disabled-hooks.json` 清掉项目旧注册。
@@ -444,7 +444,7 @@ Plugin 安装不经过项目复制算法：仓库根 `.codebuddy-plugin/plugin.j
 ### 管理资产收敛与减端（TRAE / WorkBuddy 必做）
 
 1. Phase 1 在修改 `target_cli` 前同时保存 `previous_targets` 与 `desired_targets`。先完成新端部署和被移除端的退役，全部验证通过后才原子写回 sentinel；不得先改 `.story-deployed` 再留下仍会被平台发现的旧资产。
-2. 目标端仍保留时也要做名字集收敛：Skill / Command 以 canonical 20 为唯一名册，TRAE Agent 以「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + TRAE 数据 5 名（共 13 张）为唯一名册，WorkBuddy Agent 以同节列出的通用 8 名 + WorkBuddy 数据物理 2 名（共 10 张）为唯一名册。将已有精确管理标记/仓库 metadata、但已不在对应精确名字集中的 Skill / Command / Agent / Rule 列为 stale managed assets。先备份，再只删这些可证归属的 stale 项；无标记同名项永不删。删后只在目录真的为空时移除空目录。
+2. 目标端仍保留时也要做名字集收敛：Skill / Command 以 canonical 21 为唯一名册，TRAE Agent 以「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + TRAE 数据 5 名（共 13 张）为唯一名册，WorkBuddy Agent 以同节列出的通用 8 名 + WorkBuddy 数据物理 2 名（共 10 张）为唯一名册。将已有精确管理标记/仓库 metadata、但已不在对应精确名字集中的 Skill / Command / Agent / Rule 列为 stale managed assets。先备份，再只删这些可证归属的 stale 项；无标记同名项永不删。删后只在目录真的为空时移除空目录。
 3. 从 `previous_targets` 移除 `trae` 时：
    - 对即将改动的 `.trae/` 管理资产建立 `.trae/.oh-story-backups/<UTC时间戳>/` 完整相对路径备份；
    - 用 `merge-trae-hooks.py --template references/trae/hooks/disabled-hooks.json` 从 `.trae/hooks.json` 移除且仅移除 `story_trae_hook.js` 注册，保留用户 hooks/顶层字段，并复跑确认字节幂等；
@@ -461,8 +461,8 @@ Plugin 安装不经过项目复制算法：仓库根 `.codebuddy-plugin/plugin.j
 
 OpenClaw Phase 1 只部署 skills，不部署 OpenClaw agents/hooks/plugin。
 
-1. 按「canonical 中文主包 Skill 清单」读取固定 20 个 Skill 目录。
-2. 写入目标项目 `skills/{skill-name}/`，仅替换这 20 个 story-setup 管理目录；保留用户在 `skills/` 下的其他目录，且不将它们注入中文主包。
+1. 按「canonical 中文主包 Skill 清单」读取固定 21 个 Skill 目录。
+2. 写入目标项目 `skills/{skill-name}/`，仅替换这 21 个 story-setup 管理目录；保留用户在 `skills/` 下的其他目录，且不将它们注入中文主包。
 3. 每个 `SKILL.md` 必须满足 OpenClaw frontmatter 约束：`name` / `description` 是单行键值，`metadata` 是单行 JSON 对象且含 `metadata.openclaw`。
 4. 复制 `skills/story-setup/references/openclaw/AGENTS.md.tmpl` 到项目 `AGENTS.md`，按「AGENTS.md 合并策略」合并。
 5. `.story-deployed` 的 `target_cli` 写入 `openclaw` 或多端组合；`references_dir` 对 OpenClaw 写 `skills/story-setup/references/agent-references`。
@@ -472,7 +472,7 @@ OpenClaw Phase 1 只部署 skills，不部署 OpenClaw agents/hooks/plugin。
 
 Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不部署 Reasonix hooks/custom agents（hook I/O 契约与子代理行为缺少可校验的真实 CLI，留待后续阶段）。
 
-1. 按「canonical 中文主包 Skill 清单」复制固定 20 个 Skill 到目标项目 `skills/{skill-name}/`；仅替换这些 story-setup 管理的已知目录，保留用户其他目录。
+1. 按「canonical 中文主包 Skill 清单」复制固定 21 个 Skill 到目标项目 `skills/{skill-name}/`；仅替换这些 story-setup 管理的已知目录，保留用户其他目录。
 2. 在项目根创建 `.agents/skills → ../skills` 相对 symlink（与 Codex 共用的 skill root），使 Reasonix 原生扫描 `.agents/skills` 时发现这些 skill；若已是指向 `skills/` 的 symlink 则保留，若被占用为普通目录则不覆盖并在安装报告提示。Windows 未启用 symlink 时跳过本步，改走根 `reasonix-plugin.json` 的 `reasonix plugin install`。
 3. 复制 `skills/story-setup/references/reasonix/AGENTS.md.tmpl` 到项目 `AGENTS.md`，按「AGENTS.md 合并策略」合并。
 4. 校验 `skills/story-setup/references/agent-references/` 已随完整的 `story-setup` skill 复制到位。若当前执行源就是项目内同一路径，安全预检返回 `same`，本步必须作为 no-op，禁止再把目录复制进自身。
@@ -483,7 +483,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 
 通用路径面向 NarraFork、Web AI、自定义 Agent 等可读取项目文件的环境，只部署通用文件，不声明平台原生 hooks/agents 能力。
 
-1. 按「canonical 中文主包 Skill 清单」复制固定 20 个 Skill 到目标项目 `skills/{skill-name}/`；仅替换这些 story-setup 管理的已知目录，保留用户其他目录。
+1. 按「canonical 中文主包 Skill 清单」复制固定 21 个 Skill 到目标项目 `skills/{skill-name}/`；仅替换这些 story-setup 管理的已知目录，保留用户其他目录。
 2. 复制 `skills/story-setup/references/generic/AGENTS.md.tmpl` 到项目 `AGENTS.md`，按「AGENTS.md 合并策略」合并。
 3. 校验 `skills/story-setup/references/agent-references/` 已随完整的 `story-setup` skill 复制到位。若当前执行源就是项目内同一路径，安全预检返回 `same`，本步必须作为 no-op，禁止再把目录复制进自身。
 4. `.story-deployed` 的 `target_cli` 写入 `generic` 或多端组合；`references_dir` 对 generic 写 `skills/story-setup/references/agent-references`。
@@ -511,15 +511,15 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 - 写入以下字段（YAML `key: value` 格式，hook 用 `references/templates/hooks/lib/sentinel.sh` 读取）：
   ```
   deployed_at: <date -u +"%Y-%m-%dT%H:%M:%SZ">
-  agents_version: 43
-  setup_skill_version: 1.6.0
+  agents_version: 44
+  setup_skill_version: 1.7.0
   target_cli: claude-code（或 opencode、codex、zcode、trae、workbuddy、openclaw、reasonix、generic，或其任意组合）
   resolver_strategy: project-local-skill-reference
   references_dir: .claude/skills/story-setup/references/agent-references（Codex 写 .codex/skills/...；ZCode 写 .zcode/skills/...；TRAE 写 .trae/skills/...；WorkBuddy 写 .codebuddy/skills/...；OpenClaw / Reasonix / generic 写 skills/...；多端用逗号分隔）
   ```
 - 此文件供 session-start.sh 和写作 skill 检测部署状态，避免重复提示
 - target_cli 含 claude-code 时，同时创建一次性标记文件 `.claude/.agents-pending-restart`（空文件即可）。session-start.sh 在下一个会话启动时据此确认 agents 已随新会话注册，并自动删除该标记——用来向用户确认「重启已生效」。ZCode 不创建该标记，因为它不部署项目 agents。
-- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `43`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `43` 时已在 Phase 1 停止，不得降级覆盖
+- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `44`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `44` 时已在 Phase 1 停止，不得降级覆盖
 
 ## Phase 3：验证安装
 
@@ -536,7 +536,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
    - 检查 `.claude/skills/story-setup/references/agent-references/` 下 reference 文件完整
    - 检查所有 `story-setup/references/agent-references/<file>.md` 都能解析到 deployed bundle
 5. 验证部署标记：
-   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 43`、`setup_skill_version: 1.6.0`、`target_cli`、`resolver_strategy`、`references_dir`
+   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 44`、`setup_skill_version: 1.7.0`、`target_cli`、`resolver_strategy`、`references_dir`
 6. 输出安装报告：
    - 列出所有已部署的文件
    - 列出需要注意的事项（如已有配置已合并）
@@ -585,7 +585,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 安装报告必须提示：Codex 需要 trust 项目 `.codex/` 配置层，并在 `/hooks` review/trust 非 managed hooks；部署后新开 Codex 会话让 custom agents 生效；若当前运行时仍返回 `unknown agent_type`，按各 skill 的 fallback 规则降级 solo/direct
 9. 验证 ZCode 部署（仅当 target_cli 含 zcode 时）：
     - 检查根 `AGENTS.md` 含 ZCode `$story-*` 路由、大纲守卫和 solo/direct fallback
-    - 按「canonical 中文主包 Skill 清单」检查 `.zcode/skills/` 与 `.zcode/commands/` 精确为 20 个名字，验证 frontmatter 和命名一致
+    - 按「canonical 中文主包 Skill 清单」检查 `.zcode/skills/` 与 `.zcode/commands/` 精确为 21 个名字，验证 frontmatter 和命名一致
     - 检查 `.zcode/hooks/story_zcode_hook.js`、`.zcode/hooks/story_hook_core.js` 存在且 `node --check` 通过
     - 检查 `.zcode/config.json` JSON 有效，并按「ZCode 部署算法」第 4 步的 hooks 互斥分支校验：未装 oh-story 插件时，`hooks.enabled=true`、仅注册 ZCode 支持事件、所有 `process` args 指向项目 Hook；已装 oh-story 插件（`.zcode-plugin/plugin.json` 已全局注册这批 hooks）时，改为校验 `.zcode/config.json` 不含（或已移除）这批 oh-story hooks 注册——**不得**为了让校验通过而把 `config.json.patch` 的 hooks 块合并回去，否则同一事件双触发
     - 检查 `.zcode/skills/story-setup/references/agent-references/` 完整且所有 reference 路径可解析
@@ -593,7 +593,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 安装报告必须提示：ZCode 3.3.4 不执行项目/plugin custom agents，full/lean 多 Agent 请求会稳定降级 solo/direct；Hook 依赖 PATH 中的 `node`；部署后新开 ZCode session 刷新 Skills/Commands/AGENTS.md
 10. 验证 TRAE Code 部署（仅当 target_cli 含 trae 时）：
     - 检查根 `AGENTS.md` 只有一个完整 `oh-story-managed: trae` 管理块，用户其他段落仍在
-    - 检查 `.trae/skills/` 与 `.trae/commands/` 的受管名字集均精确等于 canonical 20；每个 skill 有 `SKILL.md`，每个 command 有 `name` / `description` 与 `oh-story-managed` 标记
+    - 检查 `.trae/skills/` 与 `.trae/commands/` 的受管名字集均精确等于 canonical 21；每个 skill 有 `SKILL.md`，每个 command 有 `name` / `description` 与 `oh-story-managed` 标记
     - 检查 `.trae/agents/` 的受管名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + TRAE 数据 5 名（共 13 张），frontmatter 可解析、`name` 唯一、无 Claude-only 字段，管理标记齐全
     - 检查 `.trae/rules/` 的管理文件包含 `alwaysApply` / `globs`，不含 Claude `paths` frontmatter
     - 检查 `.trae/hooks/story_trae_hook.js`、`story_hook_core.js` 存在且 `node --check` 通过；`.trae/hooks.json` 是 `version: 1`，只使用 TRAE 支持事件和 `{type,command,timeout}` hook schema，matcher 覆盖 `RunCommand|Write|Edit`，不得出现 `SubagentStop`
@@ -601,25 +601,25 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 检查 `.claude/settings*.json` 的 oh-story 命令保持直接 `bash ...`（不得内嵌仅 POSIX 可解析的 `if`）；所有 Claude 入口都 source 含 `TRAE_PROJECT_DIR` 静默退出逻辑的 `lib/common.sh`。用同一 PreToolUse fixture 证明 Claude 导入 Hook 在 TRAE 下无输出、TRAE 原生 Hook 只执行一次
     - 安装报告必须列出 `.trae/.oh-story-backups/` 本次备份位置和任何冲突/no-op，并提示：在 TRAE Settings 的 Hooks 页面 review/enable 本项目 Hooks，确认项目 `AGENTS.md` / Rules 导入已启用，然后新开 TRAE 会话刷新原生 Skills / Commands / Rules / Subagents / Hooks；若 Subagents Beta 不可用，full/lean 多 Agent 请求必须报告 `Fallback: TRAE subagent unavailable -> solo/direct`
 11. 验证 WorkBuddy / CodeBuddy Code 部署（仅当 target_cli 含 workbuddy 时）：
-    - 检查 `.codebuddy/skills/` 与 `.codebuddy/commands/` 的受管名字集均精确等于 canonical 20；每个 command 有合法 frontmatter 与管理标记
+    - 检查 `.codebuddy/skills/` 与 `.codebuddy/commands/` 的受管名字集均精确等于 canonical 21；每个 command 有合法 frontmatter 与管理标记
     - 检查 `.codebuddy/agents/` 的受管名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + WorkBuddy 数据物理 2 名（共 10 张），总数不超过 19，名称唯一，frontmatter 只使用 CodeBuddy 支持字段；pooled runner 的每个逻辑角色都必须唯一映射到 Skill 内真实卡。新会话中分别实调基础 Agent、`story-data-fetcher` 和 pooled runner 的一个逻辑角色，成功后才允许报告多 Agent 模式生效；设置页“全部开启”不能代替 Task registry 证据
     - 检查 `.codebuddy/rules/` 和唯一生效 memory 文件的管理块；项目原有 `AGENTS.md` 内容必须仍被直接读取或通过 `@AGENTS.md` / `@../AGENTS.md` 导入，模板条件占位不得残留；根与 `.codebuddy/` 两份 CODEBUDDY 同时存在时必须报告冲突而不是猜优先级
     - 检查 `.codebuddy/settings.json` 保留用户字段，且按互斥分支验证：project-local 模式当前 4 个 oh-story Hook 注册各恰好一次，事件只有 `SessionStart` / `PreToolUse` / `PostToolUse`；plugin 模式项目注册为零。运行 helper 两次必须字节幂等
-    - 用 fixture 调用 SessionStart（含 agents_version 42/43/44）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
+    - 用 fixture 调用 SessionStart（含 agents_version 43/44/45）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
     - 检查 plugin manifest 不含与 Skills 同名的 `commands` 字段，所有自定义路径以 `./` 开头；可用时运行真实 `codebuddy plugin validate .`。安装报告明确 project `/story-*` 与 plugin `/oh-story:story-*` 的差异、唯一 Hook 来源、PowerShell 硬门边界，并提示新开会话
 12. 验证 OpenClaw 部署（仅当 target_cli 含 openclaw 时）：
     - 检查 `AGENTS.md` 含 OpenClaw story skill routing sections
-    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 20 个目标 Skill，且每个 `SKILL.md` 包含单行 `name`、单行 `description`、单行 JSON `metadata.openclaw`
+    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 21 个目标 Skill，且每个 `SKILL.md` 包含单行 `name`、单行 `description`、单行 JSON `metadata.openclaw`
     - 检查 `skills/story-setup/references/agent-references/` 下 reference 文件完整且数量与源目录一致
     - 安装报告必须提示：OpenClaw Phase 1 是 skills-only；未部署 OpenClaw agents/hooks，运行时硬拦截不可用，写正文前大纲守卫、commit 提醒、session/compact 自动注入只作为 skill 内软约束；OpenClaw 在 session 启动时 snapshot eligible skills，部署后如命令/skills 未出现，需新开 OpenClaw session 或等待 skills watcher 刷新
 13. 验证通用 Web AI / 其他 Agent 部署（仅当 target_cli 含 generic 时）：
     - 检查 `AGENTS.md` 含通用 story skill routing sections
-    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 20 个目标 Skill，且每个 `SKILL.md` 可读
+    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 21 个目标 Skill，且每个 `SKILL.md` 可读
     - 检查 `skills/story-setup/references/agent-references/` 下 reference 文件完整且数量与源目录一致
     - 安装报告必须提示：generic 不部署平台专属 hooks/custom agents；大纲守卫、commit 提醒、session/compact 注入等硬拦截与多 agent 协作都按 skill 内软约束或 solo/direct fallback 执行
 14. 验证 Reasonix 部署（仅当 target_cli 含 reasonix 时）：
     - 检查 `AGENTS.md` 含 Reasonix story skill routing sections 与 solo/direct fallback 说明
-    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 20 个目标 Skill，且每个 `SKILL.md` 可读
+    - 按「canonical 中文主包 Skill 清单」检查 `skills/` 下固定 21 个目标 Skill，且每个 `SKILL.md` 可读
     - 检查项目 `.agents/skills` 为指向 `skills/` 的 symlink（POSIX；使 Reasonix 原生扫描发现 skill）；Windows 未建 symlink 时改为确认根 `reasonix-plugin.json` 可用于 `reasonix plugin install`
     - 检查 `skills/story-setup/references/agent-references/` 下 reference 文件完整且数量与源目录一致
     - 安装报告必须提示：Reasonix 当前是 skills-only；未部署 Reasonix hooks/custom agents，写正文前大纲守卫、commit 提醒、session/compact 自动注入只作为 skill 内软约束，涉及专业 Agent 的 Skill 走 solo/direct fallback；可用 `reasonix doctor capabilities` 校验 skill 发现，部署后如未显示新 skills，新开 Reasonix session 或走根 `reasonix-plugin.json` 原生 plugin 安装
@@ -669,9 +669,9 @@ CodeBuddy 把根 `CODEBUDDY.md` 与 `.codebuddy/CODEBUDDY.md` 作为项目 memor
 ## 重新部署
 
 - `.story-deployed` 不存在 → 全新安装，Phase 2 全部执行
-- `.story-deployed` 存在且 `agents_version: 43` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
-- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `43` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
-- `.story-deployed` 存在且 `agents_version` 大于 `43` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
+- `.story-deployed` 存在且 `agents_version: 44` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
+- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `44` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
+- `.story-deployed` 存在且 `agents_version` 大于 `44` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
 
 ---
 

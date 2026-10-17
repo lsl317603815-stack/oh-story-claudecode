@@ -1590,6 +1590,8 @@ def cmd_close(args: argparse.Namespace) -> int:
     write_progress(project)
     append_deslop_corpus(project, chapter, getattr(args, "corpus_pool", None))
     print(receipt)
+    if (project / "有声书" / "选角.json").is_file():
+        print(f"提示：本书已选角，可用 /story-audiobook 生成第 {chapter} 章有声书（不会自动生成）。", file=sys.stderr)
     return 0
 
 

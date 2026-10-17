@@ -24,11 +24,12 @@ import zipfile
 PROJECT_NAME = "oh-story"
 SCHEMA_VERSION = 1
 SKILLS_CLI_VERSION = "1.5.22"
-DEFAULT_EXPECTED_SKILLS = 20
+DEFAULT_EXPECTED_SKILLS = 21
 CANONICAL_SKILL_NAMES = frozenset(
     {
         "browser-cdp",
         "story",
+        "story-audiobook",
         "story-cover",
         "story-data-analyze",
         "story-deslop",
@@ -508,7 +509,7 @@ def _verify_claude_plugin_inventory(document: object) -> None:
         if unexpected:
             details.append("unexpected: {}".format(", ".join(unexpected)))
         raise VerificationError(
-            "{} plugin names do not match the canonical 20-skill inventory ({})".format(
+            "{} plugin names do not match the canonical 21-skill inventory ({})".format(
                 label, "; ".join(details)
             )
         )
@@ -704,7 +705,7 @@ def _verify_chinese_product_inventory(
         if unexpected:
             details.append("unexpected: {}".format(", ".join(unexpected)))
         raise VerificationError(
-            "ZIP does not contain the exact canonical 20-skill Chinese inventory ({})".format(
+            "ZIP does not contain the exact canonical 21-skill Chinese inventory ({})".format(
                 "; ".join(details)
             )
         )
@@ -948,7 +949,7 @@ def _parser() -> argparse.ArgumentParser:
         "--expected-skills",
         type=_positive_integer,
         default=DEFAULT_EXPECTED_SKILLS,
-        help="expected discovery count for --install-smoke (default: 20)",
+        help="expected discovery count for --install-smoke (default: 21)",
     )
     return parser
 

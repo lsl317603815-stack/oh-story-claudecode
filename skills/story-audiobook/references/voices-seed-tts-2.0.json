@@ -1,0 +1,559 @@
+{
+ "说明": "豆包语音合成模型 2.0（seed-tts-2.0）中文音色，取自火山引擎官方音色列表 https://docs.volcengine.com/docs/6561/1257544 （2026-10-17 抓取）。避用=IP 角色音或不适合小说的音色，选角时不推荐。",
+ "音色": [
+  {
+   "voice": "zh_female_vv_uranus_bigtts",
+   "音色名": "Vivi",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_xiaohe_uranus_bigtts",
+   "音色名": "小何",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_m191_uranus_bigtts",
+   "音色名": "云舟",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_taocheng_uranus_bigtts",
+   "音色名": "小天",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_liufei_uranus_bigtts",
+   "音色名": "刘飞",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_sophie_uranus_bigtts",
+   "音色名": "魅力苏菲",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_qingxinnvsheng_uranus_bigtts",
+   "音色名": "清新女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_cancan_uranus_bigtts",
+   "音色名": "知性灿灿",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_female_sajiaoxuemei_uranus_bigtts",
+   "音色名": "撒娇学妹",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_female_tianmeixiaoyuan_uranus_bigtts",
+   "音色名": "甜美小源",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_tianmeitaozi_uranus_bigtts",
+   "音色名": "甜美桃子",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_shuangkuaisisi_uranus_bigtts",
+   "音色名": "爽快思思",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_peiqi_uranus_bigtts",
+   "音色名": "佩奇猪",
+   "性别": "女",
+   "场景": "视频配音",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_linjianvhai_uranus_bigtts",
+   "音色名": "邻家女孩",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_shaonianzixin_uranus_bigtts",
+   "音色名": "少年梓辛",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_sunwukong_uranus_bigtts",
+   "音色名": "猴哥",
+   "性别": "男",
+   "场景": "视频配音",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_yingyujiaoxue_uranus_bigtts",
+   "音色名": "Tina老师",
+   "性别": "女",
+   "场景": "教育场景"
+  },
+  {
+   "voice": "zh_female_kefunvsheng_uranus_bigtts",
+   "音色名": "暖阳女声",
+   "性别": "女",
+   "场景": "客服场景"
+  },
+  {
+   "voice": "zh_female_xiaoxue_uranus_bigtts",
+   "音色名": "儿童绘本",
+   "性别": "女",
+   "场景": "有声阅读"
+  },
+  {
+   "voice": "zh_male_dayi_uranus_bigtts",
+   "音色名": "大壹",
+   "性别": "男",
+   "场景": "视频配音"
+  },
+  {
+   "voice": "zh_female_mizai_uranus_bigtts",
+   "音色名": "黑猫侦探社咪仔",
+   "性别": "女",
+   "场景": "视频配音",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_jitangnv_uranus_bigtts",
+   "音色名": "鸡汤女",
+   "性别": "女",
+   "场景": "视频配音"
+  },
+  {
+   "voice": "zh_female_meilinvyou_uranus_bigtts",
+   "音色名": "魅力女友",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_liuchangnv_uranus_bigtts",
+   "音色名": "流畅女声",
+   "性别": "女",
+   "场景": "视频配音"
+  },
+  {
+   "voice": "zh_male_ruyayichen_uranus_bigtts",
+   "音色名": "儒雅逸辰",
+   "性别": "男",
+   "场景": "视频配音"
+  },
+  {
+   "voice": "zh_female_wenroumama_uranus_bigtts",
+   "音色名": "温柔妈妈",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_jieshuoxiaoming_uranus_bigtts",
+   "音色名": "解说小明",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_tvbnv_uranus_bigtts",
+   "音色名": "TVB女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_yizhipiannan_uranus_bigtts",
+   "音色名": "译制片男",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_qiaopinv_uranus_bigtts",
+   "音色名": "俏皮女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_zhishuaiyingzi_uranus_bigtts",
+   "音色名": "直率英子",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_linjiananhai_uranus_bigtts",
+   "音色名": "邻家男孩",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_silang_uranus_bigtts",
+   "音色名": "四郎",
+   "性别": "男",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_ruyaqingnian_uranus_bigtts",
+   "音色名": "儒雅青年",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_qingcang_uranus_bigtts",
+   "音色名": "擎苍",
+   "性别": "男",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_xionger_uranus_bigtts",
+   "音色名": "熊二",
+   "性别": "男",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_yingtaowanzi_uranus_bigtts",
+   "音色名": "樱桃丸子",
+   "性别": "女",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_male_wennuanahu_uranus_bigtts",
+   "音色名": "温暖阿虎",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_naiqimengwa_uranus_bigtts",
+   "音色名": "奶气萌娃",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_popo_uranus_bigtts",
+   "音色名": "婆婆",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_gaolengyujie_uranus_bigtts",
+   "音色名": "高冷御姐",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_aojiaobazong_uranus_bigtts",
+   "音色名": "傲娇霸总",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_lanyinmianbao_uranus_bigtts",
+   "音色名": "懒音绵宝",
+   "性别": "男",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_fanjuanqingnian_uranus_bigtts",
+   "音色名": "反卷青年",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_wenroushunv_uranus_bigtts",
+   "音色名": "温柔淑女",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_gufengshaoyu_uranus_bigtts",
+   "音色名": "古风少御",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_huolixiaoge_uranus_bigtts",
+   "音色名": "活力小哥",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_baqiqingshu_uranus_bigtts",
+   "音色名": "霸气青叔",
+   "性别": "男",
+   "场景": "有声阅读"
+  },
+  {
+   "voice": "zh_male_xuanyijieshuo_uranus_bigtts",
+   "音色名": "悬疑解说",
+   "性别": "男",
+   "场景": "有声阅读"
+  },
+  {
+   "voice": "zh_female_mengyatou_uranus_bigtts",
+   "音色名": "萌丫头",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_tiexinnvsheng_uranus_bigtts",
+   "音色名": "贴心女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_jitangmei_uranus_bigtts",
+   "音色名": "鸡汤妹妹",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_cixingjieshuonan_uranus_bigtts",
+   "音色名": "磁性解说男声",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_liangsangmengzai_uranus_bigtts",
+   "音色名": "亮嗓萌仔",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_kailangjiejie_uranus_bigtts",
+   "音色名": "开朗姐姐",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_gaolengchenwen_uranus_bigtts",
+   "音色名": "高冷沉稳",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_shenyeboke_uranus_bigtts",
+   "音色名": "深夜播客",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_lubanqihao_uranus_bigtts",
+   "音色名": "鲁班七号",
+   "性别": "男",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_jiaochuannv_uranus_bigtts",
+   "音色名": "娇喘女声",
+   "性别": "女",
+   "场景": "通用场景",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_linxiao_uranus_bigtts",
+   "音色名": "林潇",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_female_lingling_uranus_bigtts",
+   "音色名": "玲玲姐姐",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_female_chunribu_uranus_bigtts",
+   "音色名": "春日部姐姐",
+   "性别": "女",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_male_tangseng_uranus_bigtts",
+   "音色名": "唐僧",
+   "性别": "男",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_male_zhuangzhou_uranus_bigtts",
+   "音色名": "庄周",
+   "性别": "男",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_male_kailangdidi_uranus_bigtts",
+   "音色名": "开朗弟弟",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_zhubajie_uranus_bigtts",
+   "音色名": "猪八戒",
+   "性别": "男",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_ganmaodianyin_uranus_bigtts",
+   "音色名": "感冒电音姐姐",
+   "性别": "女",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_chanmeinv_uranus_bigtts",
+   "音色名": "谄媚女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_nvleishen_uranus_bigtts",
+   "音色名": "女雷神",
+   "性别": "女",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_qinqienv_uranus_bigtts",
+   "音色名": "亲切女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_kuailexiaodong_uranus_bigtts",
+   "音色名": "快乐小东",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_kailangxuezhang_uranus_bigtts",
+   "音色名": "开朗学长",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_youyoujunzi_uranus_bigtts",
+   "音色名": "悠悠君子",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_wenjingmaomao_uranus_bigtts",
+   "音色名": "文静毛毛",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_zhixingnv_uranus_bigtts",
+   "音色名": "知性女声",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_qingshuangnanda_uranus_bigtts",
+   "音色名": "清爽男大",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_yuanboxiaoshu_uranus_bigtts",
+   "音色名": "渊博小叔",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_yangguangqingnian_uranus_bigtts",
+   "音色名": "阳光青年",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_qingchezizi_uranus_bigtts",
+   "音色名": "清澈梓梓",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_tianmeiyueyue_uranus_bigtts",
+   "音色名": "甜美悦悦",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_xinlingjitang_uranus_bigtts",
+   "音色名": "心灵鸡汤",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_wenrouxiaoge_uranus_bigtts",
+   "音色名": "温柔小哥",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_roumeinvyou_uranus_bigtts",
+   "音色名": "柔美女友",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_dongfanghaoran_uranus_bigtts",
+   "音色名": "东方浩然",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_wenrouxiaoya_uranus_bigtts",
+   "音色名": "温柔小雅",
+   "性别": "女",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_male_tiancaitongsheng_uranus_bigtts",
+   "音色名": "天才童声",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_wuzetian_uranus_bigtts",
+   "音色名": "武则天",
+   "性别": "女",
+   "场景": "角色扮演",
+   "避用": true
+  },
+  {
+   "voice": "zh_female_gujie_uranus_bigtts",
+   "音色名": "顾姐",
+   "性别": "女",
+   "场景": "角色扮演"
+  },
+  {
+   "voice": "zh_male_guanggaojieshuo_uranus_bigtts",
+   "音色名": "广告解说",
+   "性别": "男",
+   "场景": "通用场景"
+  },
+  {
+   "voice": "zh_female_shaoergushi_uranus_bigtts",
+   "音色名": "少儿故事",
+   "性别": "女",
+   "场景": "有声阅读"
+  }
+ ]
+}

@@ -34,6 +34,7 @@ CANONICAL_SKILL_NAMES = frozenset(
     {
         "browser-cdp",
         "story",
+        "story-audiobook",
         "story-cover",
         "story-data-analyze",
         "story-deslop",
@@ -584,7 +585,7 @@ def _validate_source_root(root: Path) -> None:
         )
     if actual != CANONICAL_SKILL_NAMES:
         raise BuildError(
-            "source root does not have the exact canonical 20-skill Chinese inventory ({})".format(
+            "source root does not have the exact canonical 21-skill Chinese inventory ({})".format(
                 _inventory_difference(actual)
             )
         )
@@ -639,7 +640,7 @@ def _validate_entry_inventory(entries: Sequence[SourceEntry]) -> None:
     }
     if actual != CANONICAL_SKILL_NAMES:
         raise BuildError(
-            "package inventory does not have the exact canonical 20-skill Chinese inventory ({})".format(
+            "package inventory does not have the exact canonical 21-skill Chinese inventory ({})".format(
                 _inventory_difference(actual)
             )
         )
@@ -713,7 +714,7 @@ def _validate_claude_plugin_inventory(document: object) -> None:
         by_name[name] = plugin
     if set(by_name) != CANONICAL_SKILL_NAMES:
         raise BuildError(
-            "{} plugin names do not match the canonical 20-skill inventory ({})".format(
+            "{} plugin names do not match the canonical 21-skill inventory ({})".format(
                 label, _inventory_difference(set(by_name))
             )
         )

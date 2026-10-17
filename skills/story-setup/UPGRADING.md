@@ -2,12 +2,20 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.6.0`
-- `agents_version: 43`
+- `setup_skill_version: 1.7.0`
+- `agents_version: 44`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `43`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `42`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `44`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `44`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+
+## v44（新增有声书 Skill）
+
+- 新增第 21 个 Skill `story-audiobook`（有声书）：把已定稿章节按角色卡选角、试音并锁定音色，把正文逐字切成有声稿并标注说话人和表演指示，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成，拼成 mp3 和字幕。依赖 `python3`、`ffmpeg` 与方舟 Agent Plan key（环境变量或 macOS 钥匙串里的 `ARK_AGENT_PLAN_API_KEY`），不派生 Agent。
+- canonical 中文主包由 20 个扩为 21 个 Skill，部署名单同步：ZCode / TRAE / WorkBuddy / OpenClaw / Reasonix / generic 的 Skill 复制名单，OpenCode / ZCode / TRAE / WorkBuddy 的 `story-audiobook` 命令，以及 CLAUDE.md、各端 AGENTS.md、WorkBuddy CODEBUDDY.md 与 `story` 路由的有声书路由行。
+- `agents_version` 43 → 44、`setup_skill_version` 1.6.0 → 1.7.0：部署名单与各端命令变了，v43 项目会在会话启动时收到重跑提示。不用有声书的项目行为不变。
+
+升级动作：重新运行 `/story-setup` 并新开会话。
 
 ## v43（可选模型分工）
 
@@ -62,11 +70,11 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 - `.claude/agents/` — 所有 agent 定义
 - `.claude/rules/` — 所有 path-scoped 规则
 - `.claude/skills/story-setup/references/agent-references/` — Agent 参考资料副本
-- `.zcode/skills/{canonical 20 skills}/`、`.zcode/commands/{canonical 20 同名 commands}.md` — 仅按中文主包 canonical 固定 20 名字集替换受管资产，保留其他用户资产
+- `.zcode/skills/{canonical 21 skills}/`、`.zcode/commands/{canonical 21 同名 commands}.md` — 仅按中文主包 canonical 固定 21 名字集替换受管资产，保留其他用户资产
 - `.zcode/hooks/story_zcode_hook.js` — ZCode 专用 Hook runner
-- `.trae/skills/{canonical 20 skills}/`、`.trae/commands/{canonical 20 同名 commands}.md` — 仅按中文主包 canonical 固定 20 名字集替换受管资产，不从安装集合或项目扩展动态注入
+- `.trae/skills/{canonical 21 skills}/`、`.trae/commands/{canonical 21 同名 commands}.md` — 仅按中文主包 canonical 固定 21 名字集替换受管资产，不从安装集合或项目扩展动态注入
 - `.trae/agents/{oh-story agents}.md`、`.trae/rules/{oh-story rules}.md`、`.trae/hooks/{story_trae_hook.js,story_hook_core.js}` — TRAE Code 原生受管资产
-- `.codebuddy/skills/{canonical 20 skills}/`、`.codebuddy/commands/{canonical 20 同名 commands}.md` — WorkBuddy / CodeBuddy 项目模式仅部署中文主包 canonical 固定 20 名字集，不从安装集合或项目扩展动态注入
+- `.codebuddy/skills/{canonical 21 skills}/`、`.codebuddy/commands/{canonical 21 同名 commands}.md` — WorkBuddy / CodeBuddy 项目模式仅部署中文主包 canonical 固定 21 名字集，不从安装集合或项目扩展动态注入
 - `.codebuddy/agents/{oh-story agents}.md`、`.codebuddy/rules/{oh-story rules}.md`、`.codebuddy/hooks/{story_workbuddy_hook.js,story_hook_core.js}` — WorkBuddy 项目模式原生受管资产；plugin 模式不重复注册项目 Hook
 
 ### 用户与 story-setup 共同维护，只合并管理块
@@ -99,7 +107,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 - 新增规范 `.codebuddy-plugin/plugin.json`。plugin 模式只暴露命名空间化 Skills（`/oh-story:story-*`）、Agents 与 Hooks，不同时暴露同名 Commands；项目模式才提供裸 `/story-*` 命令。
 - plugin hooks 与 `.codebuddy/settings.json` 项目 hooks 严格互斥；memory 合并保护已有 `AGENTS.md` 不被短 `CODEBUDDY.md` 遮蔽；真实 CodeBuddy CLI manifest 校验和 Hook fixture 进入质量门。
 - TRAE 升级补齐 shared-core 旧版归属、`.claude/settings*.json` 双加载去重、Hooks review/enable 与 AGENTS/Rules 导入检查；磁盘存在其他 runtime 目录不再误触发 solo。
-- 中文主包仅从验证通过的 `canonical_root` 部署 canonical 名字集内的全部 Skill（v39 为 18 个，v40 起为 20 个）；`bootstrap_root` 只用于识别当前快照和选择新版 canonical，不从项目旁路注入独立工具或自定义 Skill。目标下的其他用户 Skill 保留不动。
+- 中文主包仅从验证通过的 `canonical_root` 部署 canonical 名字集内的全部 Skill（v39 为 18 个，v40 起为 20 个，v44 起为 21 个）；`bootstrap_root` 只用于识别当前快照和选择新版 canonical，不从项目旁路注入独立工具或自定义 Skill。目标下的其他用户 Skill 保留不动。
 - 从 `target_cli` 移除 TRAE / WorkBuddy 时，先备份再收敛受管资产；TRAE 用 `disabled-hooks.json` 合并移除自己的 Hook 注册，两端 runner 在 sentinel 已不含当前端时静默返回。用户 hook、设置与自定义资产不动。
 - 书目发现排除任一路径分段含“备份”“归档”或 `archive(s)` 的历史树；WorkBuddy 项目 Hook 入口将 Windows 下 CodeBuddy CLI 导出的 `/c/...` 先归一化为盘符路径。
 
@@ -182,7 +190,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 43` 与 `setup_skill_version: 1.6.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 44` 与 `setup_skill_version: 1.7.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
@@ -218,7 +226,17 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 
 ## 版本变更
 
-### v42（当前）
+### v44（当前）
+
+- `.story-deployed` 的 `agents_version` 升级到 `44`，`setup_skill_version` 升级到 `1.7.0`。
+- 新增第 21 个 Skill `story-audiobook`（有声书）：canonical 中文主包由 20 个扩为 21 个，部署名单与各端命令、路由同步，需重跑 `/story-setup`。
+
+### v43
+
+- `.story-deployed` 的 `agents_version` 升级到 `43`，`setup_skill_version` 升级到 `1.6.0`。
+- 可选模型分工（仅 Claude Code，默认关闭）：story-setup 新增 Step 8，部署载荷新增 `references/templates/models/` 与 `scripts/deploy-model-routing.py`。
+
+### v42
 
 - `.story-deployed` 的 `agents_version` 升级到 `42`，`setup_skill_version` 升级到 `1.5.2`（story-setup SKILL.md 部署说明随 agents bundle 变更）。
 - 去 AI 味语料验证落地：narrative-writer 模板松绑（问号、感叹号、口语连接词、对话标签不再压制，Gate A 降为候选词复核）；hook 兜底网改读与 story-deslop `pattern-contracts.json` v2 一致的退役清单；story-deslop 1.4.0 换表，章节接纳后追加去 AI 味语料。

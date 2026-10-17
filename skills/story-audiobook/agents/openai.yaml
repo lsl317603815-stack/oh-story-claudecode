@@ -1,0 +1,4 @@
+interface:
+  display_name: "有声书"
+  short_description: "Turn committed chapters into multi-voice audiobooks with Ark Agent Plan TTS."
+  default_prompt: "Use $story-audiobook to cast voices, build the audiobook script and synthesize a committed chapter."

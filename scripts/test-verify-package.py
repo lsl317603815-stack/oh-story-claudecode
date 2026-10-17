@@ -394,7 +394,7 @@ class VerifyPackageTests(unittest.TestCase):
         fixture.remove("skills/story-review/SKILL.md")
         with self.assertRaisesRegex(
             verify_package.VerificationError,
-            "exact canonical 20-skill Chinese inventory.*missing: story-review",
+            "exact canonical 21-skill Chinese inventory.*missing: story-review",
         ):
             verify_package.verify_package(fixture.zip_path, fixture.manifest_path)
 
@@ -422,7 +422,7 @@ class VerifyPackageTests(unittest.TestCase):
         fixture.write()
         with self.assertRaisesRegex(
             verify_package.VerificationError,
-            "exact canonical 20-skill Chinese inventory.*unexpected: not-oh-story",
+            "exact canonical 21-skill Chinese inventory.*unexpected: not-oh-story",
         ):
             verify_package.verify_package(fixture.zip_path, fixture.manifest_path)
 
@@ -574,7 +574,7 @@ class VerifyPackageTests(unittest.TestCase):
             return subprocess.CompletedProcess(
                 command,
                 0,
-                stdout="\x1b[?25l Found \x1b[32m20\x1b[0m skills\n",
+                stdout="\x1b[?25l Found \x1b[32m21\x1b[0m skills\n",
                 stderr="",
             )
 
@@ -584,7 +584,7 @@ class VerifyPackageTests(unittest.TestCase):
             runner=fake_runner,
         )
 
-        self.assertEqual(result.discovered_skills, 20)
+        self.assertEqual(result.discovered_skills, 21)
         self.assertEqual(len(calls), 1)
         command, kwargs = calls[0]
         self.assertEqual(command[:4], ["npx", "--yes", "skills@1.5.22", "add"])
@@ -625,7 +625,7 @@ class VerifyPackageTests(unittest.TestCase):
 
         def should_not_run(command, **kwargs):
             calls.append(command)
-            return subprocess.CompletedProcess(command, 0, stdout="Found 20 skills\n", stderr="")
+            return subprocess.CompletedProcess(command, 0, stdout="Found 21 skills\n", stderr="")
 
         with self.assertRaisesRegex(verify_package.VerificationError, "escapes archive_root"):
             verify_package.verify_package(

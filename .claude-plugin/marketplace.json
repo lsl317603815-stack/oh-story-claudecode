@@ -409,6 +409,27 @@
       "skills": [
         "./skills/story-publish"
       ]
+    },
+    {
+      "name": "story-audiobook",
+      "description": "把已定稿章节做成多角色有声书：按角色卡选角、试音锁定音色，逐字切出有声稿并标注说话人与表演指示，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成，拼成 mp3 和字幕。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "novel-audio",
+      "keywords": [
+        "audiobook",
+        "tts",
+        "voice-casting",
+        "doubao",
+        "有声书",
+        "配音",
+        "音色",
+        "chinese"
+      ],
+      "skills": [
+        "./skills/story-audiobook"
+      ]
     }
   ]
 }

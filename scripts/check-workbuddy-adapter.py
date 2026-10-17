@@ -18,6 +18,7 @@ MANIFEST = ROOT / ".codebuddy-plugin/plugin.json"
 CANONICAL_SKILL_NAMES = {
     "browser-cdp",
     "story",
+    "story-audiobook",
     "story-cover",
     "story-data-analyze",
     "story-deslop",
@@ -192,7 +193,7 @@ def main() -> int:
         f"extra={sorted(skills - CANONICAL_SKILL_NAMES)}",
     )
     commands = {path.stem for path in (WB / "commands").glob("*.md")}
-    require(commands == CANONICAL_SKILL_NAMES, "project Commands must match the fixed canonical 20 Skills")
+    require(commands == CANONICAL_SKILL_NAMES, "project Commands must match the fixed canonical 21 Skills")
     for name in sorted(commands):
         metadata, body = frontmatter(WB / "commands" / f"{name}.md")
         require(set(metadata) == {"description", "argument-hint"}, f"unsupported command frontmatter: {name}")
@@ -319,7 +320,7 @@ def main() -> int:
     print("  OK official hook schema/tool names and plugin/project/disabled shapes")
 
     runner = (WB / "hooks/story_workbuddy_hook.js").read_text(encoding="utf-8")
-    require("const WORKBUDDY_AGENTS_VERSION = 43" in runner, "runner lacks agents_version=43 gate")
+    require("const WORKBUDDY_AGENTS_VERSION = 44" in runner, "runner lacks agents_version=44 gate")
     require("emit({ systemMessage: warnings })" in runner, "commit advisory must use top-level systemMessage")
     require('hookContext("PreToolUse", warnings)' not in runner, "commit advisory still uses undocumented additionalContext")
     require("extractPowerShellTargets" in runner, "runner lacks PowerShell target extraction")

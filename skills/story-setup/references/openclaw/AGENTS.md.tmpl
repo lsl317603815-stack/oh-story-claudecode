@@ -25,6 +25,7 @@ OpenClaw 会从项目 `skills/` 目录发现 `SKILL.md`。优先通过 OpenClaw 
 | `/skill story-research`、资料研究 | story-research | 带来源的创作事实查证 |
 | `/skill story-release-package`、发布材料 | story-release-package | 整理已审批作品的发布文案与清单 |
 | `/skill story-publish`、平台发布 | story-publish | 通过项目关联适配器预检、存草稿或正式发布 |
+| `/skill story-audiobook`、有声书 | story-audiobook | 有声书 · 已定稿章节按角色卡选音色并试音，切成逐字有声稿后逐句合成 mp3 与字幕；需要 `ffmpeg` 与 `ARK_AGENT_PLAN_API_KEY` |
 | `/skill story`、网文 | story | 工具箱路由 · 模糊意图自动分发 |
 | `/skill story-setup`、准备写书 | story-setup | 环境部署 · 多 CLI 配置入口 |
 | `/skill browser-cdp` | browser-cdp | 浏览器 CDP 工具 |
@@ -35,10 +36,11 @@ OpenClaw 会从项目 `skills/` 目录发现 `SKILL.md`。优先通过 OpenClaw 
 - 暂不部署 OpenClaw agents/hooks：写正文前大纲守卫、commit 提醒、session/compact 自动注入在 OpenClaw 下不是硬拦截，只作为 skill 内软约束执行。
 - OpenClaw 会在 session 启动时 snapshot eligible skills；部署或更新后如未立即出现，请新开 OpenClaw session，或等待 skills watcher 刷新。
 - `story-cover` 依赖 `GPT_IMAGE_API_KEY`，未配置时 OpenClaw 会将该 skill 标记为不可用/缺少 env。
+- `story-audiobook` 依赖 `python3`、`ffmpeg` 与 `ARK_AGENT_PLAN_API_KEY`（火山方舟 Agent Plan），缺任一项时 OpenClaw 会将该 skill 标记为不可用。
 
 ## 文件结构
 
-- `skills/` — OpenClaw workspace skills，包含 oh-story 的 20 个 skill
+- `skills/` — OpenClaw workspace skills，包含 oh-story 的 21 个 skill
 - `拆文库/` — 拆文分析结果存放目录
 - `{书名}/正文/` — 长篇小说正文章节
 - `{书名}/正文.md` — 短篇小说正文

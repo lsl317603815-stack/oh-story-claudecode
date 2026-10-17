@@ -34,13 +34,15 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
+> **当前 main（未发布）：** 新增第 21 个 Skill `story-audiobook`（有声书）：把已定稿章节按角色卡选音色、试音锁定，逐字切成有声稿，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成 mp3 与字幕。中文主包的 canonical 固定名字集扩为 21 个 Skill，各端命令与路由同步；部署契约为 `setup_skill_version: 1.7.0` / `agents_version: 44`，升级后需重新运行 `/story-setup` 并新开会话。
+>
 > **v0.12.0 起：** 长篇每章的质量检查全部在作者接纳**之前**完成：14 道确定性门禁、去AI味审查和一致性审查由 `chapter_candidate.py` 按顺序强制执行，审查结论用绑定候选稿摘要的回执证明做过，缺回执不能接纳；`追踪/质检进度.md` 改为按回执自动生成。续写状态卡补上逾期 / 临近到期的伏笔、在场角色的知情与关系、角色最近出场和最近两章回顾；新增 `tracking_commit.py render`、追踪完整性审计 `tracking_audit.py` 和 Dashboard 项目状态面板。部署契约为 `setup_skill_version: 1.5.1` / `agents_version: 41`；升级后重新运行 `/story-setup`、新开会话，并对每本在写的长篇在两章之间运行一次 `tracking_commit.py render`。
 >
 > **v0.11.0 起：** 合入另一条线的 v0.8.0 / v0.9.0：长篇续写默认先出候选章，作者接纳后才进正文；已建追踪的书修改既有正文、大纲或设定前，先由 revision-governor 出影响计划；新增声线保护、文风卫生门、`A-standard` / `B-distilled` 写作方法，`story-explore`、`story-research`、`story-release-package`、`story-publish` 四个 Skill，以及 TRAE Code、WorkBuddy / CodeBuddy Code 原生适配。中文主包的 canonical 固定名字集扩为 20 个 Skill（含本线的 `story-grill`、`story-drama-write`）；部署契约为 `setup_skill_version: 1.5.0` / `agents_version: 40`，升级后需重新运行 `/story-setup` 并新开会话。
 >
 > **v0.9.0（另一条线，经 v0.11.0 合入）：** 该版新增 `A-standard` / `B-distilled` 长篇写作方法治理，并新增 TRAE Code 与 WorkBuddy / CodeBuddy Code 的原生发现与项目部署适配。中文主包在 TRAE 实际注册 13 个 Agent（8 个通用角色 + 5 个数据分析精确角色）；WorkBuddy 实际注册 10 个 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）。其中 `story-data-readonly-runner` 可按任务承担其余四种只读数据分析职责，这四种职责不分别注册 Agent、不额外占用 registry 名额。CodeBuddy agentic registry 共有 20 个槽位，oh-story 项目最多注册 19 个 Agent；这是平台容量边界，中文主包实际注册 10 个。TRAE 另处理兼容读取 `.claude/settings*.json` 时的 Hook 去重；WorkBuddy 同时支持命名空间 `/oh-story:story-*` 的 plugin 模式和裸 `/story-*` 的项目模式。两端升级后都需重新部署并新开会话；部署契约为 `setup_skill_version: 1.2.22` / `agents_version: 39`。
 >
-> 该轮升级安全链把中文主包锁定为 canonical 固定名字集（当时 18 个，v0.11.0 起 20 个 Skill）：构建、验包和 TRAE / WorkBuddy 项目部署都不从项目旁路吸收独立工具。其他工具既不进中文发行包，也不注入本轮 TRAE / WorkBuddy 适配。书目发现跳过“备份/归档/`archive(s)`”历史树；从 `target_cli` 减端时先备份并只移除受管注册，旧 runner 看到 sentinel 已不含当前端会静默自锁。
+> 该轮升级安全链把中文主包锁定为 canonical 固定名字集（当时 18 个，v0.11.0 起 20 个，现为 21 个 Skill）：构建、验包和 TRAE / WorkBuddy 项目部署都不从项目旁路吸收独立工具。其他工具既不进中文发行包，也不注入本轮 TRAE / WorkBuddy 适配。书目发现跳过“备份/归档/`archive(s)`”历史树；从 `target_cli` 减端时先备份并只移除受管注册，旧 runner 看到 sentinel 已不含当前端会静默自锁。
 >
 > v0.7.10 起：修复“中文小说写着写着切成英文”。工具链新增三层门：生成前把普通中文长短篇锁定为 `zh`；正文落盘后首先运行独立 `language_gate.js`，任何未授权外文字母与 HTML 标签、注释、实体都阻断；多端 Hook 复查并在写下一章前拦上一章旧债。URL、邮箱、代码、路径和文件名只机械保护明确非叙事结构；缩写、型号和代号不自动豁免，其他外语只能在用户单独确认后精确登记 `.deslop-whitelist`。命中 blocking 必须返修并复扫。`agents_version` 升至 29，已部署项目需重跑 `/story-setup` 并新开会话。
 >
@@ -157,20 +159,20 @@ npx skills add "$D"/x/oh-story-* -y -g
 ```
 
 
-> **Codex 开发者（dev-only）：** 仅在参与本仓库开发、需要验证未发布的 `main` 时才 repo 内直接使用：Codex 会扫描 `$REPO_ROOT/.agents/skills`（指向 `skills/` 的 symlink）发现 20 个 skill；用 `$story`、`$story-setup` 或 `/skills` 调用。这不是正式安装/更新路径。Windows 上 git 需开 `core.symlinks=true`，否则 symlink 失效，改用上方 Release 压缩包安装。
+> **Codex 开发者（dev-only）：** 仅在参与本仓库开发、需要验证未发布的 `main` 时才 repo 内直接使用：Codex 会扫描 `$REPO_ROOT/.agents/skills`（指向 `skills/` 的 symlink）发现 21 个 skill；用 `$story`、`$story-setup` 或 `/skills` 调用。这不是正式安装/更新路径。Windows 上 git 需开 `core.symlinks=true`，否则 symlink 失效，改用上方 Release 压缩包安装。
 > 跑 `$story-setup` 部署到写作项目后，会写入 `.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/hooks/{story_codex_hook.py,run-story-hook.sh,run-story-hook.cmd}` 和 `.codex/skills/story-setup/references/agent-references/`；请信任项目 `.codex/` 配置层并在 `/hooks` review/trust hooks、新开 Codex 会话，让 custom agents 生效。
 >
 > **TRAE Code 用户：** 在写作项目根用自然语言调用 `story-setup`，并指定 `target_cli=trae`。部署器会按当前中文主包动态生成 `.trae/skills/`、`.trae/commands/`，安装 `.trae/agents/`（8 个通用 + 5 个数据分析精确角色，共 13 个）、`.trae/rules/` 与 TRAE 原生 `.trae/hooks.json`，并保留已有用户 hooks 和自定义资产；Hook 文件固定使用官方 `{version: 1, hooks: {...}}`，旧事件直挂结构会在升级时迁移。Hook 依赖 PATH 中的 `node`；部署后需在 TRAE Settings 的 Hooks 页面 review/enable 本项目 Hooks，确认项目 `AGENTS.md` / Rules 导入开启，再重载项目或新开会话。如 Subagents 未出现，在「设置 > Beta > Subagents」开启目录发现后再重载。
 >
-> **WorkBuddy / CodeBuddy Code 用户：** 有两种原生模式。项目模式在写作项目根调用 `story-setup` 并选择 `target_cli=workbuddy`，会部署固定 20 个中文主包 Skill、裸 `/story-*` Commands、实际注册 10 个中文主包 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）、Rules、memory 与 Hooks；plugin-only 模式由规范 `.codebuddy-plugin/plugin.json` 暴露命名空间化 `/oh-story:story-*` Skills、Agents 与 Hooks，不再加载同名 Commands。plugin hooks 与项目 `.codebuddy/settings.json` hooks 只能启用一套，部署器会保留用户配置并自动互斥；已有 `AGENTS.md` 不会被短 `CODEBUDDY.md` 遮蔽。CodeBuddy 平台为 oh-story 项目留出的容量边界是最多注册 19 个 Agent，但中文主包实际只注册上述 10 个。部署后必须新开会话并实际调用 Agent 验证 registry；设置页显示角色已启用不等于 `Agent` 工具能够调度。Bash/PowerShell 仅覆盖受测静态写法，工具白名单也不是目录沙箱。
+> **WorkBuddy / CodeBuddy Code 用户：** 有两种原生模式。项目模式在写作项目根调用 `story-setup` 并选择 `target_cli=workbuddy`，会部署固定 21 个中文主包 Skill、裸 `/story-*` Commands、实际注册 10 个中文主包 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）、Rules、memory 与 Hooks；plugin-only 模式由规范 `.codebuddy-plugin/plugin.json` 暴露命名空间化 `/oh-story:story-*` Skills、Agents 与 Hooks，不再加载同名 Commands。plugin hooks 与项目 `.codebuddy/settings.json` hooks 只能启用一套，部署器会保留用户配置并自动互斥；已有 `AGENTS.md` 不会被短 `CODEBUDDY.md` 遮蔽。CodeBuddy 平台为 oh-story 项目留出的容量边界是最多注册 19 个 Agent，但中文主包实际只注册上述 10 个。部署后必须新开会话并实际调用 Agent 验证 registry；设置页显示角色已启用不等于 `Agent` 工具能够调度。Bash/PowerShell 仅覆盖受测静态写法，工具白名单也不是目录沙箱。
 >
-> **ZCode 用户：** 稳定版先用上方 Release 压缩包安装；把浮动仓库加入 Plugin Management marketplace 仅用于开发测试（dev-only）。安装后可用 `$story`、`$story-setup` 或 `/` 面板调用 20 个 Skills/Commands。`$story-setup` 选择 `target_cli=zcode` 会部署 `.zcode/skills/`、`.zcode/commands/`、`.zcode/hooks/story_zcode_hook.js`，安全合并 `.zcode/config.json` 与根 `AGENTS.md`；Hook 依赖 PATH 中的 `node`。ZCode 3.3.4 不执行项目/plugin custom agents，也没有 `PreCompact` / `SessionEnd`，相关流程会明确降级 solo/direct，compact 后由 `SessionStart` 恢复上下文。
+> **ZCode 用户：** 稳定版先用上方 Release 压缩包安装；把浮动仓库加入 Plugin Management marketplace 仅用于开发测试（dev-only）。安装后可用 `$story`、`$story-setup` 或 `/` 面板调用 21 个 Skills/Commands。`$story-setup` 选择 `target_cli=zcode` 会部署 `.zcode/skills/`、`.zcode/commands/`、`.zcode/hooks/story_zcode_hook.js`，安全合并 `.zcode/config.json` 与根 `AGENTS.md`；Hook 依赖 PATH 中的 `node`。ZCode 3.3.4 不执行项目/plugin custom agents，也没有 `PreCompact` / `SessionEnd`，相关流程会明确降级 solo/direct，compact 后由 `SessionStart` 恢复上下文。
 >
 > **OpenCode 用户：** 全局安装后 opencode 自动从 `~/.claude/skills/` 发现 skills；首次用自然语言触发 story-setup（如「用 story-setup 部署网文写作环境」），**部署后退出重进 `opencode -c`** 才能用 slash command。部分 hook 行为与 Claude Code 有差异（session-start / session-end / compact 等），详见 [CONTRIBUTING.md](CONTRIBUTING.md) 的 OpenCode 章节。
 >
-> **OpenClaw 用户：** 当前支持 skills-only：OpenClaw 可从 workspace `skills/`、`.agents/skills`、`~/.agents/skills`、`~/.openclaw/skills` 等 skill root 发现本项目 20 个 skill；`SKILL.md` 已按 OpenClaw 要求使用单行 `name` / `description` 与单行 JSON `metadata.openclaw`。`story-setup` 选择 `target_cli=openclaw` 时会把 skills 复制到项目 `skills/` 并写入 OpenClaw 版 `AGENTS.md`；agents/hooks 暂不部署，写正文前大纲守卫在 OpenClaw 下是 skill 内软约束。部署后如未显示新 skills，请新开 OpenClaw session 或等待 skills watcher 刷新。
+> **OpenClaw 用户：** 当前支持 skills-only：OpenClaw 可从 workspace `skills/`、`.agents/skills`、`~/.agents/skills`、`~/.openclaw/skills` 等 skill root 发现本项目 21 个 skill；`SKILL.md` 已按 OpenClaw 要求使用单行 `name` / `description` 与单行 JSON `metadata.openclaw`。`story-setup` 选择 `target_cli=openclaw` 时会把 skills 复制到项目 `skills/` 并写入 OpenClaw 版 `AGENTS.md`；agents/hooks 暂不部署，写正文前大纲守卫在 OpenClaw 下是 skill 内软约束。部署后如未显示新 skills，请新开 OpenClaw session 或等待 skills watcher 刷新。
 >
-> **Reasonix 用户：** 当前支持 skills + 原生 plugin manifest（Phase 1）：Reasonix 原生扫描 `.agents/skills`（指向 `skills/` 的 symlink）发现 20 个 skill，用 `reasonix doctor capabilities` 校验；也可用根 `reasonix-plugin.json` 走 `reasonix plugin install`。项目级 `story-setup` 部署与 hooks 是后续阶段。Windows 未启用 symlink 时改走原生 plugin。
+> **Reasonix 用户：** 当前支持 skills + 原生 plugin manifest（Phase 1）：Reasonix 原生扫描 `.agents/skills`（指向 `skills/` 的 symlink）发现 21 个 skill，用 `reasonix doctor capabilities` 校验；也可用根 `reasonix-plugin.json` 走 `reasonix plugin install`。项目级 `story-setup` 部署与 hooks 是后续阶段。Windows 未启用 symlink 时改走原生 plugin。
 >
 > **Web AI / 通用 Agent 用户：** 下载并解压上方 Release 资产后，可让 Agent 读取其中 `skills/*/SKILL.md` 与对应 `references/`；直读浮动 GitHub 仓库仅限 dev-only 测试。需要项目内副本时，`story-setup` 可选 `target_cli=generic`，只写通用 `AGENTS.md` 和 `skills/`。无本项目 hooks/custom agents 的环境按 skill 内软约束或 solo/direct fallback 执行。
 >
@@ -204,6 +206,7 @@ Dashboard 的自动化测试使用仓库内即时生成的中性夹具，不依�
 | `story-grill` | `/story-grill` `/采访` | 采访式定稿 · 设定/卷纲/细纲一次一题逐项拍板，断点续采 |
 | `story-drama-write` | `/story-drama-write` `/写剧本` | 短剧剧本 · 不写小说直接出剧本（横 16:9／竖 9:16），立项与分集纲采访拍板 |
 | `story-cover` | `/story-cover` `/封面` | 封面生成 · 书名题材分析 + GPT-Image-2 出图 |
+| `story-audiobook` | `/story-audiobook` `/有声书` | 有声书 · 已定稿章节按角色卡选音色并试音，逐字有声稿经方舟 Agent Plan 豆包语音合成 2.0 逐句合成 mp3 与字幕（需 ffmpeg） |
 | `browser-cdp` | `/browser-cdp` | 浏览器操控 · CDP 协议复用登录态抓取数据 |
 
 > `story-deslop` 的本地检查是写作 lint：blocking 只限确定性句式/标点问题，其他提示按读感判断；朱雀等外部检测只作自测参考，不替代人工读感。
@@ -214,6 +217,7 @@ Dashboard 的自动化测试使用仓库内即时生成的中性夹具，不依�
 - 「把我的书导进来」→ `story-import`
 - 「设定一点一点定」→ `story-grill`
 - 「我要写短剧剧本，不写小说」→ `story-drama-write`
+- 「把第 3 章做成有声书」→ `story-audiobook`
 - 「林晚现在什么状态」→ 自动 spawn `story-explorer` agent
 
 ## Agent 体系

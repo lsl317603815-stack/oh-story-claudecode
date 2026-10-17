@@ -43,6 +43,7 @@ from pathlib import Path
 expected = {
     "browser-cdp",
     "story",
+    "story-audiobook",
     "story-cover",
     "story-deslop",
     "story-drama-write",
@@ -115,6 +116,7 @@ cfg = json.loads(Path(sys.argv[1]).read_text())
 expected_commands = {
     "browser-cdp",
     "story",
+    "story-audiobook",
     "story-cover",
     "story-deslop",
     "story-drama-write",

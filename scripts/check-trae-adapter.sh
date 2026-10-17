@@ -83,7 +83,7 @@ skills = sorted(
 )
 commands = sorted(Path('skills/story-setup/references/trae/commands').glob('*.md'))
 canonical = {
-    'browser-cdp', 'story', 'story-cover', 'story-data-analyze', 'story-deslop',
+    'browser-cdp', 'story', 'story-audiobook', 'story-cover', 'story-data-analyze', 'story-deslop',
     'story-drama-write', 'story-explore', 'story-grill', 'story-import', 'story-long-analyze', 'story-long-scan',
     'story-long-write', 'story-publish', 'story-release-package', 'story-research',
     'story-review', 'story-setup', 'story-short-analyze', 'story-short-scan',
@@ -111,7 +111,7 @@ for command in commands:
     assert f'<!-- oh-story-managed: command/{command.stem} -->' in body, command
     assert f'使用 {command.stem} skill' in body, command
 PY
-echo "  OK native Commands match the canonical 20-Skill Chinese package one-to-one"
+echo "  OK native Commands match the canonical 21-Skill Chinese package one-to-one"
 
 python3 - <<'PY'
 import re
@@ -185,7 +185,7 @@ from pathlib import Path
 
 root = Path('skills/story-setup/references/trae')
 canonical = {
-    'browser-cdp', 'story', 'story-cover', 'story-data-analyze', 'story-deslop',
+    'browser-cdp', 'story', 'story-audiobook', 'story-cover', 'story-data-analyze', 'story-deslop',
     'story-drama-write', 'story-explore', 'story-grill', 'story-import', 'story-long-analyze', 'story-long-scan',
     'story-long-write', 'story-publish', 'story-release-package', 'story-research',
     'story-review', 'story-setup', 'story-short-analyze', 'story-short-scan',
