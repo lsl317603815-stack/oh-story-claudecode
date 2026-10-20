@@ -31,6 +31,9 @@ FLAT = TITLE + (
     "林川一排排数过去，数到第二排时停下来，把纸条上的斤两和册子上的数对了一遍，又往下数。\n"
     "数完三排，他把册子夹在腋下，锁上后仓的门，沿着廊下回到前堂，把钥匙挂回原来的钉子上。\n"
 )
+# 细纲字数目标：PROSE 53 字、FLAT 298 字，都落在各自目标的 90%–110%。
+PROSE_TARGET = 52
+FLAT_TARGET = 298
 
 
 def write_json(path: Path, value: object) -> None:
@@ -113,9 +116,10 @@ class ChapterCandidateTests(unittest.TestCase):
         self.temporary.cleanup()
 
     # ── helpers ──────────────────────────────────────────────────────────
-    def write_outline(self, position: str) -> None:
+    def write_outline(self, position: str, target: int = PROSE_TARGET) -> None:
         self.outline.write_text(
-            f"# 第一章细纲\n\n- 章节定位：{position}\n\n林川冒雨回家，把药包交给母亲。\n", encoding="utf-8"
+            f"# 第一章细纲\n\n- 章节定位：{position}\n- 字数目标：{target} 字\n\n林川冒雨回家，把药包交给母亲。\n",
+            encoding="utf-8",
         )
 
     def init(self, *extra: str, run_id: str = "C001") -> Path:
@@ -196,7 +200,8 @@ class ChapterCandidateTests(unittest.TestCase):
 
         failed = self.check(expected=2)
         self.assertEqual(failed["failures"], ["punctuation"])
-        self.assertEqual(len(failed["gates"]), 14)
+        self.assertEqual(len(failed["gates"]), 15)
+        self.assertIn("word_target", [item["name"] for item in failed["gates"]])
         self.assertTrue(all(item["script_sha256"] for item in failed["gates"]))
         step = self.next()
         self.assertEqual(step["step"], "revise")
@@ -349,6 +354,7 @@ class ChapterCandidateTests(unittest.TestCase):
 
     # ── 启发式门禁：豁免、按书降级、压力档 ───────────────────────────────
     def test_waiver_needs_review_mode_and_a_real_failure(self) -> None:
+        self.write_outline("普通推进", FLAT_TARGET)
         self.init()
         self.candidate.write_text(FLAT, encoding="utf-8")
         failed = self.check(expected=2)
@@ -364,7 +370,7 @@ class ChapterCandidateTests(unittest.TestCase):
         self.assertEqual(sorted(passed["waived"]), ["emotion_floor", "hook_strength"])
 
     def test_auto_mode_refuses_waivers_and_lowering_pressure(self) -> None:
-        self.write_outline("高压")
+        self.write_outline("高压", FLAT_TARGET)
         self.init("--approval-mode", "auto", "--authorization-note", "用户说连续写完并自动定稿")
         self.candidate.write_text(FLAT, encoding="utf-8")
         failed = self.check(expected=2)
@@ -384,6 +390,7 @@ class ChapterCandidateTests(unittest.TestCase):
             "emotion_floor": {"mode": "advisory", "reason": "本书是冷调推理"},
             "hook_strength": {"mode": "advisory"},
         }})
+        self.write_outline("普通推进", FLAT_TARGET)
         self.init()
         self.candidate.write_text(FLAT, encoding="utf-8")
         passed = self.check()
@@ -392,6 +399,73 @@ class ChapterCandidateTests(unittest.TestCase):
         report = json.loads((self.run_dir / "gate-report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["gate_config"], "设定/门禁配置.json")
         self.assertTrue(report["gate_config_sha256"])
+
+    # ── 细纲字数门 ───────────────────────────────────────────────────────
+    def test_word_target_blocks_outside_the_outline_target_and_is_not_waivable(self) -> None:
+        self.write_outline("普通推进", 120)
+        self.init()
+        self.candidate.write_text(PROSE, encoding="utf-8")
+        failed = self.check(expected=2)
+        self.assertEqual(failed["failures"], ["word_target"])
+        gate = next(item for item in failed["gates"] if item["name"] == "word_target")
+        self.assertEqual((gate["payload"]["result"], gate["payload"]["actual_chars"]), ("under", 53))
+        self.assertEqual(gate["payload"]["lower_bound"], 108)
+        refused = run(CANDIDATE, "waive", "--run", str(self.run_dir), "--gate", "word_target", "--reason", "x",
+                      "--confirm", "WAIVE", expected=2)
+        self.assertTrue(refused.stderr.strip())
+        self.assertEqual(self.next()["step"], "revise")
+
+    def test_word_target_falls_back_to_3000_without_a_target(self) -> None:
+        self.outline.write_text("# 第一章细纲\n\n- 章节定位：普通推进\n\n林川冒雨回家。\n", encoding="utf-8")
+        self.init()
+        self.candidate.write_text(PROSE, encoding="utf-8")
+        failed = self.check(expected=2)
+        self.assertEqual(failed["failures"], ["word_target"])
+        payload = next(item for item in failed["gates"] if item["name"] == "word_target")["payload"]
+        self.assertTrue(payload["fallback_applied"])
+        self.assertEqual(payload["target_chars"], 3000)
+
+    # ── 门禁配置：对白上限与文风带 ───────────────────────────────────────
+    def test_book_config_sets_dialogue_limits_and_prose_bands(self) -> None:
+        config = self.project / "设定" / "门禁配置.json"
+        for bad in ({"max_consecutive_tagged_turns": 0}, {"max_consecutive_tagged_turns": True},
+                    {"unknown_limit": 3}, {"max_consecutive_bare_tagged_turns": "2"}):
+            write_json(config, {"schema_version": 1, "dialogue": bad})
+            refused = run(CANDIDATE, "init", "--project", str(self.project), "--chapter", "1",
+                          "--outline", "大纲/细纲_第001章.md", "--target", "正文/第001章_春雨入院.md", expected=2)
+            self.assertIn("dialogue", refused.stderr)
+        write_json(config, {"schema_version": 1, "prose_bands": ["not", "an", "object"]})
+        refused = run(CANDIDATE, "init", "--project", str(self.project), "--chapter", "1",
+                      "--outline", "大纲/细纲_第001章.md", "--target", "正文/第001章_春雨入院.md", expected=2)
+        self.assertIn("prose_bands", refused.stderr)
+
+        write_json(config, {
+            "schema_version": 1,
+            "dialogue": {"max_consecutive_tagged_turns": 6, "reason": "全书前置动作冒号式对白"},
+            "prose_bands": {"note": "本书实测", "paragraph_mean_chars": {"low": 1, "high": 2}},
+        })
+        tagged = TITLE + (
+            "林川把药包往灯下挪了挪，低声说道：“这一味不对。”\n"
+            "母亲接过药包闻了闻，皱着眉头问道：“哪里不对？”\n"
+            "林川拆开最上面那层油纸，指着里面说道：“少了当归。”\n"
+            "母亲把油灯往近处拿了拿，又问道：“是不是药铺忘了？”\n"
+            "林川把药包重新扎好，摇着头回答道：“陈掌柜从不忘。”\n"
+        )  # 五行连续带标记、都有动作分句，共 102 字
+        self.write_outline("普通推进", 102)
+        self.init()
+        self.candidate.write_text(tagged, encoding="utf-8")
+        passed = self.check()
+        report = json.loads((self.run_dir / "gate-report.json").read_text(encoding="utf-8"))
+        gates = {item["name"]: item for item in report["gates"]}
+        drift = gates["dialogue_drift"]["payload"]["metrics"]
+        self.assertEqual(drift["max_consecutive_tagged_turns"], 5)
+        self.assertEqual((drift["max_consecutive_tagged_turns_limit"], drift["max_consecutive_tagged_turns_limit_source"]),
+                         (6, "cli"))
+        self.assertEqual(drift["max_consecutive_bare_tagged_turns_limit"], 2)
+        band = next(item for item in passed["gates"] if item["name"] == "prose_metrics")["payload"]["style_band"]
+        self.assertEqual((band["status"], band["source"]), ("measured", "本书实测"))
+        self.assertEqual(band["checks"]["paragraph_mean_chars"]["verdict"], "above")
+        self.assertEqual(gates["prose_metrics"]["status"], "pass")  # 超带只报不阻
 
     def test_language_failure_stops_the_other_gates(self) -> None:
         self.init()

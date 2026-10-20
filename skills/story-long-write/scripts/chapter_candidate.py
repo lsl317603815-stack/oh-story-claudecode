@@ -66,6 +66,13 @@ WAIVABLE_GATES = ("dialogue_drift", "emotion_floor", "hook_strength")
 GATE_MODES = ("blocking", "advisory")
 PAUSE_MODES = ("keep", "normalize")
 QUOTE_MODES = ("keep", "ascii", "yan")
+# 对白漂移门的两条连续计数上限（允许的最长连续行数，超过即阻断）。缺省值与脚本缺省一致：
+# 带归属标记 3（连续 4 行阻断，历史行为），报幕式标签 2（连续 3 行阻断）。
+# 全对白走“主语 + 动作 + 说道：”前置引导的书按书调高前者。
+DIALOGUE_LIMIT_KEYS = {
+    "max_consecutive_tagged_turns": 3,
+    "max_consecutive_bare_tagged_turns": 2,
+}
 GATE_CONFIG_RELATIVE = "设定/门禁配置.json"
 QUALITY_DIR = "质检回执"
 PROGRESS_FILE = "质检进度.md"
@@ -479,6 +486,8 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
         "gates": {name: {"mode": "blocking"} for name in WAIVABLE_GATES},
         "default_pressure": "normal",
         "punctuation": {"pause_mode": "keep", "quote_mode": "keep"},
+        "dialogue": dict(DIALOGUE_LIMIT_KEYS),
+        "prose_bands": False,
     }
     path = project / GATE_CONFIG_RELATIVE
     if not path.is_file():
@@ -486,7 +495,7 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
     raw = load_json(path, "门禁配置")
     if raw.get("schema_version") != 1:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 的 schema_version 必须是 1")
-    unknown = set(raw) - {"schema_version", "gates", "default_pressure", "punctuation", "note"}
+    unknown = set(raw) - {"schema_version", "gates", "default_pressure", "punctuation", "dialogue", "prose_bands", "note"}
     if unknown:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 含不支持的字段: {', '.join(sorted(unknown))}")
     gates = raw.get("gates", {})
@@ -510,6 +519,19 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
     if punctuation.get("quote_mode", "keep") not in QUOTE_MODES:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE}.punctuation.quote_mode 必须是 {'/'.join(QUOTE_MODES)}")
     config["punctuation"].update(punctuation)
+    dialogue = raw.get("dialogue", {})
+    if not isinstance(dialogue, dict) or set(dialogue) - {*DIALOGUE_LIMIT_KEYS, "reason"}:
+        raise CandidateError(f"{GATE_CONFIG_RELATIVE}.dialogue 只能含 {'/'.join(DIALOGUE_LIMIT_KEYS)}/reason")
+    for key, default in DIALOGUE_LIMIT_KEYS.items():
+        limit = dialogue.get(key, default)
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.dialogue.{key} 必须是正整数")
+        config["dialogue"][key] = limit
+    # prose_bands 的逐项校验在 prose_metrics.py（它认识实测项名）；这里只挡住明显的类型错误。
+    if "prose_bands" in raw:
+        if not isinstance(raw["prose_bands"], dict):
+            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.prose_bands 必须是 object")
+        config["prose_bands"] = bool(raw["prose_bands"])
     return config, sha256_file(path)
 
 
@@ -553,6 +575,8 @@ def gate_specs(
     scripts = Path(__file__).resolve().parent
     style = project / "设定" / "文风.md"
     punctuation = config["punctuation"]
+    dialogue = config["dialogue"]
+    bands = ["--gate-config", str(project / GATE_CONFIG_RELATIVE)] if config["prose_bands"] else []
 
     def node(script: str, *args: str) -> list[str]:
         return ["node", str(scripts / script), *args]
@@ -579,7 +603,9 @@ def gate_specs(
         {"name": "degeneration", "kind": "blocking", "script": "check-degeneration.js",
          "command": node("check-degeneration.js", "--check", "--language=zh", "--fail-on=blocking", str(candidate))},
         {"name": "prose_metrics", "kind": "blocking", "script": "prose_metrics.py",
-         "command": python("prose_metrics.py", str(candidate))},
+         "command": python("prose_metrics.py", *bands, str(candidate))},
+        {"name": "word_target", "kind": "blocking", "script": "word_target_gate.py",
+         "command": python("word_target_gate.py", "--outline", str(outline), str(candidate))},
         {"name": "outline_copy", "kind": "blocking", "script": "check-outline-copy.js",
          "command": node("check-outline-copy.js", "--outline", str(outline), "--fail-on=blocking", str(candidate))},
         {"name": "accepted_voice_profile", "kind": "blocking", "script": "voice_profile.py",
@@ -590,7 +616,10 @@ def gate_specs(
         {"name": "dialogue_drift", "kind": heuristic("dialogue_drift"), "script": "dialogue_drift_gate.js",
          "advisory_codes": {2},
          "command": node("dialogue_drift_gate.js", "--current", str(candidate), "--chapter", str(chapter),
-                         "--project", str(project), "--json")},
+                         "--project", str(project),
+                         "--max-consecutive-tagged-turns", str(dialogue["max_consecutive_tagged_turns"]),
+                         "--max-consecutive-bare-tagged-turns", str(dialogue["max_consecutive_bare_tagged_turns"]),
+                         "--json")},
         {"name": "emotion_floor", "kind": heuristic("emotion_floor"), "script": "check-emotion-floor.js",
          "command": node("check-emotion-floor.js", "--check", "--json", "--fail-on=blocking",
                          f"--pressure={pressure}", str(candidate))},
@@ -902,9 +931,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-# 主会话需要读的证据：句段实测、声音画像漂移、近章结构五问的证据包。其余门禁的完整输出
+# 主会话需要读的证据：句段实测（含文风带）、字数门、声音画像漂移、近章结构五问的证据包。其余门禁的完整输出
 # 只进 gate-report.json，终端只给结论和命中摘要，免得每次 check 把几十 KB 塞进上下文。
-EVIDENCE_GATES = {"prose_metrics", "accepted_voice_profile", "cross_chapter_shape"}
+EVIDENCE_GATES = {"prose_metrics", "word_target", "accepted_voice_profile", "cross_chapter_shape"}
 
 
 def gate_findings_summary(item: dict[str, Any]) -> list[str]:
