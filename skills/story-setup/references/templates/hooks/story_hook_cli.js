@@ -300,6 +300,16 @@ if (command === "extract-target") {
   } catch {
     process.exit(0)
   }
+} else if (command === "outline-length") {
+  // 细纲长度提醒（非阻断）：outline-length <细纲绝对路径>。stdout 空 = 未超字数目标×0.5；
+  // 非空 = 提醒正文（比例 + 重复细节 + 压缩办法），由 bash 壳包进 additionalContext。
+  // guard-outline-before-prose.sh 写正文前、check-prose-after-write.sh 写细纲后共用。异常静默。
+  try {
+    const out = core.outlineLengthFinding(args[0])
+    if (out) process.stdout.write(out)
+  } catch {
+    process.exit(0)
+  }
 } else if (command === "revision-block-reason") {
   const root = args[0]
   const absolute = args[1]

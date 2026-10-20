@@ -79,6 +79,20 @@ case "$BASE" in
     fi
     ;;
 esac
+# 例外：{书}/大纲/细纲_第N章*.md 写入后跑细纲长度提醒（汉字 > 字数目标×0.5 时提醒比例与重复细节），
+# 专门堵「修订回灌把细纲越改越长」；不跑正文网，不拦写。
+if [ "$IS_PROSE" != true ] && [ "$PARENT" = "大纲" ] && [ -f "$ABS" ]; then
+  case "$BASE" in
+    细纲_第*章*.md)
+      OUTLINE_LONG="$(node "$CLI" outline-length "$ABS" 2>/dev/null || true)"
+      if [ -n "$OUTLINE_LONG" ]; then
+        emit_hook_context PostToolUse "=== 细纲长度提醒（${BASE}，不拦写）===
+${OUTLINE_LONG}"
+      fi
+      ;;
+  esac
+  exit 0
+fi
 [ "$IS_PROSE" = true ] || exit 0
 [ -f "$ABS" ] || exit 0
 

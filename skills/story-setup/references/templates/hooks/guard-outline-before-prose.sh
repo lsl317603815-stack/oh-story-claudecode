@@ -231,6 +231,16 @@ case "$BASE" in
       ADVISORY="⚠ 细纲留存字段未填（不拦写，建议补齐后再落正文）：第 ${NUM} 章 —$RET_MISSING
    跑 story-long-write 的 scripts/check-outline-retention.js 补齐「收一个/变一个/开一个」，再写正文。"
     fi
+    # 细纲超长告警（非阻塞）：细纲汉字 > 字数目标×0.5 时提醒比例与重复细节（细纲:正文 = 1:2.5～1:3）。
+    # 中文计数走 node 共享核 outline-length（LC_ALL=C 下 bash 数不了码点）；node/核缺席静默跳过。
+    # 硬拦只在 story-long-write 批末 check-outline-retention.js（>0.7），这里不拦写。
+    if node -e "" >/dev/null 2>&1 && [ -f "$CLI" ]; then
+      OUTLINE_LONG="$(node "$CLI" outline-length "$FOUND" 2>/dev/null || true)"
+      if [ -n "$OUTLINE_LONG" ]; then
+        ADVISORY="${ADVISORY:+$ADVISORY
+}⚠ 细纲超长（不拦写，写第 ${NUM} 章正文前提醒）：$OUTLINE_LONG"
+      fi
+    fi
     # 欠账门（无状态）：写第 N 章（首建）前，上一章有未清毒句式时先清再写。
     # 毒句式扫描走共享核 prose-toxic 子命令（与写后网同一份规则）；node/核缺失或扫描失败一律
     # 放行（宁可漏拦不可误伤）——写后网与 SKILL 同轮铁律仍兜底。判据现算自上一章文件，无状态。

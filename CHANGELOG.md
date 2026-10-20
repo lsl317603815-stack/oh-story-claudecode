@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 未发版（2026-10-20）
+
+### 细纲长度控制
+
+真实项目里细纲比正文还长：模板建出的细纲与章目标字数约 1:1，修订几轮回灌正文细节后涨到正文的 110%-140%，同一个数字在一份细纲里重复 5-14 次，「核心事件」模板写一句话、实际 120-516 字。仓库 `plot-core-methods.md` 早就写了「细纲与正文比例控制在 1:2.5～1:3」「细纲只关注目的和效果，不展开情节」，但模板、agent 和检查脚本都没执行它。这次把它接到生成、批末检查和 hook 三处。
+
+- **模板**（story-long-write `workflow-setup.md` Phase 3）：新增「细纲长度与分工」。顶部字段区定义为作者要读的**章卡**，字段值合计 ≤350 字，核心事件 ≤80 字（只说一件事，不装数字和台词）、本章结构公式和爽点 ≤60、本章兑现/状态变化/章尾余势 ≤40、本章禁止提前释放 ≤100；章卡后一行 `---` 加「以下为写手单，作者可不读」。五段式、多线每行 ≤40 字，只写功能与转折，可写「见情节点 3-5」；情节点序列是唯一写具体数字、价格、台词、物件细节的地方，每点 ≤45 字。全文 ≤ 字数目标×0.5，硬上限 ×0.7。字段名和字段都没变。
+- **同步口径**：SKILL.md「细纲语义去重」、`artifact-protocols.md` 细纲定义、`workflow-daily.md`「细纲缺失补建流程」、`workflow-revision.md`（新增：回灌细纲只改情节点序列对应那一条和章卡受影响字段）、story-grill 落盘说明。story-architect 四端 agent 卡删掉自带的「最小结构」模板（事实上的第二份模板，字段不全），改为以 Phase 3 模板为准、只列章卡上限。
+- **`check-outline-retention.js`**：在留存三字段之外新增长度（汉字 > 字数目标×0.5 advisory，> ×0.7 blocking；缺字数目标按 3000 代入并提示补纲）、章卡（字段值 > 350 或核心事件 > 80 advisory）、重复细节（同一引号台词或同一「数字+量词」出现 ≥3 次 advisory，列前 5 个）。只有 advisory 时退出 0，`--fail-on=all` 时返回 1；`--json` 新增 `ratio`、`card_chars`、`dups` 和逐章 `metrics`。输出后改设 `process.exitCode`。新增回归 `scripts/test-outline-retention.js`，已接入统一质量门。
+- **Hooks**：写第 N 章正文前，细纲超字数目标×0.5 时 Claude Code 在留存字段提醒旁加「细纲超长」提醒；写 `大纲/细纲_第N章*.md` 后，Claude Code、OpenCode、ZCode、TRAE、WorkBuddy 经共享核给出长度与重复细节提醒（PostToolUse additionalContext），专门挡修订回灌把细纲越改越长。Codex 没有 PostToolUse，改在回合末 Stop 复扫改动过的细纲，写正文前另有 PreToolUse 提醒。全部不拦写。py↔js 文案由 `test-prose-net-parity.sh` 逐字锁定，并核对 lint 与 hook 核的比例和重复细节同口径。
+- 部署契约 `agents_version` 43 → 45（44 留给尚未合入 main 的 story-audiobook 分支），`setup_skill_version` 仍是 1.6.0；TRAE 共享核登记表补上新核哈希。已部署项目更新本机 skill 包后重跑 `/story-setup` 并新开会话；旧细纲会被标成超长，属预期。各端差异见 `skills/story-setup/UPGRADING.md`。
+
 ## v0.12.0（Dev 候选 · 2026-09-26）
 
 长篇写作的质量检查全部挪到作者接纳**之前**，由脚本按顺序强制执行，并用回执证明做过；续写状态卡补上到期伏笔、在场角色的知情与关系、角色最近出场和章回顾；新增追踪完整性审计和 Dashboard 项目状态面板。部署契约升至 `setup_skill_version: 1.5.1` / `agents_version: 41`，升级后需重跑 `/story-setup` 并新开会话。

@@ -717,7 +717,7 @@ def _is_prose_path(root: Path, abs_path: Path) -> bool:
     return False
 
 
-def find_changed_prose_files(root: Path) -> list[Path]:
+def find_changed_prose_files(root: Path, predicate: Any = None) -> list[Path]:
     """本回合改动过的正文文件（git 改动 + untracked），用于 Stop 兜底——Codex 无 PostToolUse，
     故内容网在回合结束的 Stop 事件按 git 改动集复扫。非 git 仓库或无改动则空（best-effort）。"""
     # diff 两支必须带 --relative（且 -- .）：不带时 git 吐的是仓库根相对路径，项目根是仓库子目录
@@ -746,10 +746,113 @@ def find_changed_prose_files(root: Path) -> list[Path]:
             key = str(abs_path)
             if key in seen or not abs_path.exists():
                 continue
-            if _is_prose_path(root, abs_path):
+            if (predicate or _is_prose_path)(root, abs_path):
                 seen.add(key)
                 out.append(abs_path)
     return out
+
+
+# 细纲长度提醒（非阻断）：细纲:正文 = 1:2.5～1:3（plot-core-methods「小纲四步法」）。
+# 与 JS 共享核 outlineLengthFinding / story-long-write check-outline-retention.js 同一口径：
+# 汉字（[\u4e00-\u9fff]）> 字数目标×0.5 提醒，>0.7 标「超过硬上限」；缺字数目标按 3000 代入。
+# 硬拦只在 story-long-write 批末脚本；Codex 无 PostToolUse，写细纲后的提醒走 Stop 回合末复扫。
+_OUTLINE_HAN_RE = re.compile(r"[\u4e00-\u9fff]")
+_OUTLINE_RATIO_TARGET = 0.5
+_OUTLINE_RATIO_HARD = 0.7
+_OUTLINE_DEFAULT_TARGET = 3000
+_OUTLINE_CN_DIGITS = "零〇一二三四五六七八九十百千万两"
+_OUTLINE_QUANTIFIERS = [
+    "星币", "金币", "灵石", "公里", "公斤", "分钟", "小时",
+    "字", "块", "元", "米", "人", "条", "次", "个", "张", "件", "枚", "颗", "瓶", "份", "名", "位",
+    "道", "招", "层", "级", "天", "年", "岁", "斤", "里", "秒", "倍", "万", "亿",
+]
+_OUTLINE_NUM_QTY_RE = re.compile(
+    f"百分之[{_OUTLINE_CN_DIGITS}]+|\\d+(?:\\.\\d+)?\\s*[%％]|(?:\\d+(?:\\.\\d+)?|[{_OUTLINE_CN_DIGITS}]+)\\s*(?:{'|'.join(_OUTLINE_QUANTIFIERS)})"
+)
+_OUTLINE_NUM_QTY_STOP = {"千万", "万万", "一一", "万一"}
+_OUTLINE_BUDGET_PREFIX_RE = re.compile(r"(?:密|疏|≈|约|预算|计|目标|·)\s*$")
+_OUTLINE_QUOTE_RES = [re.compile(r"“([^”\n]{4,80})”"), re.compile(r"「([^」\n]{4,80})」")]
+
+
+def _is_outline_path(root: Path, abs_path: Path) -> bool:
+    return abs_path.parent.name == "大纲" and bool(re.match(r"^细纲_第0*\d+章.*\.md$", abs_path.name))
+
+
+def outline_length_metrics(text: str) -> dict[str, Any]:
+    t = re.search(r"字数目标[^0-9\n]{0,6}(\d{3,6})(?:\s*(?:字)?\s*[-~～—–至到]\s*(\d{3,6}))?", text)
+    parsed = max(int(t.group(1)), int(t.group(2)) if t.group(2) else 0) if t else None
+    target = parsed or _OUTLINE_DEFAULT_TARGET
+    han_chars = len(_OUTLINE_HAN_RE.findall(text))
+    counts: dict[str, int] = {}
+    for raw in text.split("\n"):
+        if re.search(r"字数目标|预算合计", raw):
+            continue
+        line = re.sub(r"【[^】\n]*】", "", raw)
+        for rx in _OUTLINE_QUOTE_RES:
+            for m in rx.finditer(line):
+                key = f"“{m.group(1)}”"
+                counts[key] = counts.get(key, 0) + 1
+        for m in _OUTLINE_NUM_QTY_RE.finditer(line):
+            frag = re.sub(r"\s+", "", m.group(0))
+            if re.match(r"^[一两几]\D$", frag) or frag in _OUTLINE_NUM_QTY_STOP:
+                continue
+            if _OUTLINE_BUDGET_PREFIX_RE.search(line[max(0, m.start() - 3):m.start()]):
+                continue
+            counts[frag] = counts.get(frag, 0) + 1
+    dups = sorted(((k, n) for k, n in counts.items() if n >= 3), key=lambda kv: (-kv[1], kv[0]))
+    return {
+        "han_chars": han_chars,
+        "target": target,
+        "target_defaulted": parsed is None,
+        "ratio": han_chars / target,
+        "dups": [{"text": k, "count": n} for k, n in dups],
+    }
+
+
+def outline_length_finding(abs_path: Path) -> str:
+    """细纲超 字数目标×0.5 时返回提醒正文（与 JS core outlineLengthFinding 同文案）；否则空串。"""
+    try:
+        text = abs_path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+    m = outline_length_metrics(text)
+    if m["ratio"] <= _OUTLINE_RATIO_TARGET:
+        return ""
+    pct = round(m["ratio"] * 100)
+    level = (f"超过硬上限 {int(_OUTLINE_RATIO_HARD * 100)}%" if m["ratio"] > _OUTLINE_RATIO_HARD
+             else f"超过目标 {int(_OUTLINE_RATIO_TARGET * 100)}%")
+    basis = f"（缺「字数目标」，按 {_OUTLINE_DEFAULT_TARGET} 代入，请补纲）" if m["target_defaulted"] else ""
+    lines = [
+        f"细纲 {abs_path.name}：汉字 {m['han_chars']} / 字数目标 {m['target']} = {pct}%，{level}{basis}。"
+        "细纲:正文 应为 1:2.5～1:3（目标 ≤50%，硬上限 70%）；细纲只写目的和效果，不展开情节。",
+    ]
+    if m["dups"]:
+        shown = "、".join(f"{d['text']}×{d['count']}" for d in m["dups"][:5])
+        lines.append(f"重复细节（同一处出现 ≥3 次）：{shown}——只在情节点序列留一处，其他字段写「见情节点 N」，一处改六处漏。")
+    lines.append(
+        "压缩办法：章卡（第一个 #### 之前）合计 ≤350 字、核心事件 ≤80 字；五段式/多线每行 ≤40 字，只写功能与转折；"
+        "具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。"
+        "复核：node <story-long-write>/scripts/check-outline-retention.js 该细纲。"
+    )
+    return "\n".join(lines)
+
+
+def _outline_for_new_prose(abs_path: Path) -> Path | None:
+    """写长篇第 N 章正文（首建）时对应的 大纲/细纲_第N章*.md；不是首建正文或找不到细纲返回 None。"""
+    if abs_path.parent.name != "正文" or abs_path.exists():
+        return None
+    m = re.match(r"^第0*(\d+)章.*\.md$", abs_path.name)
+    if not m:
+        return None
+    outline_dir = abs_path.parent.parent / "大纲"
+    try:
+        for f in sorted(outline_dir.glob("细纲_第*章*.md")):
+            fm = re.match(r"^细纲_第0*(\d+)章", f.name)
+            if fm and fm.group(1) == m.group(1):
+                return f
+    except Exception:
+        return None
+    return None
 
 
 def _wordcount_finding(abs_path: Path, text: str) -> str | None:
@@ -1877,6 +1980,18 @@ def pre_tool_prose_guard(obj: dict[str, Any]) -> None:
                 }
             })
             return
+    # 放行路径上的非阻断提醒：写第 N 章正文（首建）前，该章细纲超 字数目标×0.5 时提醒比例与重复细节。
+    try:
+        notes = []
+        for path in target_paths_from_hook(obj):
+            outline = _outline_for_new_prose(path)
+            finding = outline_length_finding(outline) if outline else ""
+            if finding:
+                notes.append(f"⚠ 细纲超长（不拦写，写 {path.name} 前提醒）：{finding}")
+        if notes:
+            emit(hook_context("PreToolUse", "\n\n".join(notes)))
+    except Exception:
+        pass
 
 
 def find_command(value: Any) -> str:
@@ -2100,6 +2215,18 @@ def stop_event() -> None:
                 findings.append(wc)
             if findings:
                 blocks.append(f"=== {safe_rel(root, abs_path)} ===\n" + "\n".join(findings))
+        # 细纲长度提醒：本回合改动过的 大纲/细纲_第N章*.md 超 字数目标×0.5 时附在同一条消息里
+        # （Codex 无 PostToolUse，这里替 Claude 的写后 additionalContext 提醒兜底）。
+        outline_blocks: list[str] = []
+        for abs_path in find_changed_prose_files(root, _is_outline_path):
+            finding = outline_length_finding(abs_path)
+            if finding:
+                outline_blocks.append(f"=== {safe_rel(root, abs_path)}（细纲长度提醒，不拦写）===\n{finding}")
+        if outline_blocks and not blocks:
+            emit({"continue": True, "systemMessage": "\n".join(outline_blocks)})
+            return
+        if outline_blocks:
+            blocks.extend(outline_blocks)
         if blocks:
             emit({
                 "continue": True,
