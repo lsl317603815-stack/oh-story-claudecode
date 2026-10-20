@@ -214,13 +214,13 @@ printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.
 echo "  OK stop content sweep (git-changed only)"
 
 # ── 细纲长度提醒：写正文前（PreToolUse additionalContext）与回合末（Stop，Codex 无 PostToolUse）──
-# 细纲汉字 > 字数目标×0.5 只提醒不拦；改动集外的细纲不复扫。
+# 细纲汉字 > 字数目标×0.6 只提醒不拦；改动集外的细纲不复扫。
 OUTLINE_PAD=""
 for _ in $(seq 1 80); do OUTLINE_PAD="$OUTLINE_PAD$PAD6"; done
 printf '## 细纲（第 1 章）\n- 字数目标：2200 字\n- 情节点序列：4800元，4800元，4800元。%s\n' "$OUTLINE_PAD" > "$ROOT/book/大纲/细纲_第1章.md"
 out="$(run_hook pre-tool-prose-guard '{"tool_name":"Write","tool_input":{"file_path":"book/正文/第001章_开端.md","content":"正文"}}')"
 assert_additional_context "$out" "pre-write outline length advisory"
-printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); h=o["hookSpecificOutput"]; assert "permissionDecision" not in h; c=h["additionalContext"]; assert "细纲超长" in c and "超过目标 50%" in c and "4800元×3" in c, c' || fail "pre-write outline advisory content/decision wrong: $out"
+printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); h=o["hookSpecificOutput"]; assert "permissionDecision" not in h; c=h["additionalContext"]; assert "细纲超长" in c and "超过目标 60%" in c and "4800元×3" in c, c' || fail "pre-write outline advisory content/decision wrong: $out"
 out="$(run_hook stop '{"hook_event_name":"Stop"}')"
 printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); m=o.get("systemMessage",""); assert o.get("continue") is True and "细纲长度提醒" in m and "细纲_第1章.md" in m, o' || fail "stop did not remind about a git-changed long outline: $out"
 : > "$ROOT/book/大纲/细纲_第1章.md"

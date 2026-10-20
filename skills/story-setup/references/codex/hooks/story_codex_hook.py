@@ -514,7 +514,7 @@ _NET_HARD_PATTERNS = [
     (re.compile(r"[（(](此处|以下|这里|下文|后续)?[^）)]{0,10}(省略|略去|略过)[^）)]{0,10}[）)]"), "占位符（括号省略）"),
     (re.compile(r"(TODO|占位符|placeholder|待补充|此处待填|此处待补)"), "占位符"),
     (re.compile(r"(细纲|情节点|卷纲|功能标签|目标情绪|字数目标|章首钩子|章尾钩子|任务描述)"), "工程词泄漏"),
-    (re.compile(r"(内容概括|情节安排|预算合计|结尾设定|阶段位置|结构公式|压力级|爽点类型|章节定位|\bV\d+-U\d+\b|\b[FE]\d{3,}\b|(?:追踪|大纲|设定|拆文库)/[^\s，。）】」]+\.md)"), "工程词泄漏"),
+    (re.compile(r"(内容概括|情节安排|这章怎么演|人物与信息差|写手单|预算合计|结尾设定|阶段位置|结构公式|压力级|爽点类型|章节定位|\bV\d+-U\d+\b|\b[FE]\d{3,}\b|(?:追踪|大纲|设定|拆文库)/[^\s，。）】」]+\.md)"), "工程词泄漏"),
     # 章号引用的英文缩写：ch13 / Ch.13 / CH 13 / chapter 13。中文工程词表收不到它，
     # 实测有整段「她在 ch13 便学乖了」漏进正文。与 js 核 META_CHAPTER_REF_RE 逐字对应。
     (re.compile(r"\b(?:ch|chap|chapter)\.?\s?\d{1,4}\b", re.IGNORECASE), "章号引用泄漏"),
@@ -754,11 +754,11 @@ def find_changed_prose_files(root: Path, predicate: Any = None) -> list[Path]:
 
 # 细纲长度提醒（非阻断）：细纲:正文 = 1:2.5～1:3（plot-core-methods「小纲四步法」）。
 # 与 JS 共享核 outlineLengthFinding / story-long-write check-outline-retention.js 同一口径：
-# 汉字（[\u4e00-\u9fff]）> 字数目标×0.5 提醒，>0.7 标「超过硬上限」；缺字数目标按 3000 代入。
+# 汉字（[\u4e00-\u9fff]）> 字数目标×0.6 提醒，>0.8 标「超过硬上限」；缺字数目标按 3000 代入。
 # 硬拦只在 story-long-write 批末脚本；Codex 无 PostToolUse，写细纲后的提醒走 Stop 回合末复扫。
 _OUTLINE_HAN_RE = re.compile(r"[\u4e00-\u9fff]")
-_OUTLINE_RATIO_TARGET = 0.5
-_OUTLINE_RATIO_HARD = 0.7
+_OUTLINE_RATIO_TARGET = 0.6
+_OUTLINE_RATIO_HARD = 0.8
 _OUTLINE_DEFAULT_TARGET = 3000
 _OUTLINE_CN_DIGITS = "零〇一二三四五六七八九十百千万两"
 _OUTLINE_QUANTIFIERS = [
@@ -810,7 +810,7 @@ def outline_length_metrics(text: str) -> dict[str, Any]:
 
 
 def outline_length_finding(abs_path: Path) -> str:
-    """细纲超 字数目标×0.5 时返回提醒正文（与 JS core outlineLengthFinding 同文案）；否则空串。"""
+    """细纲超 字数目标×0.6 时返回提醒正文（与 JS core outlineLengthFinding 同文案）；否则空串。"""
     try:
         text = abs_path.read_text(encoding="utf-8")
     except Exception:
@@ -824,14 +824,14 @@ def outline_length_finding(abs_path: Path) -> str:
     basis = f"（缺「字数目标」，按 {_OUTLINE_DEFAULT_TARGET} 代入，请补纲）" if m["target_defaulted"] else ""
     lines = [
         f"细纲 {abs_path.name}：汉字 {m['han_chars']} / 字数目标 {m['target']} = {pct}%，{level}{basis}。"
-        "细纲:正文 应为 1:2.5～1:3（目标 ≤50%，硬上限 70%）；细纲只写目的和效果，不展开情节。",
+        "细纲只写目的和效果、不展开情节（plot-core-methods「小纲四步法」）；句子化写法下目标 ≤60%，硬上限 80%。",
     ]
     if m["dups"]:
         shown = "、".join(f"{d['text']}×{d['count']}" for d in m["dups"][:5])
         lines.append(f"重复细节（同一处出现 ≥3 次）：{shown}——只在情节点序列留一处，其他字段写「见情节点 N」，一处改六处漏。")
     lines.append(
-        "压缩办法：章卡（第一个 #### 之前）合计 ≤350 字、核心事件 ≤80 字；五段式/多线每行 ≤40 字，只写功能与转折；"
-        "具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。"
+        "压缩办法：同一件事只讲一遍；章卡 7 个字段每项一两句完整的话、≤70 字，合计 ≤400 字；情节点每点一到两句、展开程度写在句末括号里；"
+        "人物与信息差三到四句，结尾两句；具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。"
         "复核：node <story-long-write>/scripts/check-outline-retention.js 该细纲。"
     )
     return "\n".join(lines)
@@ -1980,7 +1980,7 @@ def pre_tool_prose_guard(obj: dict[str, Any]) -> None:
                 }
             })
             return
-    # 放行路径上的非阻断提醒：写第 N 章正文（首建）前，该章细纲超 字数目标×0.5 时提醒比例与重复细节。
+    # 放行路径上的非阻断提醒：写第 N 章正文（首建）前，该章细纲超 字数目标×0.6 时提醒比例与重复细节。
     try:
         notes = []
         for path in target_paths_from_hook(obj):
@@ -2215,7 +2215,7 @@ def stop_event() -> None:
                 findings.append(wc)
             if findings:
                 blocks.append(f"=== {safe_rel(root, abs_path)} ===\n" + "\n".join(findings))
-        # 细纲长度提醒：本回合改动过的 大纲/细纲_第N章*.md 超 字数目标×0.5 时附在同一条消息里
+        # 细纲长度提醒：本回合改动过的 大纲/细纲_第N章*.md 超 字数目标×0.6 时附在同一条消息里
         # （Codex 无 PostToolUse，这里替 Claude 的写后 additionalContext 提醒兜底）。
         outline_blocks: list[str] = []
         for abs_path in find_changed_prose_files(root, _is_outline_path):

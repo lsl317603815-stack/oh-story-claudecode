@@ -1222,7 +1222,7 @@ const HARD_PATTERNS = [
   [/[（(](此处|以下|这里|下文|后续)?[^）)]{0,10}(省略|略去|略过)[^）)]{0,10}[）)]/, "占位符（括号省略）"],
   [/(TODO|占位符|placeholder|待补充|此处待填|此处待补)/, "占位符"],
   [/(细纲|情节点|卷纲|功能标签|目标情绪|字数目标|章首钩子|章尾钩子|任务描述)/, '工程词泄漏'],
-  [/内容概括|情节安排|预算合计|结尾设定|阶段位置|结构公式|压力级|爽点类型|章节定位|\bV\d+-U\d+\b|\b[FE]\d{3,}\b|(?:追踪|大纲|设定|拆文库)\/[^\s，。）】」]+\.md/, '工程词泄漏'],
+  [/内容概括|情节安排|这章怎么演|人物与信息差|写手单|预算合计|结尾设定|阶段位置|结构公式|压力级|爽点类型|章节定位|\bV\d+-U\d+\b|\b[FE]\d{3,}\b|(?:追踪|大纲|设定|拆文库)\/[^\s，。）】」]+\.md/, '工程词泄漏'],
   // 章号引用的英文缩写：ch13 / Ch.13 / CH 13 / chapter 13。中文工程词表收不到它，
   // 实测有整段「她在 ch13 便学乖了」漏进正文无人拦。这条零误报（\b 前界让 Bach13、
   // A13 不命中）、中文正文里也永不合法，所以进自动网而不是只留在 check-degeneration.js
@@ -1459,12 +1459,12 @@ function duplicateTitleFindings(absolute) {
 }
 
 // 细纲长度提醒（非阻断）：细纲:正文 = 1:2.5～1:3（plot-core-methods「小纲四步法」）。
-// 汉字数 > 字数目标×0.5 时提醒比例与重复细节；硬拦只在 story-long-write 批末
-// scripts/check-outline-retention.js（>0.7 blocking），这里与那份脚本同一口径，只做 advisory，
+// 汉字数 > 字数目标×0.6 时提醒比例与重复细节；硬拦只在 story-long-write 批末
+// scripts/check-outline-retention.js（>0.8 blocking），这里与那份脚本同一口径，只做 advisory，
 // 专门堵「修订回灌把细纲越改越长」。缺字数目标按 3000 代入（SKILL.md「字数验收权威」兜底）。
 const OUTLINE_HAN_RE = /[\u4e00-\u9fff]/g
-const OUTLINE_RATIO_TARGET = 0.5
-const OUTLINE_RATIO_HARD = 0.7
+const OUTLINE_RATIO_TARGET = 0.6
+const OUTLINE_RATIO_HARD = 0.8
 const OUTLINE_DEFAULT_TARGET = 3000
 const OUTLINE_CN_DIGITS = "零〇一二三四五六七八九十百千万两"
 const OUTLINE_QUANTIFIERS = [
@@ -1515,7 +1515,7 @@ function outlineLengthMetrics(text) {
   return { hanChars, target, targetDefaulted: !parsed, ratio: hanChars / target, dups }
 }
 
-// 返回提醒正文（不带前缀）；未超 0.5 或读不了返回 ""。
+// 返回提醒正文（不带前缀）；未超 0.6 或读不了返回 ""。
 function outlineLengthFinding(absolute) {
   let text
   try {
@@ -1532,9 +1532,9 @@ function outlineLengthFinding(absolute) {
     ? `重复细节（同一处出现 ≥3 次）：${m.dups.slice(0, 5).map((d) => `${d.text}×${d.count}`).join("、")}——只在情节点序列留一处，其他字段写「见情节点 N」，一处改六处漏。`
     : ""
   return [
-    `细纲 ${path.basename(absolute)}：汉字 ${m.hanChars} / 字数目标 ${m.target} = ${pct}%，${level}${basis}。细纲:正文 应为 1:2.5～1:3（目标 ≤50%，硬上限 70%）；细纲只写目的和效果，不展开情节。`,
+    `细纲 ${path.basename(absolute)}：汉字 ${m.hanChars} / 字数目标 ${m.target} = ${pct}%，${level}${basis}。细纲只写目的和效果、不展开情节（plot-core-methods「小纲四步法」）；句子化写法下目标 ≤60%，硬上限 80%。`,
     dupLine,
-    "压缩办法：章卡（第一个 #### 之前）合计 ≤350 字、核心事件 ≤80 字；五段式/多线每行 ≤40 字，只写功能与转折；具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。复核：node <story-long-write>/scripts/check-outline-retention.js 该细纲。",
+    "压缩办法：同一件事只讲一遍；章卡 7 个字段每项一两句完整的话、≤70 字，合计 ≤400 字；情节点每点一到两句、展开程度写在句末括号里；人物与信息差三到四句，结尾两句；具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。复核：node <story-long-write>/scripts/check-outline-retention.js 该细纲。",
   ].filter(Boolean).join("\n")
 }
 
