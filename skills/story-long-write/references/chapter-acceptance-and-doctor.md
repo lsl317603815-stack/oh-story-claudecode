@@ -3,7 +3,7 @@
 正文不是模型生成后立即成立的事实。所有会改动正文的步骤都放在作者接纳**之前**；接纳之后，正文只能走大修流程。默认链路固定为：
 
 ```text
-精确一章许可 → 隔离候选稿 → 14 道确定性门禁 → 去味审查回执 → 复扫门禁 → 一致性审查回执
+精确一章许可 → 隔离候选稿 → 15 道确定性门禁 → 去味审查回执 → 复扫门禁 → 一致性审查回执
 → 用户接纳 → 原子写入正文 + 质检回执入库 → 逐章追踪事务 → 提交凭证闭环 → 更新声音画像 → story doctor
 ```
 
@@ -47,14 +47,16 @@ auto 模式另有两个选项：`--review-policy lean`（去味审查只看门�
 {PYTHON} skills/story-long-write/scripts/chapter_candidate.py fix   --run "{候选运行目录}"
 ```
 
-`check` 先验证基础文件和追踪修订没有变化，再一次跑完 14 道门禁，把结果连同候选稿 SHA-256、每个检查脚本的 SHA-256、压力档和本书门禁配置摘要写入运行目录的 `gate-report.json`。语言门不过就立即停下，其余门禁不跑；其他门禁全部跑完后一起报告。
+`check` 先验证基础文件和追踪修订没有变化，再一次跑完 15 道门禁，把结果连同候选稿 SHA-256、每个检查脚本的 SHA-256、压力档和本书门禁配置摘要写入运行目录的 `gate-report.json`。语言门不过就立即停下，其余门禁不跑；其他门禁全部跑完后一起报告。
 
 | 门禁 | 失败时 |
 |---|---|
-| `writing_method`、`language`、`style_hygiene`、`ai_patterns`、`degeneration`、`prose_metrics`、`outline_copy`、`accepted_voice_profile`、`cross_chapter_shape` | 拦截：改稿后重跑 |
+| `writing_method`、`language`、`style_hygiene`、`ai_patterns`、`degeneration`、`prose_metrics`、`word_target`、`outline_copy`、`accepted_voice_profile`、`cross_chapter_shape` | 拦截：改稿后重跑 |
 | `punctuation`（`normalize-punctuation.js --check`） | 拦截：运行 `fix` 自动修正并登记前后摘要 |
 | `dialogue_drift`（带 `--chapter N --project`）、`emotion_floor`、`hook_strength`（黄金三章） | 拦截；启发式，可按书降级或逐章豁免 |
 | `typos` | 只记录，不拦截 |
+
+**细纲字数门 `word_target`**：候选稿汉字数（标题行不计）必须落在本章细纲 `字数目标` 的 90%–110%，低于下限或高于上限都拦截，不能豁免、不能按书降级。目标写成区间（`3000-3500 字`）时低端算下限、高端算上限；细纲缺字段或写不出数字时按 3000 字验收并提示补纲。低了按细纲情节点预算补欠账的密点，细纲本身不够时输出 `outline_underfilled` 先补纲；高了压过场、合并疏点，不删主线爽点。它和细纲长度检查 `check-outline-retention.js`（细纲 > 字数目标×0.5 提醒、×0.7 拦截）读同一个 `字数目标`，一个管正文、一个管细纲，各管一端，不会互相逼迫：1:2.5–1:3 的细纲约为目标的 33%–40%，正文落在 90%–110% 时两条同时满足。
 
 接纳基线与作者精选黄金样本的声音漂移只作双向 advisory，具体语义见 `accepted-voice-profile.md`；近章结构证据必须按 `cross-chapter-shape.md` 的五问做语义复核，不因数值接近自动改文。任一已配置画像本身过期属于数据来源错误，会阻断继续使用旧范围。
 
@@ -80,9 +82,18 @@ auto 模式另有两个选项：`--review-policy lean`（去味审查只看门�
   "schema_version": 1,
   "gates": {"emotion_floor": {"mode": "advisory", "reason": "冷调推理，情绪默认内收"}},
   "default_pressure": "normal",
-  "punctuation": {"pause_mode": "keep", "quote_mode": "keep"}
+  "punctuation": {"pause_mode": "keep", "quote_mode": "keep"},
+  "dialogue": {"max_consecutive_tagged_turns": 3, "max_consecutive_bare_tagged_turns": 2, "reason": "可选：按书调整的依据"},
+  "prose_bands": {
+    "note": "本书第 1–4 章实测",
+    "paragraph_mean_chars": {"low": 44, "high": 65, "source": "第 1–4 章 44–64"}
+  }
 }
 ```
+
+`dialogue.max_consecutive_tagged_turns` 是对白漂移门 `consecutive-tagged-turns` 允许的最长连续带归属标记对白行数，超过即拦截；缺省 3（连续 4 行拦截）。全部对白走“主语 + 动作 + 说道：‘……’”前置引导的书会自然连出多行带标记对白，按该书已接纳章的实测最大连续数加一档配置；密度、说类动词占比、同词重复仍是 advisory，不受此键影响。`dialogue.max_consecutive_bare_tagged_turns` 是同一门 `consecutive-bare-tagged-turns` 允许的最长连续报幕式标签对白行数，超过即拦截；缺省 2（连续 3 行拦截）。报幕式指该行叙述只有标签子句、没有独立动作分句，且说话动词前的子句去掉主语后只剩至多 4 个汉字修饰（副词尾“地”不计），如“沈烬说道：”“苏幼薇低声说道：”“她又问道：”；“沈烬拉开椅子坐下，小声问道：”不算。它按标签形态拦逐句报幕，调高前一个上限的书靠它兜底，一般不需要调；判定细则与标定时的误判率写在 `dialogue_drift_gate.js` 头注释。报幕式占全部标记 ≥50% 且 ≥5 处时另出 advisory `bare-tag-ratio`，不拦截。`chapter_candidate.py` 校验这两个值并通过命令行传给脚本；单独运行 `dialogue_drift_gate.js --project` 时脚本自己读同一配置，命令行参数优先。
+
+`prose_bands` 是本书自己标定的文风带：键是 `prose_metrics.py` 的实测项（`paragraph_mean_chars`、`sentence_mean_chars`、`short_sentence_rate_pct`、`bare_quote_rate_pct`、`leading_colon_tag_count`、`short_paragraph_rate_pct`、`function_word_per_kilo`、`particle_per_kilo`、`narr_modal_end_pct`、`narr_second_person_pct`、`narr_exclaim_pct`、`narr_question_pct`、`degree_adverb_per_kilo`、`sentence_cv`，口径见脚本），值为 `{low, high, label?, source?}`，`note` 写标定来源。配置后 `prose_metrics` 的输出多一段 `style_band`，逐项给出 `within / below / above`；它只是 advisory：超带写进候选报告并做语义复核，不拦截，也不授权机械改文。没有内置带：一本书量出来的带不是另一本书的质量配额，只用本书已接纳、作者认可的章节标定。
 
 `gates` 只能调整 `dialogue_drift / emotion_floor / hook_strength`，降为 `advisory` 后失败只记录不拦截；语言、退化、AI 句式、文风卫生等确定性硬门永远不能降级。`punctuation` 决定 `check` 与 `fix` 是否清理 `……`/破折号（`pause_mode=normalize`）和引号风格；只有本书文风或发布平台明确禁用时才改。情绪下限阈值是按一部完本长篇标定的，换题材若频繁误拦，优先用这里的配置，而不是逐章豁免。
 

@@ -616,6 +616,12 @@ def test_spawn_preflight_uses_agents_version_not_file_existence() -> None:
         ),
         "the current shared spawn preflight must pass",
     )
+    stale_notice = current_contract.replace("本版 {}）".format(current), "本版 {}）".format(stale))
+    require(
+        "spawn-agents-version-preflight"
+        in finding_codes(VALIDATOR.spawn_preflight_findings(stale_notice, manifest, Path("stale-notice.md"))),
+        "a mismatch notice that names an old version must be flagged",
+    )
 
     bumped = manifest_with(agents_version=current + 1)
     stale_paths = flagged_paths(bumped, "spawn-agents-version-preflight")

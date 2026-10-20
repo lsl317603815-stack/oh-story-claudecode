@@ -191,4 +191,106 @@ set -e
 [ "$dangling_status" -eq 3 ] || { echo "FAIL: --chapter without a value should exit 3" >&2; exit 1; }
 [ "$project_status" -eq 3 ] || { echo "FAIL: missing --project root should exit 3" >&2; exit 1; }
 
-echo "OK: dialogue drift gate keeps regressions, rejects real tag runs, avoids narrative-action false positives, and baselines candidates via --chapter"
+# ── 按书上限与报幕式标签 ─────────────────────────────────────────────────
+# 报幕式：主语 + 至多 4 字修饰 + 说话动词，无动作分句。连续 3 行阻断，即使带标记连续数没超 3。
+cat > "$TMP_DIR/bare-run.md" <<'PROSE'
+沈烬说道：“合同在这里。”
+苏幼薇低声说道：“我看过了。”
+沈烬又问道：“那你签不签？”
+窗外的雨一直没停。
+PROSE
+set +e
+node "$SCRIPT" --current "$TMP_DIR/bare-run.md" --json > "$TMP_DIR/bare-run.json"
+bare_status=$?
+set -e
+[ "$bare_status" -eq 2 ] || { echo "FAIL: three consecutive bare announcements must reject, got $bare_status" >&2; exit 1; }
+node - "$TMP_DIR/bare-run.json" <<'NODE'
+const fs = require('fs');
+const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const codes = report.findings.map((item) => item.code);
+if (!codes.includes('consecutive-bare-tagged-turns') || codes.includes('consecutive-tagged-turns')) throw new Error(JSON.stringify(report.findings));
+const m = report.metrics;
+if (m.max_consecutive_bare_tagged_turns !== 3 || m.max_consecutive_bare_tagged_turns_limit !== 2 || m.max_consecutive_bare_tagged_turns_limit_source !== 'default') throw new Error(JSON.stringify(m));
+if (m.max_consecutive_bare_tagged_turns_run.start !== 1 || m.max_consecutive_bare_tagged_turns_run.end !== 3) throw new Error(JSON.stringify(m.max_consecutive_bare_tagged_turns_run));
+NODE
+
+# 前置动作冒号式（G5）：每行都有独立动作分句，不算报幕；连续 4 行只撞带标记上限。
+cat > "$TMP_DIR/action-led.md" <<'PROSE'
+沈烬拉开椅子坐下，小声问道：“你早就知道了？”
+苏幼薇把茶杯推到他面前，轻声回答道：“猜到一点。”
+沈烬盯着杯里的茶叶，又问道：“那为什么不说？”
+苏幼薇站起来走到窗边，背对着他说道：“说了你会信吗？”
+PROSE
+set +e
+node "$SCRIPT" --current "$TMP_DIR/action-led.md" --json > "$TMP_DIR/action-led-default.json"
+action_default=$?
+set -e
+[ "$action_default" -eq 2 ] || { echo "FAIL: four tagged turns must still reject at the default limit" >&2; exit 1; }
+node "$SCRIPT" --current "$TMP_DIR/action-led.md" --max-consecutive-tagged-turns 4 --json > "$TMP_DIR/action-led-cli.json"
+node - "$TMP_DIR" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const load = (name) => JSON.parse(fs.readFileSync(path.join(process.argv[2], name), 'utf8'));
+const strict = load('action-led-default.json');
+if (!strict.findings.every((item) => item.code === 'consecutive-tagged-turns')) throw new Error(JSON.stringify(strict.findings));
+if (strict.metrics.bare_tagged_count !== 0) throw new Error(`action-led lines must not be bare: ${JSON.stringify(strict.examples)}`);
+const cli = load('action-led-cli.json');
+if (cli.status !== 'passed' || cli.metrics.max_consecutive_tagged_turns_limit !== 4 || cli.metrics.max_consecutive_tagged_turns_limit_source !== 'cli') throw new Error(JSON.stringify(cli.metrics));
+NODE
+
+# 门禁配置覆盖：--project 时读 设定/门禁配置.json → dialogue；命令行优先于配置。
+BOOK="$TMP_DIR/book"
+mkdir -p "$BOOK/设定" "$BOOK/正文"
+cp "$TMP_DIR/action-led.md" "$BOOK/第004章.md"
+cat > "$BOOK/设定/门禁配置.json" <<'JSON'
+{"schema_version": 1, "dialogue": {"max_consecutive_tagged_turns": 5, "reason": "全书前置动作冒号式对白"}}
+JSON
+node "$SCRIPT" --current "$BOOK/第004章.md" --project "$BOOK" --json > "$TMP_DIR/config-limit.json"
+set +e
+node "$SCRIPT" --current "$BOOK/第004章.md" --project "$BOOK" --max-consecutive-tagged-turns 3 --json > "$TMP_DIR/cli-over-config.json"
+cli_over_status=$?
+set -e
+[ "$cli_over_status" -eq 2 ] || { echo "FAIL: a CLI limit must override the book config" >&2; exit 1; }
+node - "$TMP_DIR/config-limit.json" <<'NODE'
+const fs = require('fs');
+const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const m = report.metrics;
+if (report.status !== 'passed' || m.max_consecutive_tagged_turns_limit !== 5 || m.max_consecutive_tagged_turns_limit_source !== '设定/门禁配置.json') throw new Error(JSON.stringify(m));
+if (m.max_consecutive_bare_tagged_turns_limit !== 2 || m.max_consecutive_bare_tagged_turns_limit_source !== 'default') throw new Error(JSON.stringify(m));
+NODE
+for bad in '{"schema_version": 1, "dialogue": {"max_consecutive_tagged_turns": 0}}' '{"schema_version": 1, "dialogue": []}' '{not json'; do
+  printf '%s\n' "$bad" > "$BOOK/设定/门禁配置.json"
+  set +e
+  node "$SCRIPT" --current "$BOOK/第004章.md" --project "$BOOK" --json > /dev/null 2>&1
+  bad_config_status=$?
+  set -e
+  [ "$bad_config_status" -eq 3 ] || { echo "FAIL: bad dialogue config '$bad' should exit 3, got $bad_config_status" >&2; exit 1; }
+done
+
+# 报幕式占比 advisory：5 处报幕、不连续，只提示不阻断。
+cat > "$TMP_DIR/bare-ratio.md" <<'PROSE'
+沈烬说道：“走吧。”
+雨下得更大了。
+苏幼薇说道：“去哪？”
+两人站在廊下没动。
+沈烬说道：“回学院。”
+远处有车灯扫过来。
+苏幼薇问道：“现在？”
+沈烬把伞撑开。
+沈烬说道：“现在。”
+PROSE
+node "$SCRIPT" --current "$TMP_DIR/bare-ratio.md" --json > "$TMP_DIR/bare-ratio.json"
+node - "$TMP_DIR/bare-ratio.json" <<'NODE'
+const fs = require('fs');
+const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (report.status !== 'passed' || report.findings.length !== 0) throw new Error(JSON.stringify(report.findings));
+if (!report.advisories.some((item) => item.code === 'bare-tag-ratio') || report.metrics.bare_tagged_count !== 5) throw new Error(JSON.stringify(report));
+NODE
+
+set +e
+node "$SCRIPT" --current "$TMP_DIR/bare-run.md" --max-consecutive-bare-tagged-turns 0 > /dev/null 2>&1
+zero_status=$?
+set -e
+[ "$zero_status" -eq 3 ] || { echo "FAIL: a non-positive CLI limit should exit 3" >&2; exit 1; }
+
+echo "OK: dialogue drift gate keeps regressions, rejects real tag runs, avoids narrative-action false positives, baselines candidates via --chapter, flags bare-announcement runs, and honors per-book limits"

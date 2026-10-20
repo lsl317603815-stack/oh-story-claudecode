@@ -668,8 +668,8 @@ def spawn_preflight_findings(
             "state that a version mismatch does not block spawn",
         ),
         (
-            r"Notice: agents bundle 版本不匹配",
-            "surface the version mismatch notice",
+            r"Notice: agents bundle 版本不匹配（项目 \{{N\}}，本版 {}）".format(current),
+            "surface the version mismatch notice with the current version",
         ),
         (
             r"大于 {} 时额外提示先更新 oh-story-claudecode".format(current),
