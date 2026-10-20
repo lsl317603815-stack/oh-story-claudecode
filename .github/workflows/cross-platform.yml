@@ -215,7 +215,8 @@ jobs:
         run: bash scripts/test-hook-encoding-portable.sh
 
   macos:
-    runs-on: macos-latest
+    # 2026-10-20 发 0.13.0 时 macos-latest 连续三次 15 分钟内分不到机器、被超时取消；固定版本标签。
+    runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
