@@ -2,7 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
-## 未发版（2026-10-20）
+## v0.13.0（Dev 候选 · 2026-10-20）
+
+去 AI 味规则按语料重新验证：被语料否定的规则退役，写手模板相应松绑；新增可选的按项目模型分工（写手、去 AI 味审查、读者审读可各走别的模型）和 `/story-review reader` 读者审读入口；细纲长度按「细纲:正文 = 1:2.5～1:3」受控；吸收番茄新手写作课的几条技法。部署契约升至 `setup_skill_version: 1.6.0` / `agents_version: 45`，升级后需在每个项目重跑 `/story-setup` 并新开会话。
+
+### 去 AI 味规则表 v1（story-deslop 1.4.0）
+
+- 依据 2026-10-06 的三模型语料验证（无约束 AI 稿约 10 万字，对六本外部热门网文约 412 万字）：`pattern-contracts.json` v2 共 83 条表层规则，各带 R 值与状态（1 条 conditional、49 条 retired、32 条 pending、候选「猛地」、10 条预注册的反向指标）。
+- 新增题材池阈值 `deslop-thresholds.default.json`（5 个题材池），`check-ai-patterns.js` 与 `deslop_guard.py` 读取项目 `.deslop-thresholds.json` 覆盖。`deslop_guard scan` 只报警和给候选位置，不改稿。
+- 语料检测器、测量与回归从语料工作区搬进 `story-deslop/corpus_rules/`；`revalidate.py` / `p2_stats.py` 重跑测量和 R 统计、与规则表比对，只出报告不自动改表。
+- 长篇章节接纳后自动追加进去 AI 味语料池（路径可配，池不存在就跳过，不阻断接纳）。
+
+### 写手模板松绑与 hook 退役清单（`agents_version` 42）
+
+- narrative-writer：问号、感叹号、口语连接词、对话标签不再压制，也不刻意多加；去掉「禁感叹收尾」「排比＝AI 指纹」「通篇同长度＝AI 腔」；Gate A 从硬禁降为候选词复核，「猛地」单列；「不是A而是B」成口癖才改；破折号按本书声线，超题材池 P90 才改。
+- `banned-words` / `anti-ai-writing` 按类标注 retired / pending（不删条目）；hook 兜底网（JS 与 Python 两份核）改读退役清单，由 `check-hook-regex-sync` 与 `pattern-contracts.json` 对齐。
+- `setup_skill_version` 1.5.1 → 1.5.2。
+
+### 可选模型分工（story-setup Step 8，`agents_version` 43）
+
+- 仅 Claude Code、默认关闭，按项目勾选三个角色：写手转发到 agy 上的模型（默认 gemini-4-argon-medium，提示词由标准写手模板生成）；去 AI 味审查与 `/story-review` 文字审查交给方舟上的模型（新增 `deslop-reviewer`，默认 doubao-seed-2-1-pro）；逐章读者审读（只给建议，读者只看到商品页、人设、已接纳前文和本章，看不到大纲、设定、追踪；单车道默认 Opus 5.5，多读者团由总控分配身份并汇总十分制平均分）。
+- 方舟客户端默认走 Agent Plan，回复里实际服务的模型与请求不符时拒收；CLI 车道在项目外的临时目录运行，项目 CLAUDE.md、AGENTS.md 和 hooks 不会泄给读者。
+- `deploy-model-routing.py` 提供 check / deploy，deploy 幂等、保留作者对 `config.json` 的修改，关掉角色时恢复标准写手、移除托管审查 agent。不勾选任何角色时行为不变。
+- `setup_skill_version` 1.5.2 → 1.6.0（部署流程新增可选步骤，原「创建部署标记」顺延为 Step 9）。
+
+### 读者审读入口（story-review 1.2.0）
+
+- `/story-review reader`（别名 `/读者审读`、`/审查 读者`；触发词 读者审读、读者视角、多读者、读者团）走模型分工的读者审读，不跑 Phase 0-4 审查。未开启读者角色时指向 story-setup Step 8，不自己扮读者；章节按「点名 > 未闭环候选 > 最近接纳」选；转述分数和要点，不加自己的意见。
+
+### 写作技法补充（番茄新手写作课）
+
+- plot-core-methods：反常人选择法、期待压弹簧；hooks-chapter：悬念处切视角的条件（另一条线在推进、与悬念咬合、下一章内切回兑现；前三章不用，悬疑推理慎用）；character-basics 主角卡加「惧怕」「不为人知的事（牵扯哪个配角）」与目标中途翻转；workflow-setup Phase 1「没有故事点子时」的开头池与随机重组；opening-design「开写前六问」。共享副本已同步。
 
 ### 细纲长度控制
 

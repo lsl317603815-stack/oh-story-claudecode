@@ -34,6 +34,8 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
+> **v0.13.0 起：** 去 AI 味规则按约 412 万字外部网文语料重新验证，被语料否定的规则退役，写手不再压制问号、感叹号和口语连接词；新增可选的按项目模型分工（写手、去 AI 味审查、读者审读可各走别的模型，`/story-setup` 第 8 步勾选）和 `/story-review reader` 读者审读；细纲长度按「细纲:正文 = 1:2.5～1:3」受控，顶部章卡给作者读，超长由批末检查拦截、hook 提醒。部署契约为 `setup_skill_version: 1.6.0` / `agents_version: 45`，升级后需在每个项目重新运行 `/story-setup` 并新开会话；旧细纲会被标成超长，属预期。
+>
 > **v0.12.0 起：** 长篇每章的质量检查全部在作者接纳**之前**完成：14 道确定性门禁、去AI味审查和一致性审查由 `chapter_candidate.py` 按顺序强制执行，审查结论用绑定候选稿摘要的回执证明做过，缺回执不能接纳；`追踪/质检进度.md` 改为按回执自动生成。续写状态卡补上逾期 / 临近到期的伏笔、在场角色的知情与关系、角色最近出场和最近两章回顾；新增 `tracking_commit.py render`、追踪完整性审计 `tracking_audit.py` 和 Dashboard 项目状态面板。部署契约为 `setup_skill_version: 1.5.1` / `agents_version: 41`；升级后重新运行 `/story-setup`、新开会话，并对每本在写的长篇在两章之间运行一次 `tracking_commit.py render`。
 >
 > **v0.11.0 起：** 合入另一条线的 v0.8.0 / v0.9.0：长篇续写默认先出候选章，作者接纳后才进正文；已建追踪的书修改既有正文、大纲或设定前，先由 revision-governor 出影响计划；新增声线保护、文风卫生门、`A-standard` / `B-distilled` 写作方法，`story-explore`、`story-research`、`story-release-package`、`story-publish` 四个 Skill，以及 TRAE Code、WorkBuddy / CodeBuddy Code 原生适配。中文主包的 canonical 固定名字集扩为 20 个 Skill（含本线的 `story-grill`、`story-drama-write`）；部署契约为 `setup_skill_version: 1.5.0` / `agents_version: 40`，升级后需重新运行 `/story-setup` 并新开会话。
