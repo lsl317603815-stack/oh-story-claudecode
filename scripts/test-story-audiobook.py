@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""story-audiobook 回归测试：切分逐字还原、有声稿往返、忠实度校验、选角解析、增量复用与离线合成流程。
+"""story-audiobook 回归测试：切分逐字还原、有声稿往返、忠实度校验、选角解析、增量复用、
+裁静音与提速、对白上下文与离线合成流程。
 
 方舟调用全部用假函数替换，不联网、不耗额度；拼接成品需要 ffmpeg，缺失时跳过那一项。
 """
@@ -155,6 +156,52 @@ class CoreTests(unittest.TestCase):
         self.assertNotEqual(k1, core.cache_key("v", "y", "文本", None, {}))
         self.assertNotEqual(k1, core.cache_key("v", "x", "文本", "电话", {}))
 
+    def test_trim_pcm_keeps_short_margins(self):
+        rate = audiobook.RATE
+        tone = b"".join(int(8000 * math.sin(i / 8)).to_bytes(2, "little", signed=True) for i in range(rate // 2))
+        quiet = b"\x00\x00" * int(rate * 0.35)
+        out = core.trim_pcm(quiet + tone + quiet, rate)
+        self.assertAlmostEqual(len(out) / 2 / rate, 0.5 + 2 * 0.05, delta=0.01)
+        self.assertEqual(core.trim_pcm(quiet, rate), quiet)          # 整句都静音时原样返回
+
+    def test_silent_lines_are_not_synthesized(self):
+        self.assertEqual(core.silent_ms("……"), 600)
+        self.assertEqual(core.silent_ms("！"), 0)
+        self.assertIsNone(core.silent_ms("好。"))
+
+    def test_narration_split_by_quote_is_joined(self):
+        text = "他在听见“压小”两个字的瞬间愣住了。"
+        segs = core.segment_chapter(text)
+        labels = {s.sid: core.Label("旁白", f"指示{s.sid}") for s in segs}
+        sc = core.build_lines(segs, labels, {})
+        self.assertEqual([l.text for l in sc.lines if l.role == "旁白"], [text])
+        self.assertFalse(core.sentence_ended("他在听见"))
+        self.assertTrue(core.sentence_ended("他走了。”"))
+
+    def test_pool_avoids_main_roles_and_same_chapter_passersby(self):
+        pool = core.PASSERBY_POOLS["女青年"]
+        cast = {"角色": {"甲": {"voice": pool[0]}, "路人·店员": {"voice": pool[1], "锁定": "2026-10-20"}}}
+        self.assertNotEqual(core.pick_pool_voice(cast, "女青年"), pool[0])
+        self.assertNotIn(core.pick_pool_voice(cast, "女青年", avoid={pool[2]}), {pool[0], pool[1], pool[2]})
+        full = {"角色": {f"路人·{i}": {"voice": v} for i, v in enumerate(pool)}}
+        self.assertIn(core.pick_pool_voice(full, "女青年"), pool)      # 池子用完复用，不报错
+
+    def test_dialogue_instruction_carries_scene_and_lead_in(self):
+        sc = core.Script(scenes={1: ("便利店", "深夜松弛"), 2: ("街口", "紧张")}, lines=[
+            core.Line("旁白", "平稳", "甲推门进来。", 1, scene=1),
+            core.Line("甲", "轻快", "学长，问你个事。", 1, scene=1),
+            core.Line("乙", "冷淡", "说。", 2, scene=1),
+            core.Line("乙·心声", "疑惑", "不对。", 3, scene=1),
+            core.Line("甲", "", "快跑！", 4, scene=2)])
+        ctx = core.dialogue_instruction(sc, 2)
+        for part in ("便利店", "深夜松弛", "甲推门进来。", "甲：学长，问你个事。", "「冷淡」", "现在乙"):
+            self.assertIn(part, ctx)
+        self.assertIn("心里的话", core.dialogue_instruction(sc, 3))
+        other = core.dialogue_instruction(sc, 4)
+        self.assertNotIn("学长", other)                              # 不跨场带前情
+        self.assertIn("街口", other)
+        self.assertIn("贴合此刻情境", other)
+
     def test_reuse_labels_keeps_unchanged_paragraphs(self):
         segs = core.segment_chapter(CHAPTER)
         old = core.build_lines(segs, self._labels(segs), {2: ("便利店", "深夜")})
@@ -192,7 +239,7 @@ def fake_chat_factory(calls):
 
 def fake_tts_factory(calls):
     def fake_tts(text, speaker, ctx=None, section=None, params=None, **_):
-        calls.append((text, speaker, ctx))
+        calls.append((text, speaker, ctx, section))
         n = int(audiobook.RATE * 0.05 * max(1, len(text)))
         tone = b"".join(int(8000 * math.sin(i / 8)).to_bytes(2, "little", signed=True) for i in range(64))
         return (tone * (n // 64 + 1))[:2 * n], {"text_words": len(text)}
@@ -304,6 +351,39 @@ class FlowTests(unittest.TestCase):
         self.run_cli("cast", "set", "甲", "--voice", "zh_female_qinqienv_uranus_bigtts", "--relock")
         self.assertIn("成品 过期", self.run_cli("status")[1])
 
+
+    def test_dialogue_context_keeps_narrator_keys(self):
+        self.lock_cast()
+        self.assertEqual(self.run_cli("annotate", "1")[0], 0)
+        book = audiobook.Book(self.root)
+        sc = core.parse((self.root / "有声书" / "有声稿" / "第001章.有声稿.md").read_text(encoding="utf-8"))
+        on = audiobook.plan_lines(book, sc, False)
+        (self.root / "有声书" / "配置.json").write_text(json.dumps({"对白上下文": False}), encoding="utf-8")
+        off = audiobook.plan_lines(book, sc, False)
+        for a, b in zip(on, off):
+            narrator = a["line"].role.split("·")[0] == core.NARRATOR
+            self.assertEqual(a["key"] == b["key"], narrator, a["line"].role)
+            self.assertEqual(a["dlg"], not narrator)
+        self.assertTrue(all(not p["dlg"] for p in off))
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_dialogue_shares_a_section_per_scene_and_tempo_is_render_only(self):
+        self.lock_cast()
+        self.assertEqual(self.run_cli("make", "1")[0], 0)
+        narr = [c for c in self.tts_calls if c[1] == "zh_male_xuanyijieshuo_uranus_bigtts"]
+        dlg = [c for c in self.tts_calls if c[1] != "zh_male_xuanyijieshuo_uranus_bigtts"]
+        self.assertTrue(narr and dlg)
+        self.assertTrue(all(c[3] is None for c in narr))
+        self.assertEqual(len({c[3] for c in dlg}), 1)                # 只有一场：对白共用一个会话
+        self.assertTrue(all(c[2] and "前情" in c[2] for c in dlg[1:]))
+        manifest = json.loads(next((self.root / "有声书" / "成品").glob("*.json")).read_text(encoding="utf-8"))
+        self.assertEqual(manifest["渲染"], {"裁首尾静音": True, "提速": 1.08})
+        (self.root / "有声书" / "配置.json").write_text(json.dumps({"提速": 1.0}), encoding="utf-8")
+        self.assertIn("成品 过期", self.run_cli("status")[1])
+        self.tts_calls.clear()
+        self.assertEqual(self.run_cli("make", "1")[0], 0)
+        self.assertEqual(self.tts_calls, [])                          # 改提速只重拼，不重新合成
+        self.assertIn("成品 最新", self.run_cli("status")[1])
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

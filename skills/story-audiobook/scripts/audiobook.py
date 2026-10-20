@@ -45,8 +45,9 @@ import audiobook_core as core  # noqa: E402
 REFS = HERE.parent / "references"
 RATE = 24000
 CHUNK_CHARS = 4000
-DEFAULT_CONFIG = {"标注模型": ark.DEFAULT_TEXT_MODEL, "并发": 4, "场景上下文": False,
-                  "响度LUFS": -18, "峰值dBTP": -3, "码率": "192k"}
+DEFAULT_CONFIG = {"标注模型": ark.DEFAULT_TEXT_MODEL, "并发": 4, "场景上下文": False, "对白上下文": True,
+                  "响度LUFS": -18, "峰值dBTP": -3, "码率": "192k",
+                  "裁首尾静音": True, "提速": 1.08}
 GITIGNORE = "缓存/\n工作/\n成品/*.mp3\n试音/*.mp3\n"
 
 
@@ -184,6 +185,8 @@ CARD_FIELDS = ("角色定位", "性别", "年龄", "身份", "外貌特征", "�
 def roster(book: Book) -> List[Tuple[str, str]]:
     out = []
     for f in sorted((book.root / "设定" / "角色").glob("*.md")):
+        if f.stem.startswith("群像"):
+            continue  # 群像卡是一群人的合集，不是一个声部；里面的人按路人标注、从路人池配音
         text = read(f)
         fields = []
         for line in text.splitlines():
@@ -519,6 +522,12 @@ def annotate(book: Book, n: int, force: bool = False, allow_uncommitted: bool = 
     renamed = []
     for sid, lab in labels.items():
         base = lab.role.split("·")[0]
+        together = [p for p in re.split(r"[、,，/和]", base) if p]
+        if len(together) > 1 and all(p in names for p in together):
+            # 齐声（「林夏、周遥」）：用领头那个人的声音，不当路人
+            lab.role = lab.role.replace(base, together[0], 1)
+            renamed.append(f"{base}→{together[0]}（齐声）")
+            continue
         if base not in names and base != core.PASSERBY:
             new = core.PASSERBY + "·" + lab.role
             renamed.append(f"{lab.role}→{new}")
@@ -558,6 +567,8 @@ def autocast_passersby(book: Book, sc: core.Script, newbies: Dict[str, Tuple[str
     if not roles:
         return []
     added = []
+    bases = {"·".join(p for p in ln.role.split("·") if p not in core.VARIANTS) for ln in sc.lines}
+    taken = {roles[b].get("voice") for b in bases if b.startswith(core.PASSERBY + "·") and b in roles}
     for role in core.missing_roles(cast, sc):
         if not role.startswith(core.PASSERBY + "·"):
             continue
@@ -566,7 +577,8 @@ def autocast_passersby(book: Book, sc: core.Script, newbies: Dict[str, Tuple[str
             continue
         gender, age = newbies.get(key) or newbies.get(role) or ("男", "青年")
         cat = core.pool_category(gender, age)
-        voice = core.pick_pool_voice(cast, cat)
+        voice = core.pick_pool_voice(cast, cat, taken)
+        taken.add(voice)
         roles[key] = {"voice": voice, "音色名": voice_name(voice), "自动": True, "类别": cat}
         added.append(f"{key}（{cat}·{voice_name(voice)}）")
     if added:
@@ -632,9 +644,18 @@ def wav_pcm(path: Path) -> bytes:
         return w.readframes(w.getnframes())
 
 
-def loudnorm(raw: Path, out: Path, lufs: float, tp: float, bitrate: str) -> None:
+def render_settings(cfg: dict) -> dict:
+    """影响成品听感、但不进逐句缓存键的拼接设置；写进成品清单，改了就判成品过期。"""
+    tempo = float(cfg.get("提速") or 1.0)
+    if not 0.5 <= tempo <= 2.0:
+        raise Fail(f"配置.json 的「提速」须在 0.5 到 2.0 之间（1 = 不变速），现在是 {tempo}")
+    return {"裁首尾静音": bool(cfg.get("裁首尾静音")), "提速": tempo}
+
+
+def loudnorm(raw: Path, out: Path, lufs: float, tp: float, bitrate: str, tempo: float = 1.0) -> None:
+    pre = f"atempo={tempo}," if tempo != 1.0 else ""     # 变速不变调，在测响度之前做，两遍测的是同一条声音
     spec = f"loudnorm=I={lufs}:TP={tp}:LRA=11"
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(raw), "-af", spec + ":print_format=json",
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(raw), "-af", pre + spec + ":print_format=json",
                         "-f", "null", "-"], capture_output=True, text=True)
     m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, re.S)
     if m:
@@ -648,21 +669,29 @@ def loudnorm(raw: Path, out: Path, lufs: float, tp: float, bitrate: str) -> None
                      f":measured_thresh={d['input_thresh']}:offset={d['target_offset']}:linear=true")
         else:
             spec = "anull"          # 几乎无声，测不出响度：原样编码
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af", spec, "-ar", "44100", "-b:a", bitrate,
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af", pre + spec, "-ar", "44100", "-b:a", bitrate,
                     str(out)], check=True)
 
 
 def plan_lines(book: Book, sc: core.Script, use_ctx: bool) -> List[dict]:
     cast = book.cast()
+    dlg = bool(book.config().get("对白上下文"))
     plan = []
-    for ln in sc.lines:
+    for i, ln in enumerate(sc.lines):
         e = core.resolve(cast, ln.role)
         params = core.tts_params(e)
-        ctx = core.instruction(ln.role, ln.cue)
         fx = e.get("fx") or None
-        key = core.cache_key(e["voice"], ctx, ln.text, fx, dict(params, 场景上下文=use_ctx))
+        is_dlg = dlg and ln.role.split("·")[0] != core.NARRATOR
+        key_params = dict(params, 场景上下文=use_ctx)
+        if is_dlg:
+            ctx = core.dialogue_instruction(sc, i)
+            key_params["对白上下文"] = True
+        else:
+            ctx = core.instruction(ln.role, ln.cue)     # 旁白：键不变，沿用已有缓存
+        key = core.cache_key(e["voice"], ctx, ln.text, fx, key_params)
         plan.append({"line": ln, "voice": e["voice"], "ctx": ctx, "fx": fx, "params": params, "key": key,
-                     "wav": book.ab / "缓存" / key[:2] / f"{key}.wav"})
+                     "dlg": is_dlg, "wav": book.ab / "缓存" / key[:2] / f"{key}.wav",
+                     "silent": core.silent_ms(ln.text)})
     return plan
 
 
@@ -676,12 +705,13 @@ def synth(book: Book, n: int, reroll: Sequence[int] = (), dry_run: bool = False,
             print("  ❌ " + e)
         return 1
     cfg = book.config()
+    render = render_settings(cfg)
     use_ctx = bool(cfg.get("场景上下文"))
     plan = plan_lines(book, sc, use_ctx)
     for p in plan:
         if p["line"].no in set(reroll) and p["wav"].exists():
             p["wav"].unlink()
-    todo = [p for p in plan if not p["wav"].exists()]
+    todo = [p for p in plan if p["silent"] is None and not p["wav"].exists()]
     chars = sum(len(p["line"].text) for p in todo)
     afp = chars * ark.AFP_PER_10K_CHARS / 10000
     if dry_run:
@@ -708,33 +738,47 @@ def synth(book: Book, n: int, reroll: Sequence[int] = (), dry_run: bool = False,
         tmp.write_bytes(data)
         tmp.replace(p["wav"])
 
-    try:
-        if use_ctx:
-            scenes: Dict[int, List[dict]] = {}
-            for p in todo:
-                scenes.setdefault(p["line"].scene, []).append(p)
+    # 一个任务 = 按顺序合成的若干行；同一任务共用一个 section_id（模型能接上前一句）
+    jobs: List[List[dict]] = []
+    if use_ctx:                                  # 场景上下文：整场（含旁白）串成一个会话
+        groups: Dict[int, List[dict]] = {}
+        for p in todo:
+            groups.setdefault(p["line"].scene, []).append(p)
+        jobs = list(groups.values())
+    else:                                        # 对白上下文：同场对白串成一个会话，旁白各自并发
+        groups = {}
+        for p in todo:
+            if p.get("dlg"):
+                groups.setdefault(p["line"].scene, []).append(p)
+            else:
+                jobs.append([p])
+        jobs = list(groups.values()) + jobs
 
-            def run_scene(ps):
-                section = str(uuid.uuid4())
-                for p in ps:
-                    one(p, section)
-            with ThreadPoolExecutor(int(workers or cfg["并发"])) as ex:
-                list(ex.map(run_scene, scenes.values()))
-        else:
-            with ThreadPoolExecutor(int(workers or cfg["并发"])) as ex:
-                list(ex.map(one, todo))
+    def run_job(ps):
+        section = str(uuid.uuid4()) if len(ps) > 1 or ps[0].get("dlg") or use_ctx else None
+        for p in ps:
+            one(p, section)
+    try:
+        with ThreadPoolExecutor(int(workers or cfg["并发"])) as ex:
+            list(ex.map(run_job, jobs))
     except ark.ArkError as e:
         raise Fail(ark.explain(e))
 
     pcm_all = bytearray()
-    t, prev, rows, srt = 0.0, None, [], []
+    tempo = render["提速"]
+    t, prev, rows, srt = 0.0, None, [], []      # t 是成品（变速后）时间轴
     for p in plan:
         ln = p["line"]
         gap = core.pause_ms(prev, ln)
         pcm_all.extend(b"\x00\x00" * int(RATE * gap / 1000))
-        t += gap / 1000
-        data = wav_pcm(p["wav"])
-        dur = len(data) / 2 / RATE
+        t += gap / 1000 / tempo
+        if p["silent"] is not None:
+            data = b"\x00\x00" * int(RATE * p["silent"] / 1000)
+        else:
+            data = wav_pcm(p["wav"])
+        if render["裁首尾静音"] and p["silent"] is None:
+            data = core.trim_pcm(data, RATE)
+        dur = len(data) / 2 / RATE / tempo
         pcm_all.extend(data)
         rows.append({"行": ln.no, "角色": ln.role, "音色": p["voice"], "指示": ln.cue, "文本": ln.text,
                      "起": round(t, 3), "时长": round(dur, 3), "缓存": p["key"]})
@@ -746,13 +790,13 @@ def synth(book: Book, n: int, reroll: Sequence[int] = (), dry_run: bool = False,
     raw.write_bytes(_wav_bytes(bytes(pcm_all)))
     mp3 = book.product(n, ".mp3")
     mp3.parent.mkdir(parents=True, exist_ok=True)
-    loudnorm(raw, mp3, cfg["响度LUFS"], cfg["峰值dBTP"], cfg["码率"])
+    loudnorm(raw, mp3, cfg["响度LUFS"], cfg["峰值dBTP"], cfg["码率"], tempo)
     raw.unlink()
     book.product(n, ".srt").write_text("\n".join(
         f"{i}\n{ts(a)} --> {ts(b)}\n{txt}\n" for i, (a, b, txt) in enumerate(srt, 1)), encoding="utf-8")
     flags = speed_flags(rows)
     manifest = {"章节": n, "标题": book.title(n), "有声稿sha256": core.sha256_text(read(book.script_path(n))),
-                "生成时间": now(), "时长秒": round(t, 1),
+                "生成时间": now(), "时长秒": round(t, 1), "渲染": render,
                 "本次合成行数": len(todo), "本次计费字数": billed[0], "语速异常": flags, "行": rows}
     book.product(n, ".json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"第 {n} 章成品：{rel(book, mp3)}（{t / 60:.1f} 分钟，{len(plan)} 行）")
@@ -804,13 +848,15 @@ def chapter_status(book: Book, n: int) -> dict:
 
 
 def product_fresh(book: Book, n: int, manifest: dict) -> bool:
-    """成品是否与当前有声稿和选角一致：逐句缓存键全部相同即最新。"""
+    """成品是否与当前有声稿、选角和拼接设置一致：逐句缓存键全部相同、渲染设置相同即最新。"""
     try:
+        cfg = book.config()
         sc = core.parse(read(book.script_path(n)))
-        keys = [p["key"] for p in plan_lines(book, sc, bool(book.config().get("场景上下文")))]
-    except (KeyError, core.ScriptError):
+        keys = [p["key"] for p in plan_lines(book, sc, bool(cfg.get("场景上下文")))]
+        render = render_settings(cfg)
+    except (KeyError, core.ScriptError, Fail):
         return False
-    return keys == [r.get("缓存") for r in manifest.get("行", [])]
+    return keys == [r.get("缓存") for r in manifest.get("行", [])] and manifest.get("渲染") == render
 
 
 def cmd_status(book: Book) -> int:

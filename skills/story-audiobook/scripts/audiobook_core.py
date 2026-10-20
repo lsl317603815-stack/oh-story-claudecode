@@ -4,10 +4,12 @@
 """
 from __future__ import annotations
 
+import array
 import difflib
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -30,10 +32,16 @@ FX_FILTERS = {
 PASSERBY_POOLS = {
     "男青年": ["zh_male_yangguangqingnian_uranus_bigtts", "zh_male_qingshuangnanda_uranus_bigtts",
              "zh_male_kailangxuezhang_uranus_bigtts", "zh_male_wenrouxiaoge_uranus_bigtts",
-             "zh_male_linjiananhai_uranus_bigtts", "zh_male_huolixiaoge_uranus_bigtts"],
+             "zh_male_linjiananhai_uranus_bigtts", "zh_male_huolixiaoge_uranus_bigtts",
+             "zh_male_shaonianzixin_uranus_bigtts", "zh_male_fanjuanqingnian_uranus_bigtts",
+             "zh_male_kuailexiaodong_uranus_bigtts", "zh_male_liufei_uranus_bigtts",
+             "zh_male_taocheng_uranus_bigtts", "zh_male_ruyaqingnian_uranus_bigtts"],
     "女青年": ["zh_female_qinqienv_uranus_bigtts", "zh_female_tiexinnvsheng_uranus_bigtts",
              "zh_female_qingxinnvsheng_uranus_bigtts", "zh_female_wenroushunv_uranus_bigtts",
-             "zh_female_kailangjiejie_uranus_bigtts"],
+             "zh_female_kailangjiejie_uranus_bigtts", "zh_female_gaolengyujie_uranus_bigtts",
+             "zh_female_zhishuaiyingzi_uranus_bigtts", "zh_female_linjianvhai_uranus_bigtts",
+             "zh_female_qingchezizi_uranus_bigtts", "zh_female_tianmeiyueyue_uranus_bigtts",
+             "zh_female_wenrouxiaoya_uranus_bigtts"],
     "男中年": ["zh_male_wennuanahu_uranus_bigtts", "zh_male_baqiqingshu_uranus_bigtts",
              "zh_male_yuanboxiaoshu_uranus_bigtts", "zh_male_cixingjieshuonan_uranus_bigtts"],
     "女中年": ["zh_female_wenroumama_uranus_bigtts", "zh_female_zhixingnv_uranus_bigtts",
@@ -209,11 +217,19 @@ class Label:
     doubt: bool = False
 
 
+def sentence_ended(text: str) -> bool:
+    """旁白片段是否已读完一句。被引号切开的半句（他在听见 + “压小” + 两个字……）不算，
+    拼接时要接成一行，否则一句话分几次合成，中间断气，语气也接不上。"""
+    t = text.rstrip().rstrip("”’」』\"'")
+    return not t or t[-1] in "。！？!?…；;：:"
+
+
 def build_lines(segs: Sequence[Segment], labels: Dict[int, Label],
                 scene_starts: Dict[int, Tuple[str, str]]) -> Script:
     """片段 + 标注 → 有声稿。
 
-    - 同一段落里相邻、同角色、同指示的片段合并成一行（不超过 LINE_MAX）。
+    - 同一段落里相邻、同角色、同指示的片段合并成一行（不超过 LINE_MAX）；
+      旁白被引号切开的半句不看指示也接上（见 sentence_ended）。
     - 旁白的空指示沿用上一句旁白的指示。
     - 旁白读到的引号原样保留；角色台词去掉包裹引号。
     - scene_starts：片段编号 → (场名, 氛围)，该片段所在段落开一个新场。缺标注的对白记为存疑旁白。
@@ -250,7 +266,8 @@ def build_lines(segs: Sequence[Segment], labels: Dict[int, Label],
             last_narr_cue = cue
         text = seg.raw if role == NARRATOR else seg.text
         if (cur is not None and seg.kind != "title" and cur.para == seg.para and cur.role == role
-                and cur.cue == cue and cur.doubt == lab.doubt and len(cur.text) + len(text) <= LINE_MAX):
+                and (cur.cue == cue or (role == NARRATOR and not sentence_ended(cur.text)))
+                and cur.doubt == lab.doubt and len(cur.text) + len(text) <= LINE_MAX):
             cur.text += text
             continue
         cur = Line(role, cue, text, seg.para, lab.doubt, para_scene[seg.para])
@@ -397,12 +414,19 @@ def pool_category(gender: str, age: str) -> str:
     return ("女" if "女" in gender else "男") + AGE_ALIASES.get(age.strip(), "青年")
 
 
-def pick_pool_voice(cast: dict, category: str) -> str:
-    used = {e.get("voice") for e in cast.get("角色", {}).values() if not e.get("自动")}
+def pick_pool_voice(cast: dict, category: str, avoid: Iterable[str] = ()) -> str:
+    """avoid：同一章里已出场的其他路人的音色。两个路人对话时尽量不同声，池子不够再复用。"""
+    # 主角色（非路人）的音色绝不给路人；手动锁定过的路人也只是路人，不算主角色
+    used = {e.get("voice") for k, e in cast.get("角色", {}).items() if not k.startswith(PASSERBY + "·")}
     pool = cast.get("路人池", {}).get(category) or PASSERBY_POOLS.get(category) or PASSERBY_POOLS["男青年"]
     if isinstance(pool, str):
         pool = [pool]
-    return next((v for v in pool if v not in used), pool[0])
+    avoid = set(avoid)
+    # 先挑全书还没人用过的（含别的路人），再挑本章没人用的，池子用完才复用
+    anyone = {e.get("voice") for e in cast.get("角色", {}).values()}
+    return (next((v for v in pool if v not in anyone and v not in avoid), None)
+            or next((v for v in pool if v not in used and v not in avoid), None)
+            or next((v for v in pool if v not in used), pool[0]))
 
 
 # ---------------------------------------------------------------- 合成参数
@@ -416,6 +440,30 @@ def instruction(role: str, cue: str) -> Optional[str]:
     if variant_of(role) == "心声":
         return f"这是角色心里的话，你可以用「{cue}」的语气说吗？"
     return f"你可以用「{cue}」的语气说这句话吗？"
+
+
+PREV_CHARS = 160
+
+
+def dialogue_instruction(sc: "Script", i: int) -> str:
+    """角色台词的语音指令：场景氛围 + 同场前情（约 160 字）+ 表演指示。
+    A/B 试听结论：只给几字指示的对白读得平；加上场景和前情、同场对白串在一个会话里合成后最有感情。"""
+    ln = sc.lines[i]
+    name, mood = sc.scenes.get(ln.scene, ("", ""))
+    prev, size = [], 0
+    for p in reversed(sc.lines[:i]):
+        if p.scene != ln.scene or size > PREV_CHARS:
+            break
+        prev.insert(0, f"{p.role.split('·')[0]}：{p.text}")
+        size += len(p.text)
+    speaker = ln.role.split("·")[0]
+    how = f"用「{ln.cue}」的语气和情绪" if ln.cue else "用贴合此刻情境的语气和情绪"
+    if variant_of(ln.role) == "心声":
+        act = f"这是{speaker}心里的话。请完全进入角色，{how}自然地说出来，不要像念稿。"
+    else:
+        act = f"现在{speaker}接着说下面这句。请完全进入角色，{how}自然地演出来，像真人当场脱口而出，不要像念稿。"
+    return ((f"场景：{name}，{mood}。" if name or mood else "") +
+            ("前情：" + " ".join(prev) if prev else "") + act)
 
 
 def tts_params(entry: dict) -> dict:
@@ -441,6 +489,32 @@ def pause_ms(prev: Optional[Line], cur: Line) -> int:
     else:
         gap = 160 if prev.text.rstrip().endswith(("：", "，", "、", ":", ",")) else 300
     return gap + (80 if cur.role != prev.role else 0)
+
+
+def silent_ms(text: str) -> Optional[int]:
+    """整句没有可读文字（单独的“……”“！”）时不送合成（接口会报 No readable text），返回要插的静音毫秒数；
+    有可读文字时返回 None。省略号、破折号按一拍沉默处理，其余纯标点不占时间。"""
+    if re.search(r"\w", text):
+        return None
+    return 600 if re.search(r"[…—.]", text) else 0
+
+
+def trim_pcm(pcm: bytes, rate: int, thresh_db: float = -40.0, keep: float = 0.05) -> bytes:
+    """裁掉逐句音频首尾的静音，各留 keep 秒（16 位单声道小端 PCM）。
+
+    合成接口返回的每句音频自带约 0.3–0.4 秒首尾静音，叠上 pause_ms 的停顿后句间会空出一秒多，
+    听感拖沓；裁掉后句间停顿才由 pause_ms 说了算。整句都低于阈值时原样返回。"""
+    samples = array.array("h")
+    samples.frombytes(pcm[: len(pcm) // 2 * 2])
+    if sys.byteorder == "big":
+        samples.byteswap()
+    limit = int(32768 * 10 ** (thresh_db / 20))
+    first = next((i for i, v in enumerate(samples) if abs(v) > limit), None)
+    if first is None:
+        return pcm
+    last = next(i for i in range(len(samples) - 1, -1, -1) if abs(samples[i]) > limit)
+    margin = int(rate * keep)
+    return pcm[max(0, first - margin) * 2: min(len(samples), last + 1 + margin) * 2]
 
 
 # ---------------------------------------------------------------- 标注输出解析与复用
