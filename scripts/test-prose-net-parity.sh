@@ -1067,7 +1067,8 @@ PYGEN
 import importlib.util, sys, pathlib
 spec = importlib.util.spec_from_file_location("ch", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 for f in sorted(pathlib.Path(sys.argv[2]).iterdir()):
-    sys.stdout.write(f"## {f.name}\n{m.outline_length_finding(f)}\n")
+    # Windows 默认 cp1252 写不了中文：走 UTF-8 字节，与 node 侧输出逐字节可比。
+    sys.stdout.buffer.write(f"## {f.name}\n{m.outline_length_finding(f)}\n".encode("utf-8"))
 PYCHK
   if ! cmp -s "$tmp/js.txt" "$tmp/py.txt"; then
     echo "FAIL: 细纲长度提醒 py≠js" >&2; diff "$tmp/js.txt" "$tmp/py.txt" | head -20 >&2; rm -rf "$tmp"; return 3
