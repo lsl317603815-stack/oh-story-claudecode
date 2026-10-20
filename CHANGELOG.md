@@ -2,11 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
-## 未发版（细纲整份改成人话，待并入 0.14.0）
+## v0.14.0（Dev 候选 · 2026-10-21）
+
+细纲模板整份改成作者能读的四段人话，lint 加「不是人话」提醒；新增第 21 个 Skill `story-audiobook`（有声书）；细纲字数门、按书对白口径、文风带三道门禁收进仓库，接纳前门禁从 14 道扩为 15 道。部署契约升至 `setup_skill_version: 1.7.0` / `agents_version: 47`，升级后需在每个项目重跑 `/story-setup` 并新开会话。
+
+### 细纲整份改成人话（`agents_version` 47）
 
 - 细纲模板重写为「只讲一遍、全部句子、机器字段集中在底部」：章卡 7 个字段 → 这章怎么演（情节点序列，展开程度写在句末括号里）→ 人物与信息差 → 结尾 → `---` 后的写手单。取消五段式、多线、人物关系和出场顺序、情节细化、结尾设定和钩子五段，逻辑线、辅线、任务卡点并入因果句或情节点。章卡每项 ≤70 字、合计 ≤400 字；写手单以外不写箭头串、代号、名词堆和标记语。模板附第 7 章完整示例，格式照作者定稿的第 7 章（人物与信息差、结尾逐条一句）。
 - `check-outline-retention.js`：长度口径 0.5 / 0.7 → 0.6 / 0.8（目标与提醒线 0.6，硬上限 0.8；按新写法重写的细纲实测 59%–70%），hook 提醒同步；章卡范围改为 `### 第 N 章` 到第一个 `####`，上限 350 → 400，单项超 70 字提醒，新增「不是人话」提醒（扫描写手单之前全部内容）；回归测试 7 → 12 条，其中一条锁定模板示例零提醒。
-- 消费方同步：日更、修订、SKILL.md、artifact-protocols、writing-craft、细纲规则模板、story-import 反推模板、story-grill、各端 agent 卡、`current-contract.json`、hook 提示文案；工程词泄漏表新增「这章怎么演」「人物与信息差」「写手单」。旧细纲回退按原字段读取，不阻塞。并入发版时需再升 `agents_version`。
+- 消费方同步：日更、修订、SKILL.md、artifact-protocols、writing-craft、细纲规则模板、story-import 反推模板、story-grill、各端 agent 卡、`current-contract.json`、hook 提示文案；工程词泄漏表新增「这章怎么演」「人物与信息差」「写手单」。旧细纲回退按原字段读取，不阻塞。
+- 按新写法重写后，细纲全文约为章目标字数的 55%–70%，作者只需读 `---` 之前的部分。
+
+### 有声书 Skill `story-audiobook`（第 21 个 Skill，`setup_skill_version` 1.7.0）
+
+- 把已定稿章节做成多角色有声书：按角色卡选角、试音并锁定音色，把正文逐字切成有声稿并标注说话人和表演指示，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成，拼成 mp3 和字幕。依赖 `python3`、`ffmpeg` 与方舟 Agent Plan key（环境变量或 macOS 钥匙串里的 `ARK_AGENT_PLAN_API_KEY`），不派生 Agent。只接受已提交追踪事务的章节；回执机制之前提交的章节也能接纳。
+- canonical 中文主包由 20 个扩为 21 个 Skill：ZCode / TRAE / WorkBuddy / OpenClaw / Reasonix / generic 的 Skill 复制名单，OpenCode / ZCode / TRAE / WorkBuddy 的 `story-audiobook` 命令，以及 CLAUDE.md、各端 AGENTS.md、WorkBuddy CODEBUDDY.md 与 `story` 路由的有声书路由行同步。
+- `setup_skill_version` 1.6.0 → 1.7.0（部署名单与各端命令变了）。
+### 接纳前门禁：细纲字数门、对白按书上限、文风带
+
+三道门禁原先只在一本书的项目本地 skill 副本里（按该书第 1–4 章标定），每次 `/story-setup` 都会被覆盖，这次收进仓库。
+
+- **细纲字数门 `word_target`**（新增 `word_target_gate.py`）：候选稿汉字数须落在细纲 `字数目标` 的 90%–110%，否则拦截，不能豁免或降级；区间目标低端算下限、高端算上限，缺字段按 3000 兜底并提示补纲。SKILL.md 步骤 8 早有这条，流水线以前没执行，那本书前四章因此涨到目标的两倍以上。接纳前门禁从 14 道变 15 道，`word_target` 的结果进 `check` 的证据输出。它和细纲长度检查读同一个 `字数目标`：一个管正文、一个管细纲，各管一端，两者都保留。
+- **对白漂移门**：`设定/门禁配置.json` 新增 `dialogue.max_consecutive_tagged_turns`（缺省 3，与原行为一致）和 `max_consecutive_bare_tagged_turns`（缺省 2），由 `chapter_candidate.py` 校验后传给脚本。新增报幕式标签识别（主语加至多 4 字修饰直接接说话动词、无动作分句）：连续 3 行报幕即拦截 `consecutive-bare-tagged-turns`，占全部标记过半且 ≥5 处时出 advisory `bare-tag-ratio`。全书走“主语 + 动作 + 说道：”的书可调高前一个上限，由后一条兜底。四个 skill 的副本同步更新。
+- **文风带**：`prose_metrics.py` 多报对白形状（裸引语、前置冒号引导、≤12 字短段）和叙述质地（口语虚词、语气助词、句尾语气词、你我咱、！/？收尾、程度副词、句长离散度）。`门禁配置.json` 写了 `prose_bands` 时逐项给出带内/带外，只作 advisory。没有内置带：那本书的 G5 带只适用于它自己。
+- 11 个 skill 的 spawn 版本提示把「本版 43」改为当前的 45；`check-current-skill-contracts.py` 改为连同版本号一起核对这句提示。
+
+### 部署契约与 CI
+
+- `agents_version` 45 → 47（有声书分支原标 44，与 v45 合流取 46，人话模板与 15 道门禁再升 47），`setup_skill_version` 1.6.0 → 1.7.0。v46 及更早的项目会在会话启动时收到重跑提示。
 - CI：Cross-platform 的 macOS 任务固定用 `macos-15`（发 0.13.0 时 `macos-latest` 连续三次分不到机器）。
 
 ## v0.13.0（Dev 候选 · 2026-10-20）
@@ -50,15 +73,6 @@ All notable changes to this project will be documented in this file.
 - **`check-outline-retention.js`**：在留存三字段之外新增长度（汉字 > 字数目标×0.5 advisory，> ×0.7 blocking；缺字数目标按 3000 代入并提示补纲）、章卡（字段值 > 350 或核心事件 > 80 advisory）、重复细节（同一引号台词或同一「数字+量词」出现 ≥3 次 advisory，列前 5 个）。只有 advisory 时退出 0，`--fail-on=all` 时返回 1；`--json` 新增 `ratio`、`card_chars`、`dups` 和逐章 `metrics`。输出后改设 `process.exitCode`。新增回归 `scripts/test-outline-retention.js`，已接入统一质量门。
 - **Hooks**：写第 N 章正文前，细纲超字数目标×0.5 时 Claude Code 在留存字段提醒旁加「细纲超长」提醒；写 `大纲/细纲_第N章*.md` 后，Claude Code、OpenCode、ZCode、TRAE、WorkBuddy 经共享核给出长度与重复细节提醒（PostToolUse additionalContext），专门挡修订回灌把细纲越改越长。Codex 没有 PostToolUse，改在回合末 Stop 复扫改动过的细纲，写正文前另有 PreToolUse 提醒。全部不拦写。py↔js 文案由 `test-prose-net-parity.sh` 逐字锁定，并核对 lint 与 hook 核的比例和重复细节同口径。
 - 部署契约 `agents_version` 43 → 45（44 留给尚未合入 main 的 story-audiobook 分支），`setup_skill_version` 仍是 1.6.0；TRAE 共享核登记表补上新核哈希。已部署项目更新本机 skill 包后重跑 `/story-setup` 并新开会话；旧细纲会被标成超长，属预期。各端差异见 `skills/story-setup/UPGRADING.md`。
-
-### 接纳前门禁：细纲字数门、对白按书上限、文风带
-
-三道门禁原先只在一本书的项目本地 skill 副本里（按该书第 1–4 章标定），每次 `/story-setup` 都会被覆盖，这次收进仓库。
-
-- **细纲字数门 `word_target`**（新增 `word_target_gate.py`）：候选稿汉字数须落在细纲 `字数目标` 的 90%–110%，否则拦截，不能豁免或降级；区间目标低端算下限、高端算上限，缺字段按 3000 兜底并提示补纲。SKILL.md 步骤 8 早有这条，流水线以前没执行，那本书前四章因此涨到目标的两倍以上。接纳前门禁从 14 道变 15 道，`word_target` 的结果进 `check` 的证据输出。它和细纲长度检查读同一个 `字数目标`：一个管正文、一个管细纲，各管一端，两者都保留。
-- **对白漂移门**：`设定/门禁配置.json` 新增 `dialogue.max_consecutive_tagged_turns`（缺省 3，与原行为一致）和 `max_consecutive_bare_tagged_turns`（缺省 2），由 `chapter_candidate.py` 校验后传给脚本。新增报幕式标签识别（主语加至多 4 字修饰直接接说话动词、无动作分句）：连续 3 行报幕即拦截 `consecutive-bare-tagged-turns`，占全部标记过半且 ≥5 处时出 advisory `bare-tag-ratio`。全书走“主语 + 动作 + 说道：”的书可调高前一个上限，由后一条兜底。四个 skill 的副本同步更新。
-- **文风带**：`prose_metrics.py` 多报对白形状（裸引语、前置冒号引导、≤12 字短段）和叙述质地（口语虚词、语气助词、句尾语气词、你我咱、！/？收尾、程度副词、句长离散度）。`门禁配置.json` 写了 `prose_bands` 时逐项给出带内/带外，只作 advisory。没有内置带：那本书的 G5 带只适用于它自己。
-- 11 个 skill 的 spawn 版本提示把「本版 43」改为当前的 45；`check-current-skill-contracts.py` 改为连同版本号一起核对这句提示。
 
 ## v0.12.0（Dev 候选 · 2026-09-26）
 

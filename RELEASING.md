@@ -16,7 +16,7 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 
 | 版本轴 | 当前权威 | 用途 | 何时变更 |
 |---|---|---|---|
-| 产品 SemVer | `skills/story/VERSION`，当前 `0.13.0` | GitHub Release、安装包和各 plugin manifest 的公开版本 | 每次正式发版；用 `scripts/manage-version.py` 同步所有公开版本面 |
+| 产品 SemVer | `skills/story/VERSION`，当前 `0.14.0` | GitHub Release、安装包和各 plugin manifest 的公开版本 | 每次正式发版；用 `scripts/manage-version.py` 同步所有公开版本面 |
 | `setup_skill_version` | `scripts/current-contract.json`，当前 `1.7.0` | `story-setup` 部署流程/哨兵协议的版本 | 只在该部署协议本身需要新版识别时改 |
 | `agents_version` | `scripts/current-contract.json`，当前 `47` | 已部署 hooks / agents / rules / references 是否过期的唯一运行时权威 | 只在部署包行为变更、需要用户重跑 `story-setup` 时改 |
 
@@ -30,28 +30,28 @@ https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/downlo
 - MAJOR：进入稳定主版后的破坏性改动。
 - dev 包由构建器在内存中派生 `X.Y.Z-dev.<UTC>+g<SHA>`，不回写源树，也不占用公开版本号。
 
-`v0.12.0` 及更早版本已经是历史发布身份，不得移动、重打或用新资产覆盖。本手册当前对应 **`v0.13.0`** 候选；后续版本继续按上述 SemVer 规则递增。
+`v0.13.0` 及更早版本已经是历史发布身份，不得移动、重打或用新资产覆盖。本手册当前对应 **`v0.14.0`** 候选；后续版本继续按上述 SemVer 规则递增。
 
 ## 发版前准备
 
 1. 从当前 `main` 准备发版候选提交，确保工作树干净。下一版执行：
 
    ```bash
-   python3 scripts/manage-version.py set 0.13.0
+   python3 scripts/manage-version.py set 0.14.0
    ```
 
    该命令只同步六个公开产品版本面（含 `.codebuddy-plugin/plugin.json`），不改 `setup_skill_version` 或 `agents_version`。
 
-2. 在 `CHANGELOG.md` 新增顶层 `v0.13.0` 条目，并检查版本一致性：
+2. 在 `CHANGELOG.md` 新增顶层 `v0.14.0` 条目，并检查版本一致性：
 
    ```bash
    python3 scripts/manage-version.py check --require-changelog
    ```
 
-   当前 `v0.13.0` 候选是 MINOR 版：去 AI 味规则表按语料验证重做（story-deslop 1.4.0），写手模板相应松绑；新增可选的按项目模型分工与 `/story-review reader` 读者审读入口；细纲长度按「细纲:正文 = 1:2.5～1:3」受控（模板、批末 lint、hook）。部署载荷有变，`setup_skill_version` 升至 `1.6.0`、`agents_version` 升至 `45`，已部署项目需重跑 `/story-setup`。提交候选后用下列门禁确认；门禁会按实际 diff 判断，不要求无关发版乱 bump：
+   当前 `v0.14.0` 候选是 MINOR 版：细纲模板整份改成作者能读的四段人话并加「不是人话」提醒；新增第 21 个 Skill `story-audiobook`；细纲字数门、按书对白口径、文风带三道门禁入仓库（15 道）。部署契约 `setup_skill_version` 1.7.0 / `agents_version` 47。
 
    ```bash
-   python3 scripts/check-release-contract-bumps.py --base-tag v0.12.0
+   python3 scripts/check-release-contract-bumps.py --base-tag v0.13.0
    ```
 
 3. 提交发版候选改动后，在还未 push 的该精确 commit 上构建 dev 包：
