@@ -901,8 +901,8 @@ assert_no_grep 'legacy_deconstruction|contract_version.*legacy|pre-v12' "$SKILL_
 assert_grep 'missing_primary_contract: true|missing_primary_contract": true' "$SKILL_DIR/references/templates/agents/story-explorer.md" "story-explorer must emit missing_primary_contract for broken canonical artifacts"
 assert_grep 'repair_action.*Stage 3|Stage 3.*repair_action|重跑 /story-long-analyze Stage 3' "$SKILL_DIR/references/templates/agents/story-explorer.md" "story-explorer must provide a repair action instead of silent fallback"
 assert_grep 'missing_primary_contract' "$REPO_ROOT/skills/story-long-write/SKILL.md" "story-long-write must not silently fallback for missing primary artifacts"
-assert_grep '内容概括（五段式）|情节安排（多线）|人物关系和出场顺序|结尾设定和钩子' "$SKILL_DIR/references/templates/agents/story-architect.md" "story-architect must output v13 chapter blueprint fields"
-assert_grep '逻辑线|人物关系变化|行动成本（可无）/收益归属|结尾设定' "$SKILL_DIR/references/templates/agents/consistency-checker.md" "consistency-checker must consume current outline blueprint fields"
+assert_grep '这章怎么演（情节点序列）.*|人物与信息差|写手单（作者可不读）' "$SKILL_DIR/references/templates/agents/story-architect.md" "story-architect must output the current chapter blueprint sections"
+assert_grep '人物与信息差|行动成本（可无）/收益归属' "$SKILL_DIR/references/templates/agents/consistency-checker.md" "consistency-checker must consume current outline blueprint fields"
 assert_grep '语气标点谱系' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must enforce v13 tone punctuation"
 assert_grep '吞咽、未尽、截断、拖音.*可保留|有明确声线功能.*可保留' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must review pause punctuation by function"
 assert_no_grep '正文.*不使用.*……|正文和对话都.*不用.*——|正文无 .*…….*——' "$SKILL_DIR/references/templates/agents/narrative-writer.md" "narrative-writer must not universally ban pause punctuation"
@@ -994,7 +994,7 @@ retention_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"bo
   | CLAUDE_PROJECT_DIR="$guard_root" bash "$guard_root/.claude/hooks/guard-outline-before-prose.sh" 2>/dev/null)" || retention_ec=$?
 [ "$retention_ec" = "0" ] || fail "retention advisory must not block (exit $retention_ec)"
 assert_hook_context "$retention_out" PreToolUse '细纲留存字段未填' "guard retention advisory"
-# 细纲超长只提醒不拦：汉字 > 字数目标×0.5 时同一 additionalContext 里报比例与重复细节。
+# 细纲超长只提醒不拦：汉字 > 字数目标×0.6 时同一 additionalContext 里报比例与重复细节。
 python3 - "$guard_root/book/大纲/细纲_第1章.md" <<'PYGEN'
 import sys
 fill = "林川推门进屋看见桌上摊着旧账册管家站在廊下低头不语" * 100

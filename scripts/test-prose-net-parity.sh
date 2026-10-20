@@ -1051,8 +1051,8 @@ d = pathlib.Path(sys.argv[1])
 fill = "林川推门进屋看见桌上摊着旧账册管家站在廊下低头不语" * 100
 cases = {
   "细纲_第001章_超硬.md": "- 字数目标：2200 字\n- 情节点序列：4800元；4800元；4800元；“我没拿过一文钱”“我没拿过一文钱”“我没拿过一文钱”；百分之十二、百分之十二、百分之十二；一个一个一个；千万千万千万；密250字密250字密250字\n" + fill[:2200],
-  "细纲_第002章_提醒.md": "- 字数目标：2000-2400 字\n- 情节点序列：三十星币、三十星币、三十星币、12%、12%、12%\n" + fill[:1300],
-  "细纲_第003章_缺目标.md": "- 情节点序列：" + fill[:1700],
+  "细纲_第002章_提醒.md": "- 字数目标：2000-2400 字\n- 情节点序列：三十星币、三十星币、三十星币、12%、12%、12%\n" + fill[:1600],
+  "细纲_第003章_缺目标.md": "- 情节点序列：" + fill[:2000],
   "细纲_第004章_未超.md": "- 字数目标：3000 字\n" + fill[:1400],
 }
 for name, body in cases.items():
@@ -1073,7 +1073,7 @@ PYCHK
   if ! cmp -s "$tmp/js.txt" "$tmp/py.txt"; then
     echo "FAIL: 细纲长度提醒 py≠js" >&2; diff "$tmp/js.txt" "$tmp/py.txt" | head -20 >&2; rm -rf "$tmp"; return 3
   fi
-  grep -q '超过硬上限 70%' "$tmp/js.txt" && grep -q '超过目标 50%' "$tmp/js.txt" && grep -q '按 3000 代入' "$tmp/js.txt" \
+  grep -q '超过硬上限 80%' "$tmp/js.txt" && grep -q '超过目标 60%' "$tmp/js.txt" && grep -q '按 3000 代入' "$tmp/js.txt" \
     && grep -q '4800元×3' "$tmp/js.txt" && ! grep -q '一个×' "$tmp/js.txt" && ! grep -q '千万×' "$tmp/js.txt" \
     && ! grep -q '250字×' "$tmp/js.txt" \
     || { echo "FAIL: 细纲长度提醒档位/重复细节判定不符预期" >&2; cat "$tmp/js.txt" >&2; rm -rf "$tmp"; return 3; }

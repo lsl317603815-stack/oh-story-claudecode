@@ -47,7 +47,7 @@
 | `test-degeneration.sh` | 模型退化检测器 `check-degeneration.js` 回归 | CI |
 | `test-prose-net-parity.sh` | 正文兜底「轻量确定性网」Claude/OpenCode/Codex/ZCode parity | CI（调 check-hook-regex-sync） |
 | `test-prose-backstop-hook.sh` | `check-prose-after-write.sh` 回归（含细纲写入后的长度提醒） | CI |
-| `test-outline-retention.js` | 细纲批末门 `check-outline-retention.js`：留存三字段 blocking、长度（字数目标×0.5 提醒 / ×0.7 阻断）、章卡上限、重复细节 | CI |
+| `test-outline-retention.js` | 细纲批末门 `check-outline-retention.js`：留存三字段 blocking、长度（字数目标×0.6 提醒 / ×0.8 阻断）、章卡上限、重复细节 | CI |
 | `test-story-continuity.sh` | `detect-story-gaps.sh` 跨批连续性兜底回归 | CI |
 | `test-tracking-workflow-contracts.py` | 文件优先追踪契约：唯一事务写入口、续写状态卡（固定 7 栏）、导入基线、作者/读者时间线隔离、旧结构清零 | CI |
 | `test-tracking-commit.py` | 单权威追踪行为：state 最后提交、失败同事务重跑、派生一致性、修订语义、导入截止章 | CI |

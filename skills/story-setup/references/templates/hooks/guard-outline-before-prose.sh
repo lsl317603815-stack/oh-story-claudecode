@@ -231,9 +231,9 @@ case "$BASE" in
       ADVISORY="⚠ 细纲留存字段未填（不拦写，建议补齐后再落正文）：第 ${NUM} 章 —$RET_MISSING
    跑 story-long-write 的 scripts/check-outline-retention.js 补齐「收一个/变一个/开一个」，再写正文。"
     fi
-    # 细纲超长告警（非阻塞）：细纲汉字 > 字数目标×0.5 时提醒比例与重复细节（细纲:正文 = 1:2.5～1:3）。
+    # 细纲超长告警（非阻塞）：细纲汉字 > 字数目标×0.6 时提醒比例与重复细节。
     # 中文计数走 node 共享核 outline-length（LC_ALL=C 下 bash 数不了码点）；node/核缺席静默跳过。
-    # 硬拦只在 story-long-write 批末 check-outline-retention.js（>0.7），这里不拦写。
+    # 硬拦只在 story-long-write 批末 check-outline-retention.js（>0.8），这里不拦写。
     if node -e "" >/dev/null 2>&1 && [ -f "$CLI" ]; then
       OUTLINE_LONG="$(node "$CLI" outline-length "$FOUND" 2>/dev/null || true)"
       if [ -n "$OUTLINE_LONG" ]; then

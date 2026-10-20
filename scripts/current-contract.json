@@ -10,36 +10,24 @@
   ],
   "required_outline_sections": [
     {
-      "rule": "阶段位置",
-      "outline": "阶段位置"
+      "rule": "章卡",
+      "outline": "核心事件"
     },
     {
-      "rule": "结构公式",
-      "outline": "本章结构公式"
+      "rule": "这章怎么演",
+      "outline": "这章怎么演（情节点序列）"
     },
     {
-      "rule": "禁止提前释放",
-      "outline": "本章禁止提前释放"
+      "rule": "人物与信息差",
+      "outline": "人物与信息差"
     },
     {
-      "rule": "内容概括",
-      "outline": "内容概括（五段式）"
+      "rule": "结尾",
+      "outline": "结尾"
     },
     {
-      "rule": "情节安排",
-      "outline": "情节安排（多线）"
-    },
-    {
-      "rule": "人物关系和出场顺序",
-      "outline": "人物关系和出场顺序"
-    },
-    {
-      "rule": "情节细化",
-      "outline": "情节细化"
-    },
-    {
-      "rule": "结尾设定和钩子",
-      "outline": "结尾设定和钩子"
+      "rule": "写手单",
+      "outline": "写手单（作者可不读）"
     }
   ]
 }

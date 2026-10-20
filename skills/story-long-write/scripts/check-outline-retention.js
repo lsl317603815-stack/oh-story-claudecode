@@ -22,14 +22,17 @@ const USAGE = `Usage: node check-outline-retention.js [--json] [--fail-on=blocki
 另查三类「细纲是否长过了头」（plot-core-methods「小纲四步法」：细纲:正文 = 1:2.5～1:3，
 细纲只写目的和效果、不展开情节）：
 
-  - 长度   汉字（按 [\u4e00-\u9fff] 计）> 字数目标×0.5 为 advisory，> ×0.7 为 blocking；
+  - 长度   汉字（按 [\u4e00-\u9fff] 计）> 字数目标×0.6 为 advisory，> ×0.8 为 blocking；
            缺「字数目标」时按 3000 代入并提示补纲（与 story-long-write SKILL.md「字数验收权威」同一兜底）
-  - 章卡   第一个 #### 之前、作者要读的顶部字段区：字段值合计 > 350 汉字为 advisory
-           （不计标题与字段名）；「核心事件」> 80 汉字为 advisory
+  - 章卡   「### 第 N 章」标题到第一个 #### 之间的字段区（旧细纲遇到「---」也停）：
+           字段值合计 > 400 汉字、单个字段值 > 70 汉字为 advisory（不计标题与字段名）
+  - 人话   写手单（「---」或「写手单」行）之前的全部内容里出现 →、＋、->、两处以上「/」串联、
+           L1-2 式代号、「第N拍」、【…·密250】旧记号、「如适用」「强度中」标记语，或三个以上
+           「、」连着的两字词组，报「不是人话」（advisory）——写手单以外要写成跟作者口头讲这章的句子
   - 重复   同一引号台词（“…”/「…」，≥4 字）或同一「数字+量词」片段（如 4800元、三十星币、百分之二十）
            在一章细纲里出现 ≥3 次为 advisory，列前 5 个及次数。具体数字只该落在情节点序列那一处。
 
-退出码：0 = 全部通过或只有 advisory；1 = 有 blocking（缺字段/占位/空，或超 0.7 硬上限）；
+退出码：0 = 全部通过或只有 advisory；1 = 有 blocking（缺字段/占位/空，或超 0.8 硬上限）；
 --fail-on=all 时 advisory 也返回 1；2 = 用法或读取错误。
 --json 每个 result 带 ratio、card_chars、dups（多章文件取各章最大值/合并），逐章明细在 metrics。
 `;
@@ -86,13 +89,25 @@ function splitChapters(text) {
   return sections;
 }
 
-// ---- 长度 / 章卡 / 重复细节（advisory 为主，超 0.7 硬上限才 blocking）----
+// ---- 长度 / 章卡 / 重复细节（advisory 为主，超 0.8 硬上限才 blocking）----
 const HAN_RE = /[\u4e00-\u9fff]/g;
-const RATIO_TARGET = 0.5; // 目标：细纲 ≤ 正文目标的一半
-const RATIO_HARD = 0.7; // 硬上限
+const RATIO_TARGET = 0.6; // 目标：细纲 ≤ 字数目标×0.6（句子化写法实测 59%-70%）
+const RATIO_HARD = 0.8; // 硬上限
 const DEFAULT_TARGET = 3000; // 缺字数目标时的唯一兜底，与 SKILL.md「字数验收权威」一致
-const CARD_MAX = 350;
-const CORE_EVENT_MAX = 80;
+const CARD_MAX = 400;
+const CARD_FIELD_MAX = 70; // 章卡每项一到两句完整的话
+// 「章卡不是人话」：符号串、代号、省略主语的两字名词堆。
+const NOT_PLAIN_RES = [
+  { re: /→|＋|->|⇒/, label: '箭头/加号串' },
+  { re: /[\u4e00-\u9fff]{1,8}\/[\u4e00-\u9fff]{1,8}\/[\u4e00-\u9fff]/, label: '「/」串联' },
+  { re: /L\d+-\d+/, label: '「L1-2」式代号' },
+  { re: /第\d+拍/, label: '「第N拍」代号' },
+  { re: /【[^】\n]*[·・](?:密|疏)[^】\n]*】/, label: '【·密】旧记号' },
+  { re: /如适用|强度[：:]?\s*[强中弱]/, label: '标记语' },
+  { re: /(?<![\u4e00-\u9fff])[\u4e00-\u9fff]{2}(?:、[\u4e00-\u9fff]{2}){2,}(?![\u4e00-\u9fff])/, label: '两字词组堆' },
+];
+const CHAPTER_TITLE_RE = /^\s*#{2,3}\s*第\s*[0-9一二三四五六七八九十百千两]+\s*章/;
+const WRITER_SHEET_RE = /^\s*(?:>\s*)?(?:以下为)?写手单/;
 const DUP_MIN = 3;
 const DUP_SHOWN = 5;
 const CARD_NOTE = '以下为写手单';
@@ -126,25 +141,48 @@ function parseTarget(text) {
   return Math.max(a, b);
 }
 
-// 章卡 = 第一个 #### 之前的部分；只计字段值与非字段正文，不计 # 标题、字段名和分隔说明行。
+// 章卡 = 「### 第 N 章」标题到第一个 #### 之间（没有该标题时从文件头算；旧细纲在字段后遇到 --- 也停）。
+// 只计字段值与非字段正文，不计 # 标题、字段名和分隔说明行。
+// 「不是人话」扫描写手单之前的全部内容：写手单从字段后第一条 --- 或「写手单」行开始，没有就扫全文。
 function cardStats(sectionText) {
   const lines = sectionText.split('\n');
+  const titleIdx = lines.findIndex((line) => CHAPTER_TITLE_RE.test(line));
   let chars = 0;
   let coreEvent = null;
-  for (const line of lines) {
-    if (/^\s*####/.test(line)) break;
-    if (/^\s*#/.test(line)) continue;
+  let sawField = false;
+  let inCard = true;
+  let section = '章卡';
+  const longFields = [];
+  const notPlain = [];
+  for (let i = titleIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (sawField && (/^\s*---\s*$/.test(line) || WRITER_SHEET_RE.test(line))) break;
+    const heading = line.match(/^\s*#{1,6}\s*(.*)$/);
+    if (heading) {
+      if (/^\s*####/.test(line)) { inCard = false; section = heading[1].replace(/[（(].*$/, '').trim() || section; }
+      continue;
+    }
     if (line.includes(CARD_NOTE)) continue;
     const field = line.match(/^\s*[-*]\s*([^：:\n]{1,24})[：:](.*)$/);
+    if (field) sawField = true;
+    const where = inCard && field ? field[1].trim() : section;
+    const text = field ? field[2] : line;
+    for (const { re, label } of NOT_PLAIN_RES) {
+      const m = text.match(re);
+      if (m) notPlain.push({ field: where, label, sample: m[0] });
+    }
+    if (!inCard) continue;
     if (field) {
-      const value = field[2];
-      chars += hanCount(value);
-      if (coreEvent === null && /^核心事件/.test(field[1].trim())) coreEvent = hanCount(value);
+      const name = field[1].trim();
+      const n = hanCount(field[2]);
+      chars += n;
+      if (coreEvent === null && /^核心事件/.test(name)) coreEvent = n;
+      if (n > CARD_FIELD_MAX) longFields.push({ field: name, chars: n });
     } else {
       chars += hanCount(line);
     }
   }
-  return { cardChars: chars, coreEventChars: coreEvent };
+  return { cardChars: chars, coreEventChars: coreEvent, longFields, notPlain };
 }
 
 // 重复细节：字数目标 / 预算合计行与【…】预算标签不算（它们本来就是数字）。
@@ -176,7 +214,7 @@ function lengthMetrics(sectionText) {
   const target = parsed || DEFAULT_TARGET;
   const hanChars = hanCount(sectionText);
   const ratio = Math.round((hanChars / target) * 1000) / 1000;
-  const { cardChars, coreEventChars } = cardStats(sectionText);
+  const { cardChars, coreEventChars, longFields, notPlain } = cardStats(sectionText);
   return {
     han_chars: hanChars,
     target,
@@ -184,6 +222,8 @@ function lengthMetrics(sectionText) {
     ratio,
     card_chars: cardChars,
     core_event_chars: coreEventChars,
+    card_long_fields: longFields,
+    card_not_plain: notPlain,
     dups: dupStats(sectionText),
   };
 }
@@ -196,15 +236,20 @@ function lengthFindings(chapter, m) {
     out.push({ chapter, field: '字数目标', reason: `缺字数目标，长度按 ${DEFAULT_TARGET} 字代入，请补纲`, severity: 'advisory', kind: 'length' });
   }
   if (m.ratio > RATIO_HARD) {
-    out.push({ chapter, field: '细纲长度', reason: `汉字 ${m.han_chars} / 字数目标 ${m.target} = ${pct}，超过硬上限 ${RATIO_HARD * 100}%${basis}；按 1:2.5～1:3 压回 ${RATIO_TARGET * 100}% 以内：五段式/多线只写功能与转折，具体数字和台词只留在情节点序列`, severity: 'blocking', kind: 'length' });
+    out.push({ chapter, field: '细纲长度', reason: `汉字 ${m.han_chars} / 字数目标 ${m.target} = ${pct}，超过硬上限 ${RATIO_HARD * 100}%${basis}；压回 ${RATIO_TARGET * 100}% 以内：同一件事只讲一遍，具体数字和台词只留在情节点序列`, severity: 'blocking', kind: 'length' });
   } else if (m.ratio > RATIO_TARGET) {
-    out.push({ chapter, field: '细纲长度', reason: `汉字 ${m.han_chars} / 字数目标 ${m.target} = ${pct}，超过目标 ${RATIO_TARGET * 100}%${basis}；建议删去五段式/多线里重抄情节点的内容`, severity: 'advisory', kind: 'length' });
+    out.push({ chapter, field: '细纲长度', reason: `汉字 ${m.han_chars} / 字数目标 ${m.target} = ${pct}，超过目标 ${RATIO_TARGET * 100}%${basis}；建议删去在章卡、人物与信息差、结尾里重复情节点的内容`, severity: 'advisory', kind: 'length' });
   }
   if (m.card_chars > CARD_MAX) {
-    out.push({ chapter, field: '章卡', reason: `顶部章卡字段值 ${m.card_chars} 汉字 > ${CARD_MAX}；章卡是作者要读的部分，细节挪进情节点序列`, severity: 'advisory', kind: 'card' });
+    out.push({ chapter, field: '章卡', reason: `章卡字段值 ${m.card_chars} 汉字 > ${CARD_MAX}；章卡是作者要读的部分，只留 7 个字段，细节挪进情节点序列，机器字段挪到 --- 之下`, severity: 'advisory', kind: 'card' });
   }
-  if (m.core_event_chars !== null && m.core_event_chars > CORE_EVENT_MAX) {
-    out.push({ chapter, field: '核心事件', reason: `${m.core_event_chars} 汉字 > ${CORE_EVENT_MAX}；只说一件事，不装数字和台词`, severity: 'advisory', kind: 'card' });
+  if (m.card_long_fields.length) {
+    const shown = m.card_long_fields.map((f) => `${f.field} ${f.chars} 字`).join('、');
+    out.push({ chapter, field: '章卡单项', reason: `超过 ${CARD_FIELD_MAX} 汉字：${shown}；每项一到两句话，只说一件事，不装数字和台词`, severity: 'advisory', kind: 'card' });
+  }
+  if (m.card_not_plain.length) {
+    const shown = m.card_not_plain.slice(0, 5).map((f) => `${f.field}「${f.sample}」（${f.label}）`).join('、');
+    out.push({ chapter, field: '不是人话', reason: `${shown}；写手单以外改写成有主语、有动词的完整句子，读起来要像跟作者口头讲这章`, severity: 'advisory', kind: 'card' });
   }
   if (m.dups.length) {
     const shown = m.dups.slice(0, DUP_SHOWN).map((d) => `${d.text}×${d.count}`).join('、');
