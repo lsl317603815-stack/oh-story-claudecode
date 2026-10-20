@@ -320,7 +320,7 @@ def main() -> int:
     print("  OK official hook schema/tool names and plugin/project/disabled shapes")
 
     runner = (WB / "hooks/story_workbuddy_hook.js").read_text(encoding="utf-8")
-    require("const WORKBUDDY_AGENTS_VERSION = 46" in runner, "runner lacks agents_version=46 gate")
+    require("const WORKBUDDY_AGENTS_VERSION = 47" in runner, "runner lacks agents_version=47 gate")
     require("emit({ systemMessage: warnings })" in runner, "commit advisory must use top-level systemMessage")
     require('hookContext("PreToolUse", warnings)' not in runner, "commit advisory still uses undocumented additionalContext")
     require("extractPowerShellTargets" in runner, "runner lacks PowerShell target extraction")

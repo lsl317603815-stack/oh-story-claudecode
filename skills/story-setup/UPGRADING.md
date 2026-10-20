@@ -3,11 +3,11 @@
 ## 当前版本
 
 - `setup_skill_version: 1.7.0`
-- `agents_version: 46`
+- `agents_version: 47`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `46`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `46`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `47`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `47`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
 
 ## v46（新增有声书 Skill）
 
@@ -17,7 +17,9 @@
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。
 
-## 下一版（未发版）：细纲整份改成人话
+## v47（细纲整份改成人话、15 道门禁入仓库）
+
+- `agents_version` 46 → 47、`setup_skill_version` 保持 1.7.0：细纲模板、agent 卡、hook 提示文案都变了；本版同时并入项目本地验证过的三道门禁（细纲字数门 `word_target_gate.py`、按书对白口径 `dialogue_drift_gate.js`、文风带 `prose_metrics.py`），`chapter_candidate.py` 从 14 道扩为 15 道。v46 及更早的项目会在会话启动时收到重跑提示。
 
 - 作者读按 v45 模板精简出的细纲反馈「看不懂，说的都不是人话」：350 字上限把章卡压成了箭头串和名词堆，同一件事在核心事件、五段式、多线、情节点里各讲一遍，单元ID、契约风险这类机器字段又混在作者要读的顶部。
 - 新结构（story-long-write `workflow-setup.md` Phase 3，唯一权威模板，附第 7 章完整示例），同一件事只讲一遍，`---` 之前全部写成句子：
@@ -223,7 +225,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 46` 与 `setup_skill_version: 1.7.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 47` 与 `setup_skill_version: 1.7.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
