@@ -170,6 +170,27 @@ if [ "$BAD_RC" -ne 2 ] || [ -n "$BAD_OUT" ]; then
   echo "FAIL: 不支持的事件应 exit 2 且不写 stdout（rc=$BAD_RC out=$BAD_OUT）" >&2; fails=$((fails+1))
 fi
 
+# ⑥ 细纲写入：汉字 > 字数目标×0.5 时以 PostToolUse additionalContext 提醒比例与重复细节
+#    （堵修订回灌把细纲越改越长）；不跑正文网，未超 0.5 静默。上面 ① 的短细纲仍须静默。
+python3 - "$TMP/某书/大纲/细纲_第002章_长.md" "$TMP/某书/大纲/细纲_第003章_短.md" <<'PYGEN'
+import sys
+fill = "林川推门进屋看见桌上摊着旧账册管家站在廊下低头不语" * 100
+head = "## 细纲（第 {n} 章）\n- 核心事件：林川查出账上转走4800元\n- 字数目标：2200 字\n#### 情节细化\n"
+open(sys.argv[1], "w", encoding="utf-8").write(head.format(n=2) + "- 情节点序列：4800元；4800元；" + fill[:2270] + "\n")
+open(sys.argv[2], "w", encoding="utf-8").write(head.format(n=3) + "- 情节点序列：" + fill[:1000] + "\n")
+PYGEN
+OUTLINE_OUT="$(run "$TMP/某书/大纲/细纲_第002章_长.md")"
+OUTLINE_CTX="$(printf '%s' "$OUTLINE_OUT" | context_of PostToolUse || true)"
+if ! printf '%s' "$OUTLINE_CTX" | grep -q '细纲长度提醒'; then
+  echo "FAIL: 2300 字细纲（目标 2200）未触发 PostToolUse 细纲长度提醒" >&2; printf '%s\n' "$OUTLINE_OUT" | head -3 >&2; fails=$((fails+1))
+fi
+printf '%s' "$OUTLINE_CTX" | grep -q '超过硬上限 70%' || { echo "FAIL: 细纲长度提醒缺比例档位" >&2; fails=$((fails+1)); }
+printf '%s' "$OUTLINE_CTX" | grep -q '4800元×3' || { echo "FAIL: 细纲长度提醒缺重复细节" >&2; fails=$((fails+1)); }
+if printf '%s' "$OUTLINE_CTX" | grep -q '正文兜底检测'; then
+  echo "FAIL: 细纲写入不应跑正文网" >&2; fails=$((fails+1))
+fi
+expect_silent "$TMP/某书/大纲/细纲_第003章_短.md"
+
 if [ "$fails" -ne 0 ]; then
   echo "Prose backstop hook tests FAILED ($fails)." >&2
   exit 1

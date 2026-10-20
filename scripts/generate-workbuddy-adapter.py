@@ -24,7 +24,7 @@ DATA_WORKBUDDY_ROOT = ROOT / "skills/story-data-analyze/agents/workbuddy"
 DATA_WORKBUDDY_ROLE_CARDS = (
     ROOT / "skills/story-data-analyze/references/workbuddy-role-cards"
 )
-WORKBUDDY_AGENTS_VERSION = 44
+WORKBUDDY_AGENTS_VERSION = 46
 CANONICAL_SKILL_NAMES = (
     "browser-cdp",
     "story",

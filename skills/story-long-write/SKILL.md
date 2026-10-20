@@ -12,7 +12,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > 运行环境兼容性：Claude Code / OpenCode / TRAE Code / WorkBuddy（CodeBuddy Code）/ Codex / ZCode / OpenClaw 是内置适配目标；NarraFork、Web AI、自定义 Agent 等能读取项目文件的环境，可按本 skill 执行长篇流程。先识别当前运行时，只检查对应的专业 agent 定义：Claude `.claude/agents/{agent}.md`、OpenCode `.opencode/agents/{agent}.md`、TRAE Code `.trae/agents/{agent}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{agent}.md`、Codex `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 智能体与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不凭磁盘文件猜注册名：只有当前 Agent registry 真实返回 `oh-story:{agent}` 时，才使用该精确命名空间值；未返回则按本 Skill 的 solo/direct fallback，不拿 plugin manifest 或另一端残留文件冒充 registry。Codex 使用同名 `agent_type`，Claude/OpenCode 保留 `subagent_type`。找不到当前运行时定义、当前运行时未暴露对应 Agent registry/tool，或 Codex 返回 `unknown agent_type` 时，直接 solo/direct 执行并报告 fallback。只有**当前运行时确实是 ZCode**时，才因 ZCode 3.3.4 不执行项目 custom agents 而强制 solo/direct；项目磁盘上仅仅并存 `.zcode/` 不是其他运行时降级的依据。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 44` 不一致时（标记缺失、字段缺失/非整数、小于或大于 44）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 44）` 并提示重新运行 `/story-setup` 后新开会话；大于 44 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 46` 不一致时（标记缺失、字段缺失/非整数、小于或大于 46）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 43）` 并提示重新运行 `/story-setup` 后新开会话；大于 46 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 **中文正文范围**：本 skill 只交付中文长篇正文。用户要求英文小说、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -291,7 +291,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
    - **指令确认**：综合细纲、本节速记和模块召回结果，用一句话写清本章意图。
 	     - 新版细纲必须消费：阶段位置、单元ID/位置、主角目标/关键选择、结构公式、禁止提前释放、内容概括、情节安排、人物关系/出场顺序、情节细化、结尾钩子，并对照当前剧情单元的卷契约、本卷主推线/战果、终局底牌边界。
 	     - **细纲优先边界**：正文只能展开本章细纲已有事件、人物、冲突、伏笔和结尾钩子；不得为了凑字或"更精彩"自造新主线、新角色、新反转、提前写后续章剧情，必要的过渡动作只能服务于细纲已列情节点。后续阶段真相、底牌、关系结论和终局矛盾不得因为章尾钩子提前泄露。反过来，细纲是"要发生什么"的契约、不是正文的形状：正文可自由编排叙述顺序、合并/穿插情节点，不必一个情节点一段、也不必按五段式顺写，把每个点演成场景而不是照抄概括语（见 writing-craft.md「从细纲到正文」）。
-	     - **细纲语义去重**：同一要求在核心事件、五段式、情节安排和情节点中重复，只算一个语义点；生成前合并，不把重复次数当强调，不沿用提纲原句逐项复述。比如多处都写“不带摄像机、先听完再决定拍不拍”，正文只通过一个自然动作或一句人物判断兑现，不能拆成「至于拍不拍，怎么拍…」「不带摄像机，不带采访灯」两轮说明。
+	     - **细纲语义去重**：同一要求在核心事件、五段式、情节安排和情节点中重复，只算一个语义点；生成前合并，不把重复次数当强调，不沿用提纲原句逐项复述。比如多处都写“不带摄像机、先听完再决定拍不拍”，正文只通过一个自然动作或一句人物判断兑现，不能拆成「至于拍不拍，怎么拍…」「不带摄像机，不带采访灯」两轮说明。生成侧同理：细纲本身就不该重复——具体数字和台词只写在情节点序列，章卡与五段式只写功能，全文 ≤ 字数目标×0.5（见 workflow-setup Phase 3「细纲长度与分工」）。
 	     - 爽点出手前要有可指认的危机/期待铺垫；装逼/打脸/揭露章要写在场配角的差异反应。
 	     - 高压/生死/悲痛节拍 要收紧对话声线：搞笑担当让位，信息型角色不当科普嘴，对话逐句承接对方情绪。
 	     - 检查任务卡点：本章如果有“办事被卡住”，它必须卡出信息、关系、代价、选择或伏笔变化；没有就不强补。

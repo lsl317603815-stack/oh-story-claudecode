@@ -7,7 +7,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 # story-grill：采访式创作定稿（世界观 / 角色 / 卷纲 / 细纲）
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 44` 不一致时（标记缺失、字段缺失/非整数、小于或大于 44）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 44）` 并提示重新运行 `/story-setup` 后新开会话；大于 44 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 46` 不一致时（标记缺失、字段缺失/非整数、小于或大于 46）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 43）` 并提示重新运行 `/story-setup` 后新开会话；大于 46 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 你是这本书的**采访者**，不是撰稿人。作者对一次性生成的设定和大纲不满意，根本原因是他没有在每个决定点上按过手。本 skill 把「生成」改成「拍板」——每一个会影响正文的决定，都要经作者点头才算数。你提供候选、拆解功能、指出冲突、追问细节，但**最后一个字由作者定**。
 
@@ -143,7 +143,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 5. **追踪事务**：计划里的 `semantic_change` 和 `active.json` 里的 `tracking_action` 按 story-long-write 的修订协议取。已写章的口径、长期事实/关系、长期约束或下一章承诺要变：`semantic_change: true`，提交 `mode=revision` 事务，`tracking_action` 写 `kind: commit` 和前后修订号。改动只落在未写章节的规划、结构化追踪里没有对应条目：`semantic_change: false`，把 `tracking_action.reason` 里工具预填的「仅格式/措辞修正」换成真实理由。尚未开篇（`last_committed_chapter` 为 0）时没有可修订的章，只能按后一种处理，理由写「尚未开篇，无已提交章可修订；新口径由第 1 章 append 事务整份提交」，交给 revision-governor 时一并说明；与 `追踪/上下文.md` 里长期约束、下一章承诺冲突的条目登进采访记录的冲突登记，交接写第 1 章时点明要改写或退役哪几条。
 6. **闭环**：revision-governor（`phase=verify`）返回 `READY_TO_CLOSE` 后，先跑 `{PYTHON} {tracking_commit} check --project {书名}`，再跑 `{PYTHON} {revision_guard} check --project {书名} --input {书名}/追踪/修改影响/active.json --stamp {书名}/追踪/修改影响/active.approved.json`。三关都过才算落盘完成；没过完之前采访记录状态记「落盘中」，写明 `change_id` 和卡在哪一关。
 
-- 渲染规则：细纲按 story-long-write 包内 workflow-setup 参考的「细纲（第 N 章）」模板（章头加 `EM 召回`/`RH 召回`），落盘后运行 story-long-write 包内的 check-outline-retention 脚本（按本机 skill 安装目录解析；脚本不可用时人工过留存三问并注明）；卷纲按 story-long-write 的卷纲模板（含卷契约与终局储备、剧情单元卡、核心矛盾、坐标、情绪/人物弧线、反转伏笔）；角色按项目已有角色档案的小节结构渲染并同步 `关系.md`；世界观按主题文件既有小节，规则类条目保留「⚠️ 禁令/边界」行。所有落盘文件头写「由 采访/{记录名} 渲染」。
+- 渲染规则：细纲按 story-long-write 包内 workflow-setup 参考的「细纲（第 N 章）」模板（章头加 `EM 召回`/`RH 召回`），落盘后运行 story-long-write 包内的 check-outline-retention 脚本（按本机 skill 安装目录解析；脚本不可用时人工过留存三问并注明。同一脚本也查长度：细纲汉字超字数目标×0.7 拦截、超 0.5 提醒，压缩办法照模板「细纲长度与分工」）；卷纲按 story-long-write 的卷纲模板（含卷契约与终局储备、剧情单元卡、核心矛盾、坐标、情绪/人物弧线、反转伏笔）；角色按项目已有角色档案的小节结构渲染并同步 `关系.md`；世界观按主题文件既有小节，规则类条目保留「⚠️ 禁令/边界」行。所有落盘文件头写「由 采访/{记录名} 渲染」。
 - **下游扫描**：grep 本次作废/改动的名词、数字、章节号在 `设定/`、`大纲/`、`追踪/` 里的出现位置，按文件列表+命中词给作者看，一题问怎么排：候选固定三个——**「采访队列逐个采；机械性的我直接改」(推荐)** / 全部进队列一个不自动改 / 先不排我记下。「机械性」的定义：只改字、不需要新决定的引用；任何需要新设计的都进队列。每改一个文件报一行。`追踪/` 下的命中只报不改。已建追踪的书这一步在「先分路」第 3 步已做完。
 - 已作废但还要当候选的草稿加「⚠️ 草稿作废」横幅，不删；已建追踪的书按「先分路」第 3 步移进 `备份/`。
 - 追踪：没有追踪体系的书在采访记录里注明「无追踪体系」。已建追踪的书只经修改影响门的追踪事务更新（`tracking_commit.py init` 不会覆盖已有状态）；只新建文件、只改未写章节细纲的不动追踪。任何时候都不手改 `追踪/` 下由工具生成的视图。

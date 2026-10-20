@@ -1038,6 +1038,74 @@ case "$rc_uncored" in
   *) fails=$((fails + 1)) ;;
 esac
 
+# Part O：细纲长度提醒 parity —— codex python outline_length_finding == JS core outlineLengthFinding
+# （逐字相等，含比例档位、缺字数目标兜底、重复细节排序）；同时锁 story-long-write
+# check-outline-retention.js 的 ratio / dups 与 JS core 同口径。
+run_outline_length_parity() {
+  command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 || return 1
+  local tmp; tmp="$(mktemp -d)"
+  mkdir -p "$tmp/书/大纲"
+  python3 - "$tmp/书/大纲" <<'PYGEN'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+fill = "林川推门进屋看见桌上摊着旧账册管家站在廊下低头不语" * 100
+cases = {
+  "细纲_第001章_超硬.md": "- 字数目标：2200 字\n- 情节点序列：4800元；4800元；4800元；“我没拿过一文钱”“我没拿过一文钱”“我没拿过一文钱”；百分之十二、百分之十二、百分之十二；一个一个一个；千万千万千万；密250字密250字密250字\n" + fill[:2200],
+  "细纲_第002章_提醒.md": "- 字数目标：2000-2400 字\n- 情节点序列：三十星币、三十星币、三十星币、12%、12%、12%\n" + fill[:1300],
+  "细纲_第003章_缺目标.md": "- 情节点序列：" + fill[:1700],
+  "细纲_第004章_未超.md": "- 字数目标：3000 字\n" + fill[:1400],
+}
+for name, body in cases.items():
+    (d / name).write_text("## 细纲\n" + body + "\n", encoding="utf-8")
+PYGEN
+  node -e '
+    const core = require(process.argv[1]); const fs = require("fs"); const path = require("path")
+    const dir = process.argv[2]
+    for (const f of fs.readdirSync(dir).sort()) process.stdout.write(`## ${f}\n${core.outlineLengthFinding(path.join(dir, f))}\n`)
+  ' "$CLAUDE_CORE" "$tmp/书/大纲" > "$tmp/js.txt" || { rm -rf "$tmp"; return 3; }
+  python3 - "$CODEX" "$tmp/书/大纲" > "$tmp/py.txt" <<'PYCHK' || { rm -rf "$tmp"; return 3; }
+import importlib.util, sys, pathlib
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+for f in sorted(pathlib.Path(sys.argv[2]).iterdir()):
+    # Windows 默认 cp1252 写不了中文：走 UTF-8 字节，与 node 侧输出逐字节可比。
+    sys.stdout.buffer.write(f"## {f.name}\n{m.outline_length_finding(f)}\n".encode("utf-8"))
+PYCHK
+  if ! cmp -s "$tmp/js.txt" "$tmp/py.txt"; then
+    echo "FAIL: 细纲长度提醒 py≠js" >&2; diff "$tmp/js.txt" "$tmp/py.txt" | head -20 >&2; rm -rf "$tmp"; return 3
+  fi
+  grep -q '超过硬上限 70%' "$tmp/js.txt" && grep -q '超过目标 50%' "$tmp/js.txt" && grep -q '按 3000 代入' "$tmp/js.txt" \
+    && grep -q '4800元×3' "$tmp/js.txt" && ! grep -q '一个×' "$tmp/js.txt" && ! grep -q '千万×' "$tmp/js.txt" \
+    && ! grep -q '250字×' "$tmp/js.txt" \
+    || { echo "FAIL: 细纲长度提醒档位/重复细节判定不符预期" >&2; cat "$tmp/js.txt" >&2; rm -rf "$tmp"; return 3; }
+  # lint 与 hook 核同口径：ratio 与重复细节集合一致
+  local lint="$ROOT/skills/story-long-write/scripts/check-outline-retention.js"
+  node -e '
+    const core = require(process.argv[1]); const fs = require("fs"); const path = require("path")
+    const { spawnSync } = require("child_process")
+    const dir = process.argv[3]
+    for (const f of fs.readdirSync(dir).sort()) {
+      const file = path.join(dir, f)
+      const r = JSON.parse(spawnSync(process.execPath, [process.argv[2], "--json", file], { encoding: "utf8" }).stdout).results[0]
+      const m = core.outlineLengthMetrics(fs.readFileSync(file, "utf8"))
+      const a = JSON.stringify([Math.round(m.ratio * 1000) / 1000, m.dups])
+      const b = JSON.stringify([r.ratio, r.dups])
+      if (a !== b) { console.error(`lint≠core ${f}: ${b} vs ${a}`); process.exit(3) }
+    }
+  ' "$CLAUDE_CORE" "$lint" "$tmp/书/大纲" || { rm -rf "$tmp"; return 3; }
+  rm -rf "$tmp"
+  return 0
+}
+
+set +e
+run_outline_length_parity
+rc_outline=$?
+set -e
+case "$rc_outline" in
+  0) echo "细纲长度提醒 parity：codex python == JS core（逐字），story-long-write lint 的 ratio/重复细节与核同口径。" ;;
+  1) echo "细纲长度提醒 parity：跳过（无 node/python3 运行时）。" ;;
+  *) fails=$((fails + 1)) ;;
+esac
+
 if [ "$fails" -ne 0 ]; then
   echo "Prose net parity tests FAILED ($fails)." >&2
   exit 1

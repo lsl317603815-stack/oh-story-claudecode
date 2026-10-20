@@ -1458,7 +1458,96 @@ function duplicateTitleFindings(absolute) {
   return findings
 }
 
+// 细纲长度提醒（非阻断）：细纲:正文 = 1:2.5～1:3（plot-core-methods「小纲四步法」）。
+// 汉字数 > 字数目标×0.5 时提醒比例与重复细节；硬拦只在 story-long-write 批末
+// scripts/check-outline-retention.js（>0.7 blocking），这里与那份脚本同一口径，只做 advisory，
+// 专门堵「修订回灌把细纲越改越长」。缺字数目标按 3000 代入（SKILL.md「字数验收权威」兜底）。
+const OUTLINE_HAN_RE = /[\u4e00-\u9fff]/g
+const OUTLINE_RATIO_TARGET = 0.5
+const OUTLINE_RATIO_HARD = 0.7
+const OUTLINE_DEFAULT_TARGET = 3000
+const OUTLINE_CN_DIGITS = "零〇一二三四五六七八九十百千万两"
+const OUTLINE_QUANTIFIERS = [
+  "星币", "金币", "灵石", "公里", "公斤", "分钟", "小时",
+  "字", "块", "元", "米", "人", "条", "次", "个", "张", "件", "枚", "颗", "瓶", "份", "名", "位",
+  "道", "招", "层", "级", "天", "年", "岁", "斤", "里", "秒", "倍", "万", "亿",
+]
+const OUTLINE_NUM_QTY_RE = new RegExp(
+  `百分之[${OUTLINE_CN_DIGITS}]+|\\d+(?:\\.\\d+)?\\s*[%％]|(?:\\d+(?:\\.\\d+)?|[${OUTLINE_CN_DIGITS}]+)\\s*(?:${OUTLINE_QUANTIFIERS.join("|")})`,
+  "g",
+)
+const OUTLINE_NUM_QTY_STOP = new Set(["千万", "万万", "一一", "万一"])
+const OUTLINE_BUDGET_PREFIX_RE = /(?:密|疏|≈|约|预算|计|目标|·)\s*$/
+const OUTLINE_QUOTE_RES = [/“([^”\n]{4,80})”/g, /「([^」\n]{4,80})」/g]
+
+function isOutlinePath(absolute) {
+  return path.basename(path.dirname(absolute)) === "大纲" && /^细纲_第0*\d+章.*\.md$/.test(path.basename(absolute))
+}
+
+function outlineHanCount(text) {
+  const m = String(text).match(OUTLINE_HAN_RE)
+  return m ? m.length : 0
+}
+
+function outlineLengthMetrics(text) {
+  const t = text.match(/字数目标[^0-9\n]{0,6}(\d{3,6})(?:\s*(?:字)?\s*[-~～—–至到]\s*(\d{3,6}))?/)
+  const parsed = t ? Math.max(Number(t[1]), t[2] ? Number(t[2]) : 0) : null
+  const target = parsed || OUTLINE_DEFAULT_TARGET
+  const hanChars = outlineHanCount(text)
+  const counts = new Map()
+  for (const raw of text.split("\n")) {
+    if (/字数目标|预算合计/.test(raw)) continue
+    const line = raw.replace(/【[^】\n]*】/g, "")
+    for (const re of OUTLINE_QUOTE_RES) {
+      for (const m of line.matchAll(re)) counts.set(`“${m[1]}”`, (counts.get(`“${m[1]}”`) || 0) + 1)
+    }
+    for (const m of line.matchAll(OUTLINE_NUM_QTY_RE)) {
+      const frag = m[0].replace(/\s+/g, "")
+      if (/^[一两几][^\d]$/.test(frag) || OUTLINE_NUM_QTY_STOP.has(frag)) continue
+      if (OUTLINE_BUDGET_PREFIX_RE.test(line.slice(Math.max(0, m.index - 3), m.index))) continue
+      counts.set(frag, (counts.get(frag) || 0) + 1)
+    }
+  }
+  const dups = [...counts.entries()]
+    .filter(([, n]) => n >= 3)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([text, count]) => ({ text, count }))
+  return { hanChars, target, targetDefaulted: !parsed, ratio: hanChars / target, dups }
+}
+
+// 返回提醒正文（不带前缀）；未超 0.5 或读不了返回 ""。
+function outlineLengthFinding(absolute) {
+  let text
+  try {
+    text = fs.readFileSync(absolute, "utf8")
+  } catch {
+    return ""
+  }
+  const m = outlineLengthMetrics(text)
+  if (m.ratio <= OUTLINE_RATIO_TARGET) return ""
+  const pct = Math.round(m.ratio * 100)
+  const level = m.ratio > OUTLINE_RATIO_HARD ? `超过硬上限 ${OUTLINE_RATIO_HARD * 100}%` : `超过目标 ${OUTLINE_RATIO_TARGET * 100}%`
+  const basis = m.targetDefaulted ? `（缺「字数目标」，按 ${OUTLINE_DEFAULT_TARGET} 代入，请补纲）` : ""
+  const dupLine = m.dups.length
+    ? `重复细节（同一处出现 ≥3 次）：${m.dups.slice(0, 5).map((d) => `${d.text}×${d.count}`).join("、")}——只在情节点序列留一处，其他字段写「见情节点 N」，一处改六处漏。`
+    : ""
+  return [
+    `细纲 ${path.basename(absolute)}：汉字 ${m.hanChars} / 字数目标 ${m.target} = ${pct}%，${level}${basis}。细纲:正文 应为 1:2.5～1:3（目标 ≤50%，硬上限 70%）；细纲只写目的和效果，不展开情节。`,
+    dupLine,
+    "压缩办法：章卡（第一个 #### 之前）合计 ≤350 字、核心事件 ≤80 字；五段式/多线每行 ≤40 字，只写功能与转折；具体数字、价格、台词只留在情节点序列。回灌修订只改情节点序列对应那一条和章卡受影响字段。复核：node <story-long-write>/scripts/check-outline-retention.js 该细纲。",
+  ].filter(Boolean).join("\n")
+}
+
+function outlineAfterWrite(root, absolute) {
+  if (!fs.existsSync(absolute)) return ""
+  const finding = outlineLengthFinding(absolute)
+  if (!finding) return ""
+  return `=== 细纲长度提醒（${safeRelative(root, absolute)}，不拦写）===\n${finding}`
+}
+
 function proseAfterWrite(root, absolute) {
+  // 细纲写入走长度提醒（非阻断）；其余非正文文件照旧静默。
+  if (isOutlinePath(absolute)) return outlineAfterWrite(root, absolute)
   if (!fs.existsSync(absolute) || !isProsePath(absolute)) return ""
   const findings = []
   try {
@@ -1702,6 +1791,10 @@ module.exports = {
   wordcountFinding,
   duplicateTitleFindings,
   proseAfterWrite,
+  isOutlinePath,
+  outlineLengthMetrics,
+  outlineLengthFinding,
+  outlineAfterWrite,
   shellWords,
   isGitCommitCommand,
   stagedMarkdownWarnings,

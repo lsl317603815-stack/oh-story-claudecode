@@ -55,6 +55,7 @@ python3 scripts/test-deslop-corpus-rules.py
 bash scripts/test-dialogue-drift-gate.sh
 python3 scripts/test-prose-metrics.py
 bash scripts/test-outline-copy.sh
+node scripts/test-outline-retention.js
 bash scripts/test-prose-backstop-hook.sh
 bash scripts/test-prose-net-parity.sh
 bash scripts/test-story-continuity.sh
