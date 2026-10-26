@@ -12,7 +12,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
+> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。ZCode 查当前已启用的 oh-story 插件注册的同名角色，用 `Agent` 工具按其实际 schema 派发，不要求 `.zcode/agents/`；角色缺失、调用失败或返回 unknown agent 时才降级，并提示先启用/更新 ZCode 插件；其他运行时不得因项目里并存 `.zcode/` 而误判。
 >
 > Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 并提示重新运行 `/story-setup` 后新开会话；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
@@ -104,7 +104,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 - 先读取 `.story-deployed` 并执行顶部 Spawn 版本提示。版本不一致只产生 Notice，**不得阻断下一步的当前运行时可用性检查**，也不得仅凭“旧版”字样拒绝实际可用的 agent。
 - 无论 `agents_version` 是否等于 40，都按当前运行时检查 Phase 2 长篇并行 agent：Claude `.claude/agents/chapter-extractor.md`、OpenCode `.opencode/agents/chapter-extractor.md`、TRAE Code `.trae/agents/chapter-extractor.md`、WorkBuddy 项目模式 `.codebuddy/agents/chapter-extractor.md`、Codex `.codex/agents/chapter-extractor.toml`。TRAE Code 只用内置 `Agent` 按 `.trae/agents/chapter-extractor.md` 的名称选择同名 Subagent，把 Stage 2 prompt 作为任务正文，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "chapter-extractor", prompt: ...)`，plugin-only 模式只在当前 registry 真实返回 `oh-story:chapter-extractor` 时使用该精确值，否则降级串行。
-- 只有**当前运行时确实是 ZCode**时，项目 agents 缺失才是 ZCode 3.3.4 的预期状态：不要提示重复部署，直接以串行 solo/direct 进入分析并报告 fallback。多端 sentinel 的 `target_cli` 中仅并存 `zcode` 不得让 WorkBuddy 或其他运行时误降级。
+- 当前运行时是 ZCode 时，`chapter-extractor` 由已启用的 oh-story 插件注册，项目里没有 `.zcode/agents/` 是预期状态，不要提示重复部署；插件角色缺失或调用失败时提示启用/更新 ZCode 插件，再以串行 solo/direct 进入分析并报告 fallback。多端 sentinel 的 `target_cli` 中仅并存 `zcode` 不得让 WorkBuddy 或其他运行时误降级。
 
 **当前运行时的 agent 定义/registry 实际不可用，且当前不是 ZCode 运行时时**，提示用户：部署标记缺失或版本无效/过期只附加顶部 Notice，不单独触发该降级提示。
 

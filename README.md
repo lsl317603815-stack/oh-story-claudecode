@@ -34,7 +34,7 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
-> **当前 main（未发布）：** 吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来的修复（以本线为底）：情绪不再默认转成身体反应，短篇去掉每节字数和对话占比配额；工作台换新设计并支持深色模式、记住浏览位置、显示行号；起点、七猫、番茄扫榜可抓书库新书；续写状态卡活跃角色上限 6 → 20；新增跨会话作者记忆（说「记住：……」即可，写正文时自动带给写手）；拆文新增可选的跨书灵感库，开书、卷纲、细纲时可按标签召回；OpenCode 只支持 2.x。部署契约为 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需重新运行 `/story-setup` 并新开会话。
+> **当前 main（未发布）：** 吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来的修复（以本线为底）：情绪不再默认转成身体反应，短篇去掉每节字数和对话占比配额；工作台换新设计并支持深色模式、记住浏览位置、显示行号；起点、七猫、番茄扫榜可抓书库新书；续写状态卡活跃角色上限 6 → 20；新增跨会话作者记忆（说「记住：……」即可，写正文时自动带给写手）；拆文新增可选的跨书灵感库，开书、卷纲、细纲时可按标签召回；ZCode 通过 oh-story 插件注册 8 个专业角色，不再固定降级单人模式；OpenCode 只支持 2.x。部署契约为 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需重新运行 `/story-setup` 并新开会话。
 >
 > **v0.14.0 起：** 细纲模板整份改成作者能读的四段人话（章卡、这章怎么演、人物与信息差、结尾，机器字段收进底部写手单），lint 加「不是人话」提醒；细纲字数门、按书对白口径、文风带三道门禁入仓库，候选门从 14 道扩为 15 道。新增第 21 个 Skill `story-audiobook`（有声书）：把已定稿章节按角色卡选音色、试音锁定，逐字切成有声稿，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成 mp3 与字幕。中文主包的 canonical 固定名字集扩为 21 个 Skill，各端命令与路由同步；部署契约为 `setup_skill_version: 1.7.0` / `agents_version: 47`，升级后需重新运行 `/story-setup` 并新开会话。
 >
@@ -170,7 +170,7 @@ npx skills add "$D"/x/oh-story-* -y -g
 >
 > **WorkBuddy / CodeBuddy Code 用户：** 有两种原生模式。项目模式在写作项目根调用 `story-setup` 并选择 `target_cli=workbuddy`，会部署固定 21 个中文主包 Skill、裸 `/story-*` Commands、实际注册 10 个中文主包 Agent（8 个通用角色 + `story-data-fetcher` + `story-data-readonly-runner`）、Rules、memory 与 Hooks；plugin-only 模式由规范 `.codebuddy-plugin/plugin.json` 暴露命名空间化 `/oh-story:story-*` Skills、Agents 与 Hooks，不再加载同名 Commands。plugin hooks 与项目 `.codebuddy/settings.json` hooks 只能启用一套，部署器会保留用户配置并自动互斥；已有 `AGENTS.md` 不会被短 `CODEBUDDY.md` 遮蔽。CodeBuddy 平台为 oh-story 项目留出的容量边界是最多注册 19 个 Agent，但中文主包实际只注册上述 10 个。部署后必须新开会话并实际调用 Agent 验证 registry；设置页显示角色已启用不等于 `Agent` 工具能够调度。Bash/PowerShell 仅覆盖受测静态写法，工具白名单也不是目录沙箱。
 >
-> **ZCode 用户：** 稳定版先用上方 Release 压缩包安装；把浮动仓库加入 Plugin Management marketplace 仅用于开发测试（dev-only）。安装后可用 `$story`、`$story-setup` 或 `/` 面板调用 21 个 Skills/Commands。`$story-setup` 选择 `target_cli=zcode` 会部署 `.zcode/skills/`、`.zcode/commands/`、`.zcode/hooks/story_zcode_hook.js`，安全合并 `.zcode/config.json` 与根 `AGENTS.md`；Hook 依赖 PATH 中的 `node`。ZCode 3.3.4 不执行项目/plugin custom agents，也没有 `PreCompact` / `SessionEnd`，相关流程会明确降级 solo/direct，compact 后由 `SessionStart` 恢复上下文。
+> **ZCode 用户：** 稳定版先用上方 Release 压缩包安装；把浮动仓库加入 Plugin Management marketplace 仅用于开发测试（dev-only）。安装后可用 `$story`、`$story-setup` 或 `/` 面板调用 21 个 Skills/Commands。`$story-setup` 选择 `target_cli=zcode` 会部署 `.zcode/skills/`、`.zcode/commands/`、`.zcode/hooks/story_zcode_hook.js`，安全合并 `.zcode/config.json` 与根 `AGENTS.md`；Hook 依赖 PATH 中的 `node`。专业角色由 oh-story 插件注册（8 个同名角色，模型继承当前会话），启用插件后多 Agent 流程按角色派发，缺角色时才降级 solo/direct；ZCode 没有 `PreCompact` / `SessionEnd`，compact 后由 `SessionStart` 恢复上下文。
 >
 > **OpenCode 用户：** 全局安装后 opencode 自动从 `~/.claude/skills/` 发现 skills；首次用自然语言触发 story-setup（如「用 story-setup 部署网文写作环境」），**部署后退出重进 `opencode -c`** 才能用 slash command。部分 hook 行为与 Claude Code 有差异（session-start / session-end / compact 等），详见 [CONTRIBUTING.md](CONTRIBUTING.md) 的 OpenCode 章节。
 >
@@ -182,7 +182,7 @@ npx skills add "$D"/x/oh-story-* -y -g
 >
 > 升级后如果项目里已经跑过 `/story-setup`，建议在项目根重跑一次 `/story-setup`，同步 hooks / agents / references。每版变更见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)；发版流程见 [RELEASING.md](RELEASING.md)。
 
-> **多 agent 协作要先部署再新开会话**：中文主包在 TRAE 实际注册 8 个通用专业 Agent（story-architect、narrative-writer、consistency-checker、revision-governor 等）+ 5 个数据分析精确角色，共 13 个 Agent；WorkBuddy 实际注册相同的 8 个通用角色 + 数据抓取角色 + 数据只读池化 Runner，共 10 个 Agent。Claude Code / Codex / TRAE Code / WorkBuddy 都建议在部署后新开会话。ZCode 3.3.4、OpenClaw Phase 1、Reasonix Phase 1 与 generic 路径默认走 skills + solo fallback。判断是否生效：新会话里跑 `/story-review`（WorkBuddy plugin-only 用 `/oh-story:story-review`），报告末行「技术备注」里是 `Effective Mode: full/lean` 即注册成功，是 `Fallback: ... -> solo` 说明当前运行时未暴露该 Agent；WorkBuddy 还必须实际调用基础 Agent、`story-data-fetcher` 及 `story-data-readonly-runner` 承载的一种逻辑职责，不能把设置页的启用状态当成 registry 调度证据。
+> **多 agent 协作要先部署再新开会话**：中文主包在 TRAE 实际注册 8 个通用专业 Agent（story-architect、narrative-writer、consistency-checker、revision-governor 等）+ 5 个数据分析精确角色，共 13 个 Agent；WorkBuddy 实际注册相同的 8 个通用角色 + 数据抓取角色 + 数据只读池化 Runner，共 10 个 Agent。Claude Code / Codex / TRAE Code / WorkBuddy 都建议在部署后新开会话。ZCode 由 oh-story 插件注册同样的 8 个通用角色；OpenClaw Phase 1、Reasonix Phase 1 与 generic 路径默认走 skills + solo fallback。判断是否生效：新会话里跑 `/story-review`（WorkBuddy plugin-only 用 `/oh-story:story-review`），报告末行「技术备注」里是 `Effective Mode: full/lean` 即注册成功，是 `Fallback: ... -> solo` 说明当前运行时未暴露该 Agent；WorkBuddy 还必须实际调用基础 Agent、`story-data-fetcher` 及 `story-data-readonly-runner` 承载的一种逻辑职责，不能把设置页的启用状态当成 registry 调度证据。
 
 > **导入续写顺序：** 推荐先在写作项目根运行 `/story-setup`（部署 hooks/agents/AGENTS），新开/刷新会话后运行 `/story-import` 导入已有小说，再用 `/story-long-write 日更` 或 `/story-long-write 写第N章` 续写。也可以直接运行 `/story-import`；它会先检测是否已 setup，未部署时让你选择先去 setup 或继续串行导入。
 

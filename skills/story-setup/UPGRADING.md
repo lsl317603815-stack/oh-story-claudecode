@@ -43,6 +43,7 @@
 - 追踪：续写状态卡活跃角色上限 6 → 20；带 BOM 的 JSON 输入可读；超长字段一次报全；修订不再清空「本章退役登记」。
 - 灵感库（原仓库 #444，可选）：story-long-analyze 新增三层灵感库管道，作者说「灵感库 / 提炼灵感 / 跨书灵感聚合」时才运行，把已拆书 `剧情/情绪模块.md` 的机制卡登记进工作区 `灵感库/`，归纳成去专名的跨书聚合卡；story-long-write 只在定设定、卷纲、细纲三处按标签召回，逐章正文不读。`inspiration_index.py` 随 story-long-write 一并分发。早期拆的书机制卡缺「戏剧单元」的，要先补卡才能登记。
 - 作者记忆（原仓库 #368/#437/#459/#490）：作者明确说「记住 / 确认 / 换成 / 忘掉」的长期写作习惯，由 story-long-write / story-short-write 记进工作区或书目录的 `.story/作者记忆/`（项目级 AP、书级 BP 两级，`作者画像.md` 等视图由脚本生成、禁止手改）。写正文前主会话查一次，把结果作为「作者习惯」一项交给写手（含 agy 写手），优先级低于本书文风、细纲和当前要求；装不下的用原话告诉作者。去味与审稿只用调用方传入的习惯；长篇候选章接纳前的审查任务包不带作者习惯，需要约束去味的本书偏好仍写进 `设定/文风.md`。各端项目说明加了「不要存进编程工具自带的记忆」一条。
+- ZCode 插件子代理（原仓库 #498）：oh-story 插件的 `.zcode-plugin/plugin.json` 新增 `agents`，注册 `references/zcode/agents/` 下 8 个同名专业角色（从 Claude 模板生成，工具白名单照搬、模型继承当前会话、不带 Claude 的 inline hooks）。各技能不再因「当前是 ZCode」固定降级 solo，改为查插件注册的角色，缺角色或调用失败才降级。setup 仍不创建 `.zcode/agents/`。ZCode 用户先更新/启用插件，再重跑 `$story-setup` 并新开会话。
 - 其它：OpenCode 21 个命令统一带 `用户参数：$ARGUMENTS`；短篇写前用 `check-delivery-contract.js` 锁定交付参数；长篇只做规划的请求不会进入正文写作；面向作者的汇报改成白话，机器字段只放末行「技术备注」。
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。OpenCode 用户先升级到 2.x（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。

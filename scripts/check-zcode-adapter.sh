@@ -25,9 +25,12 @@ for file in \
   "$ROOT/config.json.patch" \
   "$ROOT/hooks/hooks.json" \
   "$HOOK" \
-  "$HOOK_CORE"; do
+  "$HOOK_CORE" \
+  scripts/generate-zcode-agents.py \
+  scripts/test-zcode-agents.py; do
   assert_file "$file"
 done
+[ -d "$ROOT/agents" ] || fail "required directory missing: $ROOT/agents"
 
 for file in .zcode-plugin/plugin.json marketplace.json "$ROOT/config.json.patch" "$ROOT/hooks/hooks.json"; do
   python3 -m json.tool "$file" >/dev/null
@@ -45,8 +48,9 @@ assert re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,127}', plugin['name'])
 assert plugin['name'] == 'oh-story'
 assert plugin['skills'] == 'skills'
 assert plugin['commands'] == 'skills/story-setup/references/zcode/commands'
+assert plugin['agents'] == 'skills/story-setup/references/zcode/agents'
 assert plugin['hooks'] == 'skills/story-setup/references/zcode/hooks/hooks.json'
-for key in ('agents', 'channels', 'lspServers', 'outputStyles', 'settings'):
+for key in ('channels', 'lspServers', 'outputStyles', 'settings'):
     assert key not in plugin, f'non-runnable ZCode component declared: {key}'
 
 market = json.loads(Path('marketplace.json').read_text())
@@ -160,11 +164,45 @@ echo "  OK supported events + strict process-hook shape"
 if grep -RqsE 'PreCompact|PostCompact|SessionEnd|SubagentStop|Notification' "$ROOT/hooks" "$ROOT/config.json.patch"; then
   fail "ZCode adapter contains unsupported hook events"
 fi
-[ ! -e "$ROOT/agents" ] || fail "ZCode 3.3.4 must not ship project agents"
+python3 scripts/generate-zcode-agents.py --check
+python3 scripts/test-zcode-agents.py
+python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+
+root = Path('skills/story-setup/references/zcode/agents')
+templates = {path.stem for path in Path('skills/story-setup/references/templates/agents').glob('*.md')}
+files = sorted(root.glob('*.md'))
+assert {path.stem for path in files} == templates and len(files) == 8, sorted(path.stem for path in files)
+
+spec = importlib.util.spec_from_file_location('zcode_agent_generator_check', Path('scripts/generate-zcode-agents.py'))
+assert spec and spec.loader
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+allowed = {'name', 'description', 'model', 'tools', 'disallowedTools', 'maxTurns'}
+for path in files:
+    meta, body = module.parse_frontmatter(path.read_text(encoding='utf-8'))
+    assert set(meta) <= allowed, (path, set(meta) - allowed)
+    assert {'name', 'description', 'model', 'tools', 'maxTurns'} <= set(meta), path
+    assert meta['name'] == path.stem
+    assert meta['model'] == 'inherit'
+    assert module.parse_tool_list(meta['tools'], 'tools'), path
+    assert '.claude/skills/' not in body and '当前 Claude 部署' not in body
+    assert 'Agent(subagent_type' not in body
+
+# 只读角色在 ZCode 上也必须只读。
+for name in ('chapter-extractor', 'consistency-checker', 'revision-governor', 'story-explorer'):
+    meta, _ = module.parse_frontmatter((root / f'{name}.md').read_text(encoding='utf-8'))
+    assert module.parse_tool_list(meta['tools'], 'tools') == {'Read', 'Glob', 'Grep'}, name
+    assert module.parse_tool_list(meta['disallowedTools'], 'disallowedTools') == {'Write', 'Edit', 'Bash'}, name
+PY
+echo "  OK plugin Agents (8 generated roles; bounded tools; no Claude-only inline hooks)"
 [ ! -e "$ROOT/rules" ] || fail "ZCode has no .zcode/rules discovery surface"
 
 assert_grep '\$story-long-write|\$story-setup' "$ROOT/AGENTS.md.tmpl" 'ZCode AGENTS template must document $skill invocation'
-assert_grep 'project custom agents unavailable.*solo|不执行项目.*custom agents' "$ROOT/AGENTS.md.tmpl" "ZCode AGENTS template must document solo fallback"
+assert_grep 'oh-story 插件注册' "$ROOT/AGENTS.md.tmpl" "ZCode AGENTS template must route roles through plugin registration"
+assert_grep 'project custom agents unavailable.*solo' "$ROOT/AGENTS.md.tmpl" "ZCode AGENTS template must keep the capability-based solo fallback"
 assert_grep 'target_cli = zcode|target_cli.*zcode' skills/story-setup/SKILL.md "story-setup must document zcode target_cli"
 assert_grep 'references/zcode/config\.json\.patch' skills/story-setup/SKILL.md "story-setup manifest missing ZCode config patch"
 # 组合安装验证代理（CI 无 ZCode 运行时）：插件 manifest 与 workspace config 注册同一批 hooks，
@@ -172,9 +210,16 @@ assert_grep 'references/zcode/config\.json\.patch' skills/story-setup/SKILL.md "
 assert_grep 'hooks 互斥' skills/story-setup/SKILL.md "story-setup must document the plugin/workspace hooks mutex (skip config hooks merge when plugin installed, avoid double-firing)"
 assert_grep '\.zcode/skills/story-setup/references/agent-references' skills/story-setup/SKILL.md "story-setup missing ZCode reference path"
 
-for skill in story-long-write story-short-write story-long-analyze story-import story-deslop story-review; do
-  assert_grep 'ZCode 3\.3\.4|\.zcode/' "skills/$skill/SKILL.md" "$skill must document ZCode fallback"
-done
+python3 - <<'PY'
+from pathlib import Path
+
+# 防旧的「ZCode 固定降级」判断回流：派发角色的入口都要按插件注册状态分流。
+for skill in ('story', 'story-long-write', 'story-short-write', 'story-long-analyze', 'story-import', 'story-deslop', 'story-review'):
+    path = Path('skills') / skill / 'SKILL.md'
+    text = path.read_text(encoding='utf-8')
+    assert 'ZCode' in text and '插件' in text and '注册' in text, path
+    assert 'ZCode 3.3.4' not in text, f'{path}: stale fixed-version solo routing'
+PY
 
 echo "  OK deployment instructions + explicit capability boundaries"
 echo ""

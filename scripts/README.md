@@ -72,6 +72,7 @@
 | `test-delivery-contract.js` | 短篇交付参数预检 `check-delivery-contract.js`：最终字数、节数、标记与空行交付契约回归 | 统一 gate + Linux / Windows / macOS CI |
 | `test-inspiration-index.py` | 三层灵感库索引 `inspiration_index.py`：EM 卡登记幂等、专名泄漏拦截、NM/CBA 闭包与计数、卡内路径引用拒绝、标签检索 | 统一 gate + Linux / Windows / macOS CI |
 | `test-author-memory-commit.py` | 跨会话作者记忆 `author_memory_commit.py`：项目级/书级两级 store、单书布局、record/query 幂等、注入预算与装不下的条目报告、写作入口与写手 prompt 的对接字段 | 统一 gate + Linux / Windows / macOS CI |
+| `generate-zcode-agents.py` / `test-zcode-agents.py` | 从 Claude 模板生成 ZCode 插件角色（`--check` 防漂移）；测试工具白名单、模型继承、无效输入零写入、调用侧不再「只看目录」判断角色可用 | `check-zcode-adapter.sh`（统一 gate） |
 | `test-scan-runtime.js` | CDP argv 边界/报错/JSON 契约与 7 个 scraper 无副作用 import | CI |
 | `test-opencode-plugin.mjs` | 直接执行 OpenCode 2.x TypeScript plugin（`{ id, setup }`，项目根取 `ctx.location`），验大纲/空细纲守卫、Shell 绕过、写后检查、compaction 注入与 Windows 下 git 子进程 `windowsHide` | 被 `check-opencode-adapter.sh` 调用 |
 | `test-codex-cli-e2e.sh` | 隔离 HOME 后用真实 Codex CLI 检查 repo 21 个 skill 的发现结果 | CLI compatibility CI；需已安装 `codex` |

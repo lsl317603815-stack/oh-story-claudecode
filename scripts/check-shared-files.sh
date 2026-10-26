@@ -103,7 +103,7 @@ list_reference_basenames() {
       # changing frontmatter and invocation syntax.  They are adapter payloads,
       # not canonical cross-skill references.  Keep TRAE hooks in the scan so
       # story_hook_core.js still participates in byte-parity checks.
-      */.gitkeep|*/opencode/*|*/trae/agents/*|*/trae/commands/*|*/trae/rules/*|*/workbuddy/agents/*|*/workbuddy/commands/*|*/workbuddy/rules/*) ;;
+      */.gitkeep|*/opencode/*|*/trae/agents/*|*/trae/commands/*|*/trae/rules/*|*/workbuddy/agents/*|*/workbuddy/commands/*|*/workbuddy/rules/*|*/zcode/agents/*) ;;
       *) printf '%s\n' "${path##*/}" ;;
     esac
   done <<< "$REFERENCE_FILES"

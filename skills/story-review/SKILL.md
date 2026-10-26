@@ -49,7 +49,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 1. **确定请求模式**：解析用户输入中的 `full`、`lean`、`solo`、`reader`；`reader` 直接按上方「读者审读模式」执行，不进入本流程；其余未指定时目标模式为 `full`。
 2. **确认是否允许 spawn**：如果当前已经在子代理/Agent 内执行，不再递归 spawn，直接降级为 `solo`。
-3. **识别 ZCode 能力边界**：如果当前运行于 ZCode 且项目使用 `.zcode/`，ZCode 3.3.4 不执行项目/plugin custom agents；不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn，直接降级 `solo`，技术备注行写 `Fallback: project custom agents unavailable -> solo`。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
+3. **识别当前宿主的角色来源**：ZCode 支持插件子代理，检查当前已启用的 oh-story 插件注册的同名角色（不要求 `.zcode/agents/`，不拿项目文件存在性代替运行时注册），用 `Agent` 工具按当前 schema 派发；所需角色缺失、定义不可解析或调用失败时才降级 `solo`，白话建议启用/更新 oh-story 插件后新开会话，技术备注行写 `Fallback: project custom agents unavailable -> solo`。不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
 4. **检查核心 Agent 部署状态**（先识别当前运行时，只检查对应目录/registry；无法识别运行时才按 Claude → OpenCode → TRAE Code → WorkBuddy → Codex 的顺序探测，禁止拿其他端残留文件冒充已注册 agent）：
    - Claude Code 使用 `.claude/agents/`，OpenCode 使用 `.opencode/agents/`，TRAE Code 使用 `.trae/agents/`，WorkBuddy（CodeBuddy Code）项目模式使用 `.codebuddy/agents/`，Codex 使用 `.codex/agents/`。WorkBuddy plugin-only 模式不要求项目 `.codebuddy/agents/`：只有当前 Agent registry 真实返回所需的 `oh-story:{agent}` 才视为可用。
     - full 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`character-designer.md`、`narrative-writer.md`、`consistency-checker.md`；WorkBuddy plugin-only 模式为 registry 中对应的 4 个 `oh-story:*`；Codex 为同名 `.toml`

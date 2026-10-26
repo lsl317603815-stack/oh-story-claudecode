@@ -201,7 +201,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 #### Agent 兼容性处理
 
 - Agent frontmatter 以 Claude Code 为主；OpenCode 的 `.opencode/agents/*.md`、Codex 的 `.codex/agents/*.toml`、TRAE 的 `.trae/agents/*.md` 和 WorkBuddy 的 `.codebuddy/agents/*.md` 均使用对应 adapter 下的预生成产物，不得直接复制别端 frontmatter。TRAE 通用角色的唯一来源是 `references/trae/agents/`，数据分析角色的唯一来源是 `skills/story-data-analyze/agents/trae/`；WorkBuddy 对应来源为 `references/workbuddy/agents/` 与 `skills/story-data-analyze/agents/workbuddy/`。不把 Claude 模型别名或某一端的专有字段机械带入另一端。OpenCode/Codex/WorkBuddy 预生成产物由仓库维护脚本生成；这些脚本不随 story-setup 下发，部署时只复制已提交产物。
-- **ZCode 3.3.4 不部署项目 agents**：其自定义子智能体只支持用户级 `~/.zcode/agents/`，plugin manifest 中的 `agents` 当前不执行。不要创建 `.zcode/agents/` 或修改用户 home；相关 Skill 必须直接 solo/direct 并报告 fallback。
+- **ZCode 通过插件注册专业角色，不部署项目 agents**：oh-story 插件的 `.zcode-plugin/plugin.json` 以 `agents` 字段注册 `references/zcode/agents/` 下 8 个同名角色（由仓库维护脚本 `generate-zcode-agents.py` 从 Claude 模板生成：工具白名单与禁用工具照搬，模型继承当前会话，不带 Claude 的 inline hooks）。不要创建 `.zcode/agents/` 或修改用户 home；只装独立 Skills、没启用插件时没有这些角色，相关 Skill 提示启用/更新插件，仍不可用才 solo/direct 并报告 fallback。
 - **OpenClaw Phase 1 不部署 agents**：OpenClaw 只部署 skills，agent 协作相关 skill 必须按既有 fallback 规则降级 solo/direct，不要把 Claude/OpenCode agent frontmatter 直接复制成 OpenClaw agent。
 - 部署到项目后，agent 内引用的参考资料必须走 `story-setup/references/agent-references/*.md` 这一本 skill 内复制路径；不要跨 skill 引用其他 skill 的 references。各 adapter 只使用当前规范前缀：Claude Code 为 `.claude/skills/`，OpenCode / OpenClaw / Reasonix / generic 为 `skills/`，Codex 为 `.codex/skills/`，ZCode 为 `.zcode/skills/`，TRAE Code 为 `.trae/skills/`，WorkBuddy / CodeBuddy Code 为 `.codebuddy/skills/`；插件模式可用由平台内联的 `${CODEBUDDY_PLUGIN_ROOT}/skills/`。不在运行时遍历历史备选路径。
 
@@ -394,7 +394,7 @@ ZCode 首版部署 Skills、Commands、AGENTS.md 和支持事件内的 Hooks；�
    - 合并 hooks（仅未装插件时）：设置 `hooks.enabled: true`；用户已有更大的 `timeoutMs` 时保留，否则取模板值；对 `hooks.events` 的 SessionStart、PreToolUse、PostToolUse 按 `event + matcher + process command + args` 去重追加；不复制 ZCode 不支持的 PreCompact、PostCompact、SessionEnd、SubagentStop、Notification。
 5. 将 `references/zcode/AGENTS.md.tmpl` 按「AGENTS.md 合并策略」写入根 `AGENTS.md`。
 6. `.story-deployed` 的 `target_cli` 写入 `zcode` 或多端组合，`references_dir` 写 `.zcode/skills/story-setup/references/agent-references`。
-7. 安装报告明确说明：ZCode 3.3.4 的项目/plugin custom agents 不执行，所有专业角色走 solo/direct；系统需要可用的 `node` 命令运行项目 Hook。
+7. 安装报告如实说明角色注册情况：oh-story 插件已启用时，多 Agent 流程按同名插件角色派发；没启用插件或缺角色时，提示启用/更新插件后新开会话，不用重复部署 workspace 代替。系统需要可用的 `node` 命令运行项目 Hook。
 
 Plugin 安装不经过本算法：仓库根 `.zcode-plugin/plugin.json` 直接暴露同一组 Skills/Commands/Hooks。Plugin Skills 优先级低于 workspace `.zcode/skills`；两者同时存在时项目快照优先，升级项目快照需重新运行 `$story-setup`。**Hooks 只能注册一份**：插件 manifest 与 workspace `.zcode/config.json` 注册的是同一批事件，装了插件就不要再把 `config.json.patch` 的 hooks 合并进 `.zcode/config.json`（见上算法第 4 步的 hooks 互斥），否则 PreToolUse/PostToolUse 会双触发；插件在场时以插件 manifest 为 hooks 唯一注册源。
 
@@ -592,7 +592,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 检查 `.zcode/config.json` JSON 有效，并按「ZCode 部署算法」第 4 步的 hooks 互斥分支校验：未装 oh-story 插件时，`hooks.enabled=true`、仅注册 ZCode 支持事件、所有 `process` args 指向项目 Hook；已装 oh-story 插件（`.zcode-plugin/plugin.json` 已全局注册这批 hooks）时，改为校验 `.zcode/config.json` 不含（或已移除）这批 oh-story hooks 注册——**不得**为了让校验通过而把 `config.json.patch` 的 hooks 块合并回去，否则同一事件双触发
     - 检查 `.zcode/skills/story-setup/references/agent-references/` 完整且所有 reference 路径可解析
     - 用 fixture 调用 SessionStart、PreToolUse deny/allow、PostToolUse，确认无发现时 stdout 为空、有输出时符合 ZCode 严格 JSON
-    - 安装报告必须提示：ZCode 3.3.4 不执行项目/plugin custom agents，full/lean 多 Agent 请求会稳定降级 solo/direct；Hook 依赖 PATH 中的 `node`；部署后新开 ZCode session 刷新 Skills/Commands/AGENTS.md
+    - 安装报告必须提示：专业角色由 oh-story 插件注册（插件角色模型继承主会话，不移植 Claude 的单角色 inline hooks），插件已启用时 full/lean 按所需角色派发，缺角色或工具才降级 solo/direct；Hook 依赖 PATH 中的 `node`；部署后新开 ZCode session 刷新 Skills/Commands/AGENTS.md
 10. 验证 TRAE Code 部署（仅当 target_cli 含 trae 时）：
     - 检查根 `AGENTS.md` 只有一个完整 `oh-story-managed: trae` 管理块，用户其他段落仍在
     - 检查 `.trae/skills/` 与 `.trae/commands/` 的受管名字集均精确等于 canonical 21；每个 skill 有 `SKILL.md`，每个 command 有 `name` / `description` 与 `oh-story-managed` 标记

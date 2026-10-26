@@ -209,7 +209,7 @@ PR 中如果修改了 Claude Code 模板文件，CI 会自动检测 opencode 模
 
 - **agent-references** 部署到 `skills/story-setup/references/agent-references/`（非隐藏），而非 `.opencode/skills/`
 - **agent 文件** 双份部署：`.opencode/agents/`（opencode 系统使用）+ `agents/`（Glob 可见副本）
-- **subagent 检测**：所有 spawn agent 的 skill（story-review、story-long-write、story-deslop、story-import、story-long-analyze、story-short-write）需按 `.claude/agents/` → `.opencode/agents/` → `.codex/agents/` 顺序检查；ZCode 3.3.4 与 OpenClaw Phase 1 不部署项目 agents，走 solo/direct fallback。
+- **subagent 检测**：所有 spawn agent 的 skill（story-review、story-long-write、story-deslop、story-import、story-long-analyze、story-short-write）需按 `.claude/agents/` → `.opencode/agents/` → `.codex/agents/` 顺序检查；ZCode 不部署项目 agents，改查 oh-story 插件注册的同名角色（`references/zcode/agents/` 由 `python3 scripts/generate-zcode-agents.py` 从 Claude 模板生成，`--check` 防漂移）；OpenClaw Phase 1 不部署 agents，走 solo/direct fallback。
 
 **插件输出不可见**：opencode 插件的 `output.extra.system` 已移除（真实 API 中不存在此字段）。系统提示注入改用 `experimental.session.compacting` 的 `output.context` 传递写作上下文。
 
