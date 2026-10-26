@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.15.0（Dev 候选 · 2026-10-27）
+
+吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来（至其 v0.9.0 及 #498）的修复，以本线为底：写法规则不再默认把情绪转成身体反应、短篇去掉每节固定配额；新增可选的跨书灵感库与跨会话作者记忆；ZCode 改由 oh-story 插件注册专业角色；OpenCode 只支持 2.x。部署契约升至 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需在每个项目重跑 `/story-setup` 并新开会话。
+
+### 与原仓库合流（以本线为底）
+
+- 两条线只在 v0.7.0（964d6bf）有共同历史；原仓库其后 133 个提交（其 v0.7.1–v0.9.0）以真正的 merge 合入（b923cfb），下次同步只需看 0ebef65 之后的提交。
+- 保留本线全部设计：追踪 schema 5、候选章与 15 道接纳前门禁、revision-governor、题材契约、A/B 写作方法、声音画像、模型分工（写手走 agy）、额外的 8 个 Skill、TRAE / WorkBuddy 适配、资料结构、版本号与仓库地址。
+- 未采用：原仓库 v0.9.0 的资料按时刻重组、schema 4 追踪、写手 prompt 组装流水线与 storyctl、Antigravity 主控适配、demo 目录、ClawHub 发布、`.agents/notes` 与品牌文档。
+
+### 写法规则
+
+- 情绪不再默认转成身体反应或微动作：可以直写，优先落在选择、台词、物件和后果上，身体细节要有后果才留（原仓库 #376、#406）。anti-ai-writing、quality-checklist、writing-craft、short-craft、style-craft、各端 narrative-writer 与 Gate C 同步为「情绪落地」。
+- 短篇去掉每节字数、对话占比、「每节一动一静」「每节留钩」等固定配额，改为每节一个主问题、结尾推动故事（#384、#450、#472）；短篇写前用 `check-delivery-contract.js` 锁定交付参数并按非空白字数验收（#402）。
+- 本书 `设定/文风.md` 声明的叙述姿态优先于写手默认的深度限知（#412）；只做规划的请求不进入正文写作、不扩大范围（#420）；给作者的汇报改成白话，机器行只放末行「技术备注」（#445）；去味按作者选定的 Gate 范围执行（#403）。
+- 情绪下限门禁只改提示文字与 `emotion-landing.md`，拦截线不变：它仍只数身体、冲动、感官三类落点，直写与后果成立但不计数。
+
+### 新功能
+
+- **跨书灵感库**（#444，可选）：story-long-analyze 在作者说「灵感库 / 提炼灵感 / 跨书灵感聚合」时，把已拆书的情绪模块机制卡登记进工作区 `灵感库/`，归纳为去专名的跨书聚合卡；story-long-write 只在定设定、卷纲、细纲三处按标签召回，逐章正文不读。
+- **跨会话作者记忆**（#368、#437、#459、#490）：作者明确说「记住 / 确认 / 换成 / 忘掉」的长期习惯记进工作区或书目录的 `.story/作者记忆/`；写正文前主会话查一次，作为「作者习惯」交给写手（含 agy 写手），优先级低于本书文风、细纲与当前要求。长篇候选章接纳前的审查任务包不带作者习惯。
+- **ZCode 插件角色**（#498）：`.zcode-plugin/plugin.json` 注册 8 个从 Claude 模板生成的专业角色；各技能按插件注册情况派发，缺角色才降级 solo。
+- **扫榜**：起点、七猫、番茄可抓书库新书（#461），报告带数据质量说明。
+- **工作台**：新设计与深色模式（#452）、记住浏览位置与行号（#391）、JSON 响应加固（#369）；保留本线的长篇项目状态面板。
+- **封面**：Codex 先用内置 ImageGen，再走 API（#358）；题材按词匹配。
+
+### hook、追踪与检测器
+
+- Windows 下查 Git 不再弹控制台窗口（#464）；细纲为空（去掉 BOM、标题与空白后不足 30 字）时拦下首次建章（#449）；`cd 书 && cat > 正文/…`、`&>`、`>|` 等写法可识别（#448）；引号外的模型拒绝语与 AI 自称在对白行也会查出，`don't` 这类撇号不再当引号（fc609889）。
+- 续写状态卡活跃角色上限 6 → 20（#496）；带 BOM 的 JSON 输入可读；超长字段一次报全；修订不再清空「本章退役登记」（#448–#450）。
+- `check-ai-patterns.js` 不再扫描 HTML 注释；细纲照搬检测排除「实际完成情况」并容忍 BOM（#404）。
+
+### OpenCode 只支持 2.x（#443）
+
+- 插件改为 2.x `{ id, setup }` 形态，`.opencode/plugins/` 自动发现，不再写 `opencode.json` 补丁；重新部署会删掉旧版留在 `opencode.json(c)` 里的 `story-hooks.ts` 项。agents 改用 2.x `permissions:` 规则；21 个命令统一带 `用户参数：$ARGUMENTS`（#411）。
+- 版本门 fail-closed：`opencode --version` 低于 2 或读不出版本时停止 OpenCode 部署（其它端照常）。**OpenCode 1.x 用户需先升级**（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。
+
+### 部署契约与 CI
+
+- `agents_version` 47 → 48、`setup_skill_version` 1.7.0 → 1.8.0（原仓库最高 36 / 1.3.4）。v47 及更早的项目会在会话启动时收到重跑提示。启用模型分工的项目重新部署后，`.claude/models/narrative-writer-prompt.md` 会按新写法重新生成。
+- CI：actions 固定到 SHA；OpenCode CLI 任务改用 `@opencode/cli`；三平台新增灵感库、作者记忆与短篇交付检查回归。
+
 ## v0.14.0（Dev 候选 · 2026-10-21）
 
 细纲模板整份改成作者能读的四段人话，lint 加「不是人话」提醒；新增第 21 个 Skill `story-audiobook`（有声书）；细纲字数门、按书对白口径、文风带三道门禁收进仓库，接纳前门禁从 14 道扩为 15 道。部署契约升至 `setup_skill_version: 1.7.0` / `agents_version: 47`，升级后需在每个项目重跑 `/story-setup` 并新开会话。
