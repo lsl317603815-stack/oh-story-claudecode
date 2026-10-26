@@ -117,6 +117,7 @@
      - 若 `gaps.profile_degenerate: true`（对标文风不可用） → `custom_style` 为真则用 `设定/文风.md` 写作；否则跳过文风、回到默认 Gates 写作
      - 若 `gaps.tone_match_failed: true` → 仅用整书文风写作，不喂 matched_chapter
      - A 原样传 `style_profile_path`、`style_profile_summary`、`selected_emotion_module`、`rhythm_reference`、`module_source_path`、`rhythm_source_path`、`matched_chapter_K`、`matched_chapter_techniques`、`anchor_excerpts` 和 `genre_prose_card` 给 Step 2 末尾的 narrative-writer prompt。B 只传 `selected_emotion_module`、`rhythm_reference`、`genre_prose_card`、`compiled_method_packet`，以及实质性的 `设定/文风.md` 和 fresh 声音画像；不得把整份编译方法、来源名、证据定位或语料原文塞进 prompt。两条分支中情绪、节奏、题材和声音画像的优先级不变。项目存在 `追踪/文风/accepted-voice-profile.json` 时先运行 `voice_profile.py verify`；仅在 `fresh` 时传本章相关的早期/近期范围摘要，作为本书声音 advisory，不传全量逐章统计、不覆盖自定义文风或情绪/节奏契约。A 的写前准备记录继续保留 `gaps` 原值，尤其 `gaps.module_missing`、`gaps.rhythm_missing`、`gaps.conflict`、`gaps.matched_deep_dive_missing`
+     - **作者习惯**：有作者记忆时，按 SKILL.md「作者记忆」查 `prose_style` + `story_design`，把 `lines` 原样作为「作者习惯」一项传给 Step 2 末尾的 narrative-writer prompt（低优先级倾向，本书文风与细纲优先）；同一微批次查一次即可。
      - **无 story-explorer 时直接执行**：主会话手动按对标书路径查找，先读 `剧情/情绪模块.md` 选 `selected_emotion_module`，再读 `剧情/节奏.md` 选 `rhythm_reference`，读 `设定/题材正文提示卡.md` 或按 `genre-prose-cards.md` 索引 + 单题材卡优先即时生成 `genre_prose_card`，并直接读 `设定/文风.md` 判定 `custom_style`。A 再读对标 `文风.md` + grep `章节/*_摘要.md` 的「基调」字段找匹配章，然后读对应 `第K章_摘要.md`；如 `第K章_深度拆解.md` 不存在，改读 `第1-3章_深度拆解.md` 中与本章基调最接近的一章。B 只使用已 resolve 的 `compiled_method_packet`，不读对标文风、匹配章或原文锚点。模块或节奏文件缺失时设置 `missing_primary_contract` 并停止修复
    - **意图确认**：从细纲「目标情绪」确认本章情绪目标，综合状态筛选 + `selected_emotion_module` + `rhythm_reference` + `genre_prose_card` + 文风召回，用一句话写本章意图（情绪+节奏+模块+题材取舍+文风指令）。意图写成“**情绪前状态 → 触发 → 后状态**”，不能只写情绪标签，并指明推进单元情绪引擎的哪一环；同时消费主角代理权、当前单元的主角目标/关键选择、主推线/战果与终局底牌边界。仅当新承载对象、关键转折或高潮进入时才跑 emotional-methods.md 的「合理性五问」，不要每段填表。
      - **细纲字段只定“发生什么”，不定正文形状**：阶段位置/禁止提前释放定边界，结构公式定骨架，情节点序列定发生什么和各点展开多少，人物与信息差定镜头顺序、谁知道什么和因果链，写手单的行动成本/收益归属定代价账，本章兑现与状态变化定留存结果，结尾、章尾余势与钩子定承接（旧版细纲回退时，内容概括、情节安排、人物关系和出场顺序、情节细化分别对应这几项）。情节点可自由合并、穿插、重排，演成场景；不逐条各扩一段，不把“谁做了什么”的概括语原样搬进叙述（见 writing-craft.md「从细纲到正文」）。
@@ -185,8 +186,8 @@
 
 然后判断任务总目标：
 
-- **`review` 候选已生成但未接纳**：向用户汇报候选摘要和接纳/修改入口，不把它计为已完成章节。
-- **`auto` 的 T 已完成**：向用户汇报已接纳提交的章数、字数、漂移和 doctor 结果。
+- **`review` 候选已生成但未接纳**：向用户汇报候选摘要和接纳/修改入口，不把它计为已完成章节。本批有习惯没带上（作者记忆查询的 `omitted_ids` 非空）就用原话合并说一次；没有就不提。
+- **`auto` 的 T 已完成**：向用户汇报已接纳提交的章数、字数、漂移和 doctor 结果；本批有习惯没带上同样用原话说一次。
 - **`auto` 的 T 未完成且无阻塞**：只发简短中间进度，自动回到 Step 1/2 读取最新追踪和下一微批次细纲，继续串行写作。
 - **T 未完成但出现真实阻塞或用户中断**：停止新增正文，报告已完成章数/字数、剩余目标、阻塞证据和恢复入口；已通过的章节与追踪提交保留。
 

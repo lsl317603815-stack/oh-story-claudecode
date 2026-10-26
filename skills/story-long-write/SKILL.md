@@ -44,6 +44,20 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
+## 作者记忆
+
+作者记忆保存作者**明确说出口**、可跨会话复用的创作习惯（如「以后对话都用直角引号」「这本书少用破折号」）。小说事实仍写设定与追踪，不进作者记忆。
+
+- **管理**：作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（整理、超编、迁移、单书布局按其中指路读 [references/author-memory-maintenance.md](references/author-memory-maintenance.md)）。只管理习惯时做完即停，不建书、不写正文。一次性要求只照做、不记录；作者没开口的偏好不推断、不记录。
+- **工作区**：`--workspace` 取书目录及其祖先中最近一层带 `.active-book`、`长篇/`、`短篇/`、`拆文库/` 或已有项目级作者记忆的目录；书目录自带 `拆文库/` 时，书目录本身就是工作区，按维护文件「单书布局」存放。`--book-root` 恒为当前书目录。认不出时按 author-memory.md「存放与路由」先定好，不拿用户主目录兜底。
+- **查询**（state 不存在时返回空、零写入，照常创作）：
+  - 设定 / 大纲 / 细纲：`{PYTHON} {skill 根}/scripts/author_memory_commit.py query --workspace {工作区} --book-root {书目录} --kind story_design --kind workflow --kind interaction`，结果只给主会话，不传正文 agent。
+  - 写候选章正文：派写手前查 `--kind prose_style --kind story_design`（可加 `--genre {题材}`），把返回的 `lines` 原样放进写手 prompt 的「作者习惯」一项；整章重写同此，局部改写只查 `prose_style`。
+  - 只把 `lines` 交给执行者；完整画像、证据、待确认和变更记录不进上下文。
+- **优先级**：作者习惯是低优先级倾向，排在硬门禁与交付协议、当前请求、本书 `设定/文风.md` 与写作方法分支、细纲与题材契约之后；不为逐条命中牺牲连贯、节奏和字数，也不降低任何门禁或审查。
+- **没带上的**：`omitted_ids` 非空时，汇报里按 `omitted_summaries` 用原话合并说一句「有几条习惯这次没带上：……」，建议说「整理作者记忆」。
+- **边界**：候选章接纳前的去味与一致性审查任务包由 `chapter_candidate.py` 生成、原样交出，不附作者习惯；必须约束去味的本书表达偏好，写进 `设定/文风.md`。
+
 ## 写作流程
 
 先确定操作对象（结构、大纲、细纲还是正文）、交付范围和停点，再看项目状态；空项目不等于授权完整开书。
@@ -322,6 +336,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
      - `genre_prose_card`（题材正文提示卡摘要，只含本章相关条目）。
 	     - A 的文风路径、文风召回指令、原文锚点片段；B 不传这三项。
 	     - 写作方法分支与 `compiled_method_packet`：A 不传；B 只传本章命中的抽象规则，不传整包、来源名、证据定位或语料原文。
+	     - 作者习惯（有作者记忆时）：上面「作者记忆」查询返回的 `lines` 原样传，标明是低优先级倾向；没有就写「无」。
 	     - 已接纳正文声音画像摘要（若存在且验证为 fresh）：只传本章相关漂移项和早期/近期范围，不传全量逐章统计；画像缺失或样本不足不阻断写作。
 	     - 阶段位置、本章结构公式、本章可释放信息、本章禁止提前释放信息。
 	     - 字数目标、情节点预算、格式硬约束。

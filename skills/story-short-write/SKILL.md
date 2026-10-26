@@ -36,6 +36,10 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
+## 作者记忆管理
+
+作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（整理、超编、迁移、单书布局按其中指路读 [references/author-memory-maintenance.md](references/author-memory-maintenance.md)）。仅管理习惯时完成即停，不建书、不写正文；一次性要求只照做不记录，作者没开口的偏好不推断。`--workspace` 取项目目录及其祖先中最近一层带 `.active-book`、`长篇/`、`短篇/`、`拆文库/` 或已有项目级作者记忆的目录，`--book-root` 是本篇项目目录。
+
 ## 核心方法
 
 除了上面的执行规则，构思和写作时遵循：
@@ -45,6 +49,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - **定平台基调 + 打磨导语 + 卡付费点**：投稿前先按平台（知乎/小程序/番茄）定基调，正文视角、矛盾烈度、章末落点随之切换；导语单独当门面打磨（导语不行，正文再好也被编辑一眼刷掉）；付费点卡在章末卡脖子断点上。见 `references/submission-craft.md`
 - **现实共鸣型 / 悬疑脑洞型两包情绪基调与追妻火葬场型有实质差异**（前者克制清醒、后者冷峻推理，非直给宣泄），选用前先读该包开头的「与通用底座的关键偏差」小节，不要照搬追妻型的情绪写法
 - **只加载必需信息**：写每节前明确目标情绪和要用的技法，答不出就先回读参考
+- **复用作者习惯**：有作者记忆时，正文前用 `{PYTHON} {skill 根}/scripts/author_memory_commit.py query --workspace {工作区} --book-root {项目目录} --kind prose_style --kind story_design [--genre {题材}] [--workflow 短篇]`（改写、去味只带 `--kind prose_style`），把输出的 `lines` 当作低优先级的自然倾向；派 narrative-writer 时原样放进 prompt 的「作者偏好」一项。不逐条追求命中，不牺牲连贯、节奏和字数；锁定的交付参数、当前请求和本篇设定优先；没装下的（`omitted_ids` 非空）交稿时用原话告诉作者。长期声明在收尾按上方「作者记忆管理」处理。
 
 ---
 
@@ -365,7 +370,7 @@ node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars 
 #### Agent 调用：narrative-writer（去AI味）+ consistency-checker
 
 精修阶段，如果当前运行时已部署对应 agent，可调用它们。TRAE Code 只由内置 `Agent` 智能体分别按 `.trae/agents/narrative-writer.md` 与 `.trae/agents/consistency-checker.md` 的名称选择同名 Subagent，把下列 prompt 作为任务正文，不传 `subagent_type`；WorkBuddy 项目模式先验证 `.codebuddy/agents/narrative-writer.md` 与 `.codebuddy/agents/consistency-checker.md`，再用内置 `Agent` 传原始 `subagent_type`；plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` / `oh-story:consistency-checker` 时使用对应精确值：
-- **narrative-writer 任务**：prompt 为 `项目目录：{dir}\n任务描述：去AI味+格式检查\n检查分工：你负责本次语义去味及原定自检；最终文件扫描与交付验收由主会话对落盘文件执行，不在子代理内重复\n检查范围：{正文文件}\n语言契约：language=zh；未授权外语必须改回中文；只保留机械识别的非叙事结构，或用户单独确认后在 .deslop-whitelist 精确登记的外语；HTML 标记必须清零\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
+- **narrative-writer 任务**：prompt 为 `项目目录：{dir}\n任务描述：去AI味+格式检查\n检查分工：你负责本次语义去味及原定自检；最终文件扫描与交付验收由主会话对落盘文件执行，不在子代理内重复\n检查范围：{正文文件}\n作者偏好：{作者记忆 prose_style 查询的 lines；无则写无}\n语言契约：language=zh；未授权外语必须改回中文；只保留机械识别的非叙事结构，或用户单独确认后在 .deslop-whitelist 精确登记的外语；HTML 标记必须清零\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
 - **consistency-checker 任务**：prompt 为 `项目目录：{dir}\n检查范围：{正文文件}\n检查类型：事实冲突+伏笔断线+角色属性不一致` — 执行一致性检查
 
 如 agent 不可用，由主线程直接执行。

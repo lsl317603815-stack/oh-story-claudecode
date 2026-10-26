@@ -20,6 +20,8 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 >
 > Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进技术备注行；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
+**作者习惯**：只接收调用方已有的作者偏好（写作 skill 查出的作者记忆 `lines`），不查询或记录作者记忆；独立调用时不加载记忆文件。偏好作为自然倾向，不逐条追求命中，不牺牲连贯、节奏和字数；当前请求、原文剧情功能和本 skill 保护规则优先。
+
 ## 核心哲学
 
 ### 原则 1：改味优先，别当改错
@@ -243,7 +245,7 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 「证据分层与处置决策」完成后，按以下顺序选择执行路径：
 
 1. **已在 narrative-writer 子代理内**：按选定的 Gate 范围 inline 执行，不再 spawn（嵌套 spawn 会被静默降级）。
-2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
+2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n作者偏好：{调用方已有的作者习惯 lines；无则写无}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
 3. **agent 不存在或 spawn 失败**：主线程按同一 Gate 范围 inline 执行。
 
 无论哪条路径，主会话最后都对最终落盘文件跑「确定性收尾」的复扫，不因执行者已自检而跳过。

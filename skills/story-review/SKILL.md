@@ -14,6 +14,8 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
+**作者习惯**：只接收调用方已有的作者偏好，不查询或记录作者记忆；独立调用时不加载记忆文件。偏好只能帮助解释意图和组织报告，不能降低 rubric 严重度、把事实冲突判为无问题或跳过平台门禁；当前请求仍优先。
+
 ## Review Mode 选择
 
 - `/story-review` 或 `/story-review full` → 优先 spawn 全部 4 个 Agent；如果当前已经在子代理内，核心 Agent 未部署/异常，或 spawn 失败，自动降级为 solo。

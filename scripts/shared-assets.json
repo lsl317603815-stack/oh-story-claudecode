@@ -284,6 +284,13 @@
       "targets": [
         "skills/story-long-write/scripts/inspiration_index.py"
       ]
+    },
+    {
+      "name": "story-author-memory-transaction",
+      "source": "skills/story-long-write/scripts/author_memory_commit.py",
+      "targets": [
+        "skills/story-short-write/scripts/author_memory_commit.py"
+      ]
     }
   ]
 }

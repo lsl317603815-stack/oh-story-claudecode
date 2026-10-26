@@ -57,6 +57,8 @@ jobs:
         run: node scripts/test-delivery-contract.js
       - name: Inspiration library index regression
         run: python3 scripts/test-inspiration-index.py
+      - name: Author memory transaction regression
+        run: python3 scripts/test-author-memory-commit.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -178,6 +180,8 @@ jobs:
         run: node scripts/test-delivery-contract.js
       - name: Inspiration library index regression
         run: python scripts/test-inspiration-index.py
+      - name: Author memory transaction regression
+        run: python scripts/test-author-memory-commit.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -259,6 +263,8 @@ jobs:
         run: node scripts/test-delivery-contract.js
       - name: Inspiration library index regression
         run: python3 scripts/test-inspiration-index.py
+      - name: Author memory transaction regression
+        run: python3 scripts/test-author-memory-commit.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js

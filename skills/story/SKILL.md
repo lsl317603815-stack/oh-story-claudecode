@@ -44,6 +44,10 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 只说 `/story`、看不出意图时，不贴路由表，给四个白话选项：「开一本长篇或接着写」→ `/story-long-write`；「写一篇短篇」→ `/story-short-write`；「把一章改得不那么 AI」→ `/story-deslop`；「更多（拆书、扫榜、导入旧稿、审稿、封面、剧本、有声书）」→ 再列进阶项。还没部署过（项目根没有 `.story-deployed`）时先建议 `/story-setup`，并说明部署完要新开一个会话再开始，写作助手才会生效。
 
+### 作者习惯管理
+
+作者说「记住 / 忘掉 / 确认这个习惯」「整理作者记忆」时，按用户明确指定的长篇/短篇选写作 skill；没指定时按当前书的篇幅。没有当前书的通用习惯交 `/story-long-write` 管理；只针对某本书却定位不到时问是哪本，不要求先建书。路由层只转交，不读写作者记忆文件。
+
 ### 导入续写顺序
 
 用户问"导入续写先 setup 还是 import"时，直接回答：**推荐先 `/story-setup`，新开/刷新会话后 `/story-import`，最后 `/story-long-write 日更` 或 `/story-long-write 写第N章`（N 是导入后的下一章）；短篇导入后用 `/story-short-write` 先补完构思**。如果用户已经直接触发 `/story-import`，按 story-import 自带环境检测继续：未 setup 时让用户选择先去 setup 或继续串行导入。
