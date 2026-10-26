@@ -55,6 +55,8 @@ jobs:
         run: node scripts/test-normalize-punctuation.js
       - name: Short-story delivery contract preflight regression
         run: node scripts/test-delivery-contract.js
+      - name: Inspiration library index regression
+        run: python3 scripts/test-inspiration-index.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -174,6 +176,8 @@ jobs:
         run: node scripts/test-normalize-punctuation.js
       - name: Short-story delivery contract preflight regression
         run: node scripts/test-delivery-contract.js
+      - name: Inspiration library index regression
+        run: python scripts/test-inspiration-index.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -253,6 +257,8 @@ jobs:
         run: node scripts/test-normalize-punctuation.js
       - name: Short-story delivery contract preflight regression
         run: node scripts/test-delivery-contract.js
+      - name: Inspiration library index regression
+        run: python3 scripts/test-inspiration-index.py
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js

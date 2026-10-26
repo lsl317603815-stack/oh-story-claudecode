@@ -277,6 +277,13 @@
         "skills/story-short-analyze/references/hooks-suspense.md",
         "skills/story-short-write/references/hooks-suspense.md"
       ]
+    },
+    {
+      "name": "inspiration-library-index",
+      "source": "skills/story-long-analyze/scripts/inspiration_index.py",
+      "targets": [
+        "skills/story-long-write/scripts/inspiration_index.py"
+      ]
     }
   ]
 }

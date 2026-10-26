@@ -1,7 +1,7 @@
 ---
 name: story-long-analyze
 version: 1.0.0
-description: "长篇网文拆文。深度拆解爆款长篇小说的黄金三章、人设架构、爽点设计、节奏控制。单一深度拆解管道：跑完黄金三章（Stage 1）后产出快速预览报告并询问是否继续全量拆解，确认后从 Stage 2 续跑逐章摘要、聚合分析、设定关系、汇总报告，全程产物落盘 拆文库/{书名}/。触发方式：/story-long-analyze、/长篇拆文、「帮我拆这本书」「拆这本书」「分析黄金三章」「深度拆解」「完整拆解」「系统拆解」或提供小说文本文件路径——全部进入同一管道。"
+description: "长篇网文拆文。深度拆解爆款长篇小说的黄金三章、人设架构、爽点设计、节奏控制。单一深度拆解管道：跑完黄金三章（Stage 1）后产出快速预览报告并询问是否继续全量拆解，确认后从 Stage 2 续跑逐章摘要、聚合分析、设定关系、汇总报告，全程产物落盘 拆文库/{书名}/。触发方式：/story-long-analyze、/长篇拆文、「帮我拆这本书」「拆这本书」「分析黄金三章」「深度拆解」「完整拆解」「系统拆解」或提供小说文本文件路径；另有可选的跨书灵感库：「灵感库」「提炼灵感」「跨书灵感聚合」「更新灵感库」——全部进入同一管道。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story-long-analyze：长篇网文拆文
@@ -308,6 +308,14 @@ Stage 3-5 分块见 [material-decomposition.md](references/material-decompositio
 
 ---
 
+## 可选：跨书灵感库
+
+拆单本书**不自动入库**。作者说「灵感库 / 提炼灵感 / 跨书灵感聚合 / 更新灵感库」时，才完整读取 [references/inspiration-library.md](references/inspiration-library.md) 照做：把已拆书 `剧情/情绪模块.md` 的 EM 机制卡登记进工作区 `灵感库/`，同书同构的合并成单书合并卡，跨书相似的归纳成去专名的跨书聚合卡（CBA）。登记、校验、覆盖与检索都走 `scripts/inspiration_index.py`（`check-atoms` / `register-atoms` / `validate` / `coverage` / `query` / `resolve`），不读原文、不重拆书。这一时刻只读灵感库说明，不叠加各 Stage 的资料。
+
+story-long-write 只在定设定、卷纲、细纲三处可选召回 active 的跨书聚合卡，逐章正文不读灵感库。
+
+---
+
 ## 恢复机制
 
 启动时检查 _progress.md；`paused_after_stage1` → 直接从 Stage 2 续跑。
@@ -337,6 +345,7 @@ Stage 3-5 分块见 [material-decomposition.md](references/material-decompositio
 | [references/pipeline-ops.md](references/pipeline-ops.md) | 管道运维：_progress.md 模板、错误处理、恢复机制操作步骤 |
 | [references/deconstruction-notes.md](references/deconstruction-notes.md) | 拆书方法+影视拆解+抽象拆解法+题材实战 |
 | [references/style-profile-protocol.md](references/style-profile-protocol.md) | Stage 6：文风模板 + 可信度/可用性说明 |
+| [references/inspiration-library.md](references/inspiration-library.md) | 仅当作者要建或更新灵感库时：三层灵感库管道、登记报错处理、索引与受控标签、写作侧消费约定 |
 | [references/style-profile-generator.md](references/style-profile-generator.md) | Stage 6：文风生成 SOP（6 步，含中文数字章节识别 + 全角冒号基调 grep） |
 
 ---

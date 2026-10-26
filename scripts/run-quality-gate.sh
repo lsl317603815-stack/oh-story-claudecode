@@ -42,6 +42,7 @@ bash scripts/check-shared-files.sh
 python3 scripts/test-shared-assets.py
 node scripts/test-normalize-punctuation.js
 node scripts/test-delivery-contract.js
+python3 scripts/test-inspiration-index.py
 node scripts/test-scan-runtime.js
 node --test tests/fanqie-rank-scraper.test.mjs
 bash scripts/test-ai-patterns.sh

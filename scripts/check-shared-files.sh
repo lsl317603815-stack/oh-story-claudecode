@@ -56,8 +56,10 @@ GENRE_STYLE_DIVERGENT_NAMES="双男主.md"
 # outline/review chain. Those assets do not exist in the narrative-writer deployment
 # mirror, so syncing either section there would create dangling references. Drop the
 # story-long-write copies; where more than one non-long-form copy exists, those copies
-# must still stay byte-identical.
-LONGFORM_DIVERGENT_NAMES="emotional-methods.md genre-prose-cards.md"
+# must still stay byte-identical. cross-book-recall.md: the long-form copy adds the
+# optional 灵感库 tag recall, which runs scripts/inspiration_index.py — a shared asset
+# that only story-long-write carries.
+LONGFORM_DIVERGENT_NAMES="emotional-methods.md genre-prose-cards.md cross-book-recall.md"
 
 mismatches=0
 checked=0

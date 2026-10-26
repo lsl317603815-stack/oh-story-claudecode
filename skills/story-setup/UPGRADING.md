@@ -41,6 +41,7 @@
 - 写作规则：情绪不再默认转成身体反应（可以直写，落在选择、台词、物件或后果上；身体细节要有后果才留）；短篇去掉每节字数、对话占比、「每节一动一静」等固定配额；本书 `设定/文风.md` 声明的叙述姿态优先于写手默认的深度限知。narrative-writer 各端模板、anti-ai-writing、quality-checklist、writing-craft 等同步。启用模型分工（写手走 agy）的项目，重新部署后 `.claude/models/narrative-writer-prompt.md` 会按新模板重新生成。
 - hook：细纲为空（去掉 BOM、标题和空白后不足 30 字）时拦下首次建章；Windows 下查 Git 不再弹控制台窗口；`cd 书 && cat > 正文/…`、`&>`、`>|` 等写法能被识别；引号外的模型拒绝语与 AI 自称在对白行也会被查出。
 - 追踪：续写状态卡活跃角色上限 6 → 20；带 BOM 的 JSON 输入可读；超长字段一次报全；修订不再清空「本章退役登记」。
+- 灵感库（原仓库 #444，可选）：story-long-analyze 新增三层灵感库管道，作者说「灵感库 / 提炼灵感 / 跨书灵感聚合」时才运行，把已拆书 `剧情/情绪模块.md` 的机制卡登记进工作区 `灵感库/`，归纳成去专名的跨书聚合卡；story-long-write 只在定设定、卷纲、细纲三处按标签召回，逐章正文不读。`inspiration_index.py` 随 story-long-write 一并分发。早期拆的书机制卡缺「戏剧单元」的，要先补卡才能登记。
 - 其它：OpenCode 21 个命令统一带 `用户参数：$ARGUMENTS`；短篇写前用 `check-delivery-contract.js` 锁定交付参数；长篇只做规划的请求不会进入正文写作；面向作者的汇报改成白话，机器字段只放末行「技术备注」。
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。OpenCode 用户先升级到 2.x（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。
