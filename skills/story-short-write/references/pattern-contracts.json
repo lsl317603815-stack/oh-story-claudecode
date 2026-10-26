@@ -1368,7 +1368,7 @@
       "tier_notes": [
         "量不足：A0g 0 处／期望 0.6，泊松上界 R=4.74"
       ],
-      "source": "story-deslop SKILL.md 门禁 C（心理描写外化）",
+      "source": "story-deslop SKILL.md 门禁 C（情绪落地）",
       "corpus_fingerprint": "v1-2026-10-06:manifest-16189a6c1a27a94b:units-b99a44820bc55a26",
       "deslop_gate": "C",
       "corpus_rules_detector": "detect_D30",

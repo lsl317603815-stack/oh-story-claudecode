@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # Node 22.6+ lets test-prose-net-parity execute plugin.ts directly
           # instead of silently falling back to string-anchor checks only.
           node-version: 22
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.x'
       - name: Run skill static check
@@ -53,6 +53,8 @@ jobs:
         run: python3 scripts/test-shared-assets.py
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Short-story delivery contract preflight regression
+        run: node scripts/test-delivery-contract.js
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -120,7 +122,8 @@ jobs:
         run: bash scripts/test-charcount-portable.sh --stub
       - name: Syntax-check collection scripts
         run: |
-          for f in $(find skills -name '*-scraper.js' -o -name 'cdp-utils.js' -o -name 'setup-cdp-chrome.js'); do
+          find skills \( -name '*-scraper.js' -o -name 'cdp-utils.js' -o -name 'setup-cdp-chrome.js' \) -print0 |
+          while IFS= read -r -d '' f; do
             echo "node --check $f"
             node --check "$f"
           done
@@ -129,11 +132,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.x'
       - name: AI-pattern detector regression
@@ -169,6 +172,8 @@ jobs:
         run: bash scripts/check-shared-files.sh
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Short-story delivery contract preflight regression
+        run: node scripts/test-delivery-contract.js
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -192,13 +197,13 @@ jobs:
       - name: Test WorkBuddy runtime contracts
         run: python scripts/test-workbuddy-runtime.py
       - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
         with:
           chrome-version: stable
       - name: Verify cdp-utils loads
         run: node -e "const u = require('./skills/story-short-scan/scripts/cdp-utils.js'); console.log('exports:', Object.keys(u));"
-      - name: Verify sleep works
-        run: node -e "const { sleep } = require('./skills/story-short-scan/scripts/cdp-utils.js'); const t0 = Date.now(); sleep(100); console.log('slept', Date.now()-t0, 'ms');"
+      - name: Verify sleep blocks
+        run: node -e "const { sleep } = require('./skills/story-short-scan/scripts/cdp-utils.js'); const t0 = Date.now(); sleep(100); const ms = Date.now() - t0; console.log('slept', ms, 'ms'); if (ms < 90) { console.error('sleep(100) returned after ' + ms + 'ms'); process.exit(1); }"
       - name: Verify setup script dry-run
         run: node skills/browser-cdp/scripts/setup-cdp-chrome.js 9222 --dry-run
       # Run under Git Bash (shell: bash on windows-latest), matching how Claude Code
@@ -219,11 +224,11 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.x'
       - name: AI-pattern detector regression
@@ -246,6 +251,8 @@ jobs:
         run: bash scripts/test-skill-numbering.sh
       - name: Punctuation normalizer regression
         run: node scripts/test-normalize-punctuation.js
+      - name: Short-story delivery contract preflight regression
+        run: node scripts/test-delivery-contract.js
       - name: Typo, emotion-floor and hook-strength checker regression
         run: |
           node scripts/test-typos.js
@@ -270,13 +277,13 @@ jobs:
       - name: Test WorkBuddy runtime contracts
         run: python3 scripts/test-workbuddy-runtime.py
       - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
         with:
           chrome-version: stable
       - name: Verify cdp-utils loads
         run: node -e "const u = require('./skills/story-short-scan/scripts/cdp-utils.js'); console.log('exports:', Object.keys(u));"
-      - name: Verify sleep works
-        run: node -e "const { sleep } = require('./skills/story-short-scan/scripts/cdp-utils.js'); const t0 = Date.now(); sleep(100); console.log('slept', Date.now()-t0, 'ms');"
+      - name: Verify sleep blocks
+        run: node -e "const { sleep } = require('./skills/story-short-scan/scripts/cdp-utils.js'); const t0 = Date.now(); sleep(100); const ms = Date.now() - t0; console.log('slept', ms, 'ms'); if (ms < 90) { console.error('sleep(100) returned after ' + ms + 'ms'); process.exit(1); }"
       - name: Verify setup script dry-run
         run: node skills/browser-cdp/scripts/setup-cdp-chrome.js 9222 --dry-run
       - name: Portable char-count (real interpreter)

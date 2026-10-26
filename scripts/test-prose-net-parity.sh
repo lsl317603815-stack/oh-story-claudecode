@@ -20,6 +20,10 @@
 #      check-story-setup-deployment.sh / test-hook-encoding-portable.sh 的运行回归覆盖。
 set -euo pipefail
 
+# 写正文守卫要求细纲写了内容（去掉 BOM、# 号与空白后 ≥30 字），空文件会被当成空细纲拦下；
+# 需要「细纲已就位」的夹具统一写这段。
+OUTLINE_FIXTURE="$(printf '# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。')"
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 [ -z "$ROOT" ] && { echo "Error: not in a git repository" >&2; exit 1; }
 
@@ -637,21 +641,21 @@ JS
   local blk="$tmp/blk"
   mkdir -p "$blk/long/正文" "$blk/long/大纲" "$blk/short" "$blk/short2" \
     "$blk/long2/正文" "$blk/long2/大纲" "$blk/long3/正文" "$blk/long3/大纲"
-  : > "$blk/long/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long/大纲/细纲_第2章.md"
   : > "$blk/short/设定.md"
   : > "$blk/short2/其他.md"
-  : > "$blk/long2/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long2/大纲/细纲_第2章.md"
   printf '%s\n' '# 第1章 旧' '' '声音不大，却带着一股狠劲。' > "$blk/long2/正文/第1章_旧.md"
-  : > "$blk/long3/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long3/大纲/细纲_第2章.md"
   printf '%s\n' '# 第1章 旧' '<!-- 去味:跳过 -->' '声音不大，却带着一股狠劲。' > "$blk/long3/正文/第1章_旧.md"
   mkdir -p "$blk/long4/正文" "$blk/long4/大纲" "$blk/long5/正文" "$blk/long5/大纲"
-  : > "$blk/long4/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long4/大纲/细纲_第2章.md"
   printf '%s\n' '# 第1章 旧' '<!-- 去味：跳过 -->' '声音不大，却带着一股狠劲。' > "$blk/long4/正文/第1章_旧.md"
-  : > "$blk/long5/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long5/大纲/细纲_第2章.md"
   { printf '%s\n' '# 第1章 旧' '声音不大，却带着一股狠劲。'; printf '\xff\n'; } > "$blk/long5/正文/第1章_旧.md"
   mkdir -p "$blk/long7/正文" "$blk/long7/大纲" "$blk/long8/正文" "$blk/long8/大纲" \
     "$blk/long9/正文" "$blk/long9/大纲" "$blk/long10/正文" "$blk/long10/大纲"
-  for book in long7 long8 long9 long10; do : > "$blk/$book/大纲/细纲_第2章.md"; done
+  for book in long7 long8 long9 long10; do printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/$book/大纲/细纲_第2章.md"; done
   printf '%s\n' '# 第1章 旧' '<!-- 去味:跳过 -->' '他看见 watcher 伏在暗处。' > "$blk/long7/正文/第1章_旧.md"
   printf '%s\n' '# 第1章 旧' '他看见 watcher 伏在暗处。' > "$blk/long8/正文/第1章_旧.md"
   printf '%s\n' 'watcher' > "$blk/long8/.deslop-whitelist"
@@ -664,7 +668,7 @@ JS
   done
   # 上一章正文已存在、state 提交进度落后：必须拦住下一章首建。
   mkdir -p "$blk/long6/正文" "$blk/long6/大纲" "$blk/long6/追踪"
-  : > "$blk/long6/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$blk/long6/大纲/细纲_第2章.md"
   printf '%s\n' '# 第1章 旧' '他把门关上了。' > "$blk/long6/正文/第1章_旧.md"
   printf '%s\n' '{"schema_version":5,"state_revision":0,"last_committed_chapter":0}' > "$blk/long6/追踪/_tracking-state.json"
   printf '%s\n' '> 状态修订：0' > "$blk/long6/追踪/上下文.md"
@@ -726,7 +730,7 @@ JS
   for gate_name in $gate_cases; do
     gate_root="$gate/$gate_name"
     mkdir -p "$gate_root/book/正文" "$gate_root/book/大纲"
-    : > "$gate_root/book/大纲/细纲_第2章.md"
+    printf '%s\n' "$OUTLINE_FIXTURE" > "$gate_root/book/大纲/细纲_第2章.md"
     gate_prev="$gate_root/book/正文/第1章_旧.md"
     printf '%s\n' '# 第1章 旧' '他把门关上了。' > "$gate_prev"
   done

@@ -4,7 +4,7 @@
 
 ## Skill 路由表
 
-Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 symlink）发现 `SKILL.md`；也可用根 `reasonix-plugin.json` 走 `reasonix plugin install`。优先通过 Reasonix 的 skill 入口调用；若当前客户端未显示直接命令，可用自然语言点名 skill。
+Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 symlink）发现 `SKILL.md`；也可从安装源仓库根的 `reasonix-plugin.json` 走 `reasonix plugin install`。优先通过 Reasonix 的 skill 入口调用；若当前客户端未显示直接命令，可用自然语言点名 skill。
 
 | 意图 | Skill | 说明 |
 |------|-------|------|
@@ -32,10 +32,10 @@ Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 
 
 ## Reasonix 兼容说明
 
-- 只部署 skills 与本 `AGENTS.md`：Reasonix 原生扫描 `.agents/skills`（部署时创建的指向 `skills/` 的 symlink）发现 `skills/*/SKILL.md`，并把 `AGENTS.md` 作为项目指令加载。也可用根 `reasonix-plugin.json` 走 `reasonix plugin install`；`reasonix doctor capabilities` 校验 skill 发现。
+- 只部署 skills 与本 `AGENTS.md`：Reasonix 原生扫描 `.agents/skills`（部署时创建的指向 `skills/` 的 symlink）发现 `skills/*/SKILL.md`，并把 `AGENTS.md` 作为项目指令加载。也可从安装源仓库根的 `reasonix-plugin.json` 走 `reasonix plugin install`；`reasonix doctor capabilities` 校验 skill 发现。
 - 暂不部署 Reasonix hooks/custom agents：写正文前大纲守卫、commit 提醒、session/compact 自动注入在 Reasonix 下不是硬拦截，只作为 skill 内软约束执行。
 - 涉及专业 Agent 的 Skill（story-review 多视角、story-long-write 的 narrative-writer/story-architect 等）按 solo/direct fallback 执行，并在结果里说明降级。
-- Windows 未启用 symlink 时改走根 `reasonix-plugin.json` 原生 plugin 安装。
+- Windows 未启用 symlink 时，从安装源仓库根的 `reasonix-plugin.json` 走原生 plugin 安装。
 - `story-cover` 依赖 `GPT_IMAGE_API_KEY`，未配置时该 skill 不可用。
 - `story-audiobook` 依赖 `python3`、`ffmpeg` 与 `ARK_AGENT_PLAN_API_KEY`（火山方舟 Agent Plan），缺任一项时该 skill 不可用。
 
@@ -67,6 +67,11 @@ Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 
 - **去AI味/语言泄漏/文风卫生自锁**（本平台无 hook 兜底，此条是唯一防线）：先把 `{当前写作 Skill 目录}` 替换为当轮已路由的长篇或短篇写作 Skill 目录。每章正文落盘后，同一轮内首先实际运行 `node "{当前写作 Skill 目录}/scripts/language_gate.js" "{正文文件}"`；返回零后先运行 `node "{当前写作 Skill 目录}/scripts/check-style-hygiene.js" --check --fail-on=blocking "{正文文件}"`，再运行 `node "{当前写作 Skill 目录}/scripts/check-ai-patterns.js" --check --fail-on=blocking "{正文文件}"` 与 `node "{当前写作 Skill 目录}/scripts/check-degeneration.js" --check --language=zh --fail-on=blocking "{正文文件}"`。文风卫生按本书 `设定/文风.md` 的出版级、对白弹性或逐类策略执行。写下一章前先复查上一章无欠账。正文不得写入 HTML 豁免标记；去味跳过不得跳过语言 Gate 或文风卫生门。
 - Compact / 新会话后优先读取 `{书名}/追踪/上下文.md` 恢复当前写作状态。
 
+## 与作者协作
+
+- 回复用作者说话的语言，等后台助手时的进度说明也一样；主体用写书的话说（书、章、大纲、设定），不抛脚本名、字段名或状态名；报错时附原始报错。
+- 不修改项目里已安装的 skill 文件（`SKILL.md`、`references/`、`scripts/`；story-setup 重新部署时覆盖除外）。skill 脚本报错时停下，把报错和所执行的命令告诉作者，不自行修补绕过。
+
 ## Compact 后恢复上下文
 
 写作中的关键上下文：
@@ -75,7 +80,7 @@ Reasonix 会从项目 `.agents/skills`（部署时创建的指向 `skills/` 的 
 3. 未完成的伏笔列表
 4. 当前章节的情绪/节奏目标
 
-如果存在 `{书名}/追踪/上下文.md`，compact 后首先读取该文件恢复上下文。
+长篇先读 `{书名}/追踪/上下文.md`；短篇先读 `{书名}/设定.md` 和 `{书名}/小节大纲.md`。
 
 ## 分支推演
 

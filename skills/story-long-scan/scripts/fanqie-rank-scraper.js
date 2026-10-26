@@ -22,13 +22,20 @@
  *   node fanqie-rank-scraper.js --channel 1 --top 50              # 每题材前 50 本（1-100）
  *   node fanqie-rank-scraper.js --channel 1 --mode fetch          # 只走纯 HTTPS
  *   node fanqie-rank-scraper.js --channel 1 --mode cdp            # 只走 Chrome CDP
+ *   node fanqie-rank-scraper.js --source library --channel all    # 书库「最热」：连载中、30 万字以下（只走 CDP）
+ *   node fanqie-rank-scraper.js --source library --channel mix --pages 5  # 不分男女，取 5 页
+ *
+ * 书库「最热」（--source library）：/library/{筛选}/page_{n}?sort=hottes，每页 18 本、按热度排。
+ * 列表页书名与数字都被字体反爬，只按页面顺序取 bookId，其余字段逐本由详情页解码。
+ * 默认 --stat 1（连载中）、--count 0（30 万字以下），即起量中的新书；--pages 取 1-10，默认 3。
+ * 书库只走 CDP：--mode 只能是 auto 或 cdp，--type / --top 不适用。
  *
  * --mode auto（默认）先走 fetch；fetch 失败或标题解析率低于 50% 时回退 CDP，
  * 两份里取标题解析更多的一份写盘。
  *
  * 前置：
  *   fetch / auto 不需要 Chrome。
- *   cdp（以及 auto 的回退）需要：node {SKILL_DIR}/browser-cdp/scripts/setup-cdp-chrome.js 9222
+ *   cdp（以及 auto 的回退）与 --source library 需要：node {SKILL_DIR}/browser-cdp/scripts/setup-cdp-chrome.js 9222
  */
 
 const fs = require("fs");
@@ -994,14 +1001,208 @@ function renderTarget(target) {
 }
 
 // ---------------------------------------------------------------------------
+// 书库「最热」（--source library）：/library/{筛选}/page_{n}?sort=hottes，每页 18 本，按热度排序
+// ---------------------------------------------------------------------------
+
+const LIBRARY_DEFAULT_PAGES = 3;
+const LIBRARY_MAX_PAGES = 10;
+const LIB_STAT = { 1: "连载中", 0: "已完结", any: "" };
+const LIB_COUNT = { 0: "30万字以下", 1: "30-50万字", 2: "50-100万字", 3: "100-200万字", 4: "200万字以上", any: "" };
+
+/** 书库筛选段：audience1=男生、audience0=女生，stat1=连载中，count0=30万字以下；全不选时站点用 all。 */
+function libraryPath(ch, stat, count) {
+  const segs = [];
+  if (ch !== "mix") segs.push(`audience${ch}`);
+  if (stat !== "any") segs.push(`stat${stat}`);
+  if (count !== "any") segs.push(`count${count}`);
+  return segs.length ? segs.join("-") : "all";
+}
+
+function libraryPageUrl(ch, stat, count, page) {
+  return `${FANQIE_ORIGIN}/library/${libraryPath(ch, stat, count)}/page_${page}?sort=hottes`;
+}
+
+/** 列表名：连载中 + 30 万字以下按热度排本质是新书热度，名字带「新书」。 */
+function libraryNames(ch, stat, count) {
+  const who = ch === "mix" ? "全站" : channelLabel(ch);
+  const filters = [LIB_STAT[stat], LIB_COUNT[count]].filter(Boolean).join("·");
+  const listName = `${who}书库最热${count === "0" && stat === "1" ? "新书" : ""}`;
+  return { who, filters, listName };
+}
+
+function libraryFilename(ch, stat, count, date) {
+  return `番茄${libraryNames(ch, stat, count).listName}_${libraryPath(ch, stat, count)}_${date}.md`;
+}
+
+/** 列表页书名、在读数都被字体反爬；只按页面顺序取 bookId，其余字段由详情页解码。 */
+function buildLibraryIdsJS() {
+  return `JSON.stringify((function(){
+    var seen={},out=[];
+    Array.from(document.querySelectorAll('a[href*="/page/"]')).forEach(function(a){
+      var m=(a.getAttribute('href')||'').match(/\\/page\\/(\\d+)/);
+      if(m&&!seen[m[1]]){seen[m[1]]=1;out.push(m[1]);}
+    });
+    return out;
+  })())`;
+}
+
+function renderLibrary({ ch, stat, count, pages, pagesRead, ids, details }) {
+  const { filters, listName } = libraryNames(ch, stat, count);
+  let resolved = 0;
+  const body = [`## 全部（书库最热） — ${ids.length} 本`, ""];
+  ids.forEach((id, i) => {
+    const info = details[id] || {};
+    if (info.title) resolved++;
+    body.push(...renderBook({ bookId: id, rank: i + 1, info }, i));
+  });
+  body.push("---", "");
+  const ratio = ids.length ? resolved / ids.length : 0;
+  const quality = ratio < 0.5 ? "[标题解析异常]" : "[OK]";
+  const problems = [];
+  if (quality !== "[OK]") problems.push(`标题解析偏低 ${resolved} / ${ids.length}`);
+  if (ids.length < 15) problems.push(`[数据稀疏] 实际采集 ${ids.length} 条`);
+  const range = pagesRead < pages ? `取前 ${pages} 页（实取 ${pagesRead} 页）` : `取前 ${pages} 页`;
+  const head = [
+    `# 番茄 · ${listName}`,
+    "",
+    `- 来源：${libraryPageUrl(ch, stat, count, 1)}`,
+    `- 筛选：${filters || "不限"}；按「最热」排序，${range}；名次即页序`,
+    `- 抓取时间（UTC）：${RUN_CLOCK.utc}`,
+    `- 报告日期（本地）：${RUN_CLOCK.localDate}`,
+    `- 标题解析：成功 ${resolved} / 共 ${ids.length}`,
+    `- 数据质量：${problems.length ? (quality === "[OK]" ? "[存在问题]" : quality) : "[OK]"}`,
+    `- 问题摘要：${problems.length ? problems.join("；") : "无"}`,
+    "- 抓取方式：cdp（Chrome CDP + agent-browser，列表页取 bookId，详情页解码其余字段）",
+    "",
+    "---",
+    "",
+  ];
+  return { resolved, quality, content: head.concat(body).join("\n") };
+}
+
+/** 采集一个频道的书库「最热」；一本都没抓到时抛错，不写空文件。 */
+function scrapeLibrary(ch, run) {
+  const { who, filters } = libraryNames(ch, run.stat, run.count);
+  console.log(`\n→ 采集 番茄书库最热 · ${who}${filters ? "（" + filters + "）" : ""}，前 ${run.pages} 页（CDP）...`);
+  const ids = [];
+  let pagesRead = 0;
+  for (let page = 1; page <= run.pages; page++) {
+    ab(run.port, "open", libraryPageUrl(ch, run.stat, run.count, page));
+    sleep(3000);
+    if (page === 1) {
+      const probe = probePage(run.port);
+      if (!probe) {
+        throw new Error(`CDP 无响应。请确认已用 browser-cdp 启动 Chrome（端口 ${run.port}），且 agent-browser 可用`);
+      }
+      if (probe.host && probe.host.indexOf("fanqie") === -1) {
+        throw new Error(`当前页面非番茄（host=${probe.host}），可能被重定向到登录/验证页`);
+      }
+    }
+    const readIds = () => {
+      const got = evalJSONBase64(run.port, buildLibraryIdsJS());
+      return Array.isArray(got) ? got.map(String) : [];
+    };
+    let pageIds = readIds();
+    if (!pageIds.length) {
+      sleep(2000);
+      pageIds = readIds();
+    }
+    const fresh = pageIds.filter((id) => !ids.includes(id));
+    console.log(`  第 ${page} 页：${fresh.length} 本`);
+    if (!fresh.length) break;
+    pagesRead++;
+    ids.push(...fresh);
+  }
+  if (!ids.length) {
+    // 一本都没抓到时不写空文件：空文件只会让结论悄悄少一块。
+    throw new Error("书库列表页一本都没抓到（可能被登录/验证页拦住，或页面改版）");
+  }
+  const details = fetchDetails(run.port, ids);
+  const report = renderLibrary({ ch, stat: run.stat, count: run.count, pages: run.pages, pagesRead, ids, details });
+  if (report.quality !== "[OK]") {
+    console.error(`  ⚠ 标题解析率偏低（${report.resolved}/${ids.length}），请在 Chrome 内手动打开任一作品页确认不是验证页。`);
+  }
+  return report;
+}
+
+async function mainLibrary(options) {
+  const channels = options.channel === "all" ? ["1", "0"] : [options.channel];
+  let written = 0;
+  let failed = 0;
+  const partialReasons = [];
+  for (const ch of channels) {
+    const label = `书库${libraryNames(ch, options.stat, options.count).who}`;
+    try {
+      const report = scrapeLibrary(ch, options);
+      fs.mkdirSync(options.outdir, { recursive: true });
+      const filepath = path.join(options.outdir, libraryFilename(ch, options.stat, options.count, RUN_CLOCK.localDate));
+      fs.writeFileSync(filepath, report.content, "utf-8");
+      written++;
+      console.log(`  ✓ 已保存: ${filepath}`);
+      if (report.quality !== "[OK]") {
+        partialReasons.push(`${label}: 数据质量 ${report.quality}（标题解析 ${report.resolved}）`);
+      }
+    } catch (err) {
+      failed++;
+      const message = errorMessage(err);
+      partialReasons.push(`${label}: ${message}`);
+      console.error(`[fanqie] ${label} 采集失败，跳过: ${message}`);
+    }
+  }
+  return {
+    planned: channels.length,
+    written,
+    failed,
+    partial: failed > 0 || partialReasons.length > 0,
+    partialReasons,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 
 function parseOptions(argv) {
+  const source = getArg(argv, "--source") || "rank";
   const channel = getArg(argv, "--channel") || "1";
   const type = getArg(argv, "--type") || "2";
   const mode = getArg(argv, "--mode") || "auto";
   const topArg = getArg(argv, "--top");
+  const given = (name) => argv.some((arg) => arg === name || String(arg).startsWith(`${name}=`));
+  const base = {
+    port: parseInt(getArg(argv, "--port") || "9222", 10),
+    outdir: getArg(argv, "--outdir") || ".",
+  };
+  if (source !== "rank" && source !== "library") {
+    throw new Error(`未知 --source: ${source}（rank / library）`);
+  }
+  if (source === "library") {
+    if (!["0", "1", "all", "mix"].includes(channel)) {
+      throw new Error(`未知 --channel: ${channel}（书库用 1 / 0 / all / mix）`);
+    }
+    const rankOnly = ["--type", "--top"].filter(given);
+    if (rankOnly.length) throw new Error(`--source library 不能配 ${rankOnly.join("、")}`);
+    if (!["auto", "cdp"].includes(mode)) {
+      throw new Error(`--source library 不支持 --mode ${mode}：书库列表页只能用 Chrome（CDP）打开`);
+    }
+    const stat = getArg(argv, "--stat") || "1";
+    const count = getArg(argv, "--count") || "0";
+    if (!Object.prototype.hasOwnProperty.call(LIB_STAT, stat)) {
+      throw new Error(`未知 --stat: ${stat}（1 连载中 / 0 已完结 / any）`);
+    }
+    if (!Object.prototype.hasOwnProperty.call(LIB_COUNT, count)) {
+      throw new Error(`未知 --count: ${count}（0-4 或 any）`);
+    }
+    const pagesArg = getArg(argv, "--pages");
+    const pagesText = pagesArg === null ? "" : String(pagesArg).trim();
+    const pages = given("--pages") ? (/^\d+$/.test(pagesText) ? Number(pagesText) : NaN) : LIBRARY_DEFAULT_PAGES;
+    if (!Number.isInteger(pages) || pages < 1 || pages > LIBRARY_MAX_PAGES) {
+      throw new Error(`未知 --pages: ${pagesText || "（空）"}（取 1-${LIBRARY_MAX_PAGES} 的整数）`);
+    }
+    return { ...base, source, channel, mode: "cdp", stat, count, pages };
+  }
+  const libraryOnly = ["--pages", "--stat", "--count"].filter(given);
+  if (libraryOnly.length) throw new Error(`${libraryOnly.join("、")} 只用于 --source library`);
   if (!["0", "1", "all"].includes(channel)) {
     throw new Error(`未知 --channel: ${channel}`);
   }
@@ -1016,8 +1217,8 @@ function parseOptions(argv) {
     throw new Error(`无效 --top: ${topArg}（可选 1-${MAX_TOP}）`);
   }
   return {
-    port: parseInt(getArg(argv, "--port") || "9222", 10),
-    outdir: getArg(argv, "--outdir") || ".",
+    ...base,
+    source,
     channel,
     type,
     mode,
@@ -1093,6 +1294,7 @@ async function scrapeTarget(ch, type, run) {
 async function main() {
   // 参数错误是配置问题：先于任何网络请求与 per-榜单容错快速失败
   const options = parseOptions(process.argv.slice(2));
+  if (options.source === "library") return mainLibrary(options);
   const run = createRun(options);
   const channels = options.channel === "all" ? ["1", "0"] : [options.channel];
   const types = options.type === "all" ? ["2", "1"] : [options.type];
@@ -1173,4 +1375,9 @@ module.exports = {
   fmtWords,
   fmtStatus,
   cleanDesc,
+  parseOptions,
+  libraryPath,
+  libraryFilename,
+  buildLibraryIdsJS,
+  renderLibrary,
 };

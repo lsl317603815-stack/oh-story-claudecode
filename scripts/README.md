@@ -31,7 +31,7 @@
 | `check-hook-locale-safety.sh` | 部署 hook 在 Windows 中文 GBK 区域的字节安全 | CI |
 | `check-python-invocation.sh` | 技能文档禁止裸调 `python3`（须 python3→python→py 探测） | CI |
 | `check-claude-adapter.sh` | Claude marketplace 与 21 个 skill 的一一映射；可选真实 CLI strict validate | CI（静态）；`CLAUDE_REAL_CHECK=1`（真实 CLI） |
-| `check-opencode-adapter.sh` | OpenCode 适配层同步 + commands/agents/config 结构 + plugin 行为回归 | CI + sync CI（调 sync-opencode.py） |
+| `check-opencode-adapter.sh` | OpenCode 2.x 适配层同步 + commands（含 `$ARGUMENTS`）/agents（原生 `permissions:` 规则与 whollyDisabled 裁决矩阵）结构 + plugin 行为回归 | CI + sync CI（调 sync-opencode.py） |
 | `check-openclaw-skills.sh` | OpenClaw AgentSkills/frontmatter 兼容性 | CI |
 | `check-codex-adapter.sh` | Codex 适配层：repo skills symlink、agent TOML、hooks 与跨平台 launcher | CI（调 generate-codex-agents.py 验生成确定性） |
 | `check-zcode-adapter.sh` | ZCode plugin/marketplace、Skills/Commands/Hooks 与部署锚点 | CI |
@@ -69,22 +69,24 @@
 | `test-verify-package.py` | 安装包路径安全、manifest/checksum、五版本面与 skills CLI 发现 smoke 的离线 fixture | 统一 gate |
 | `test-release-contract-bumps.py` | story-setup 与部署 payload 改动必须提升独立版本轴、且版本不可回退 | 统一 gate |
 | `test-normalize-punctuation.js` | 标点归一化的只读检查、frontmatter/fence、CRLF、引号模式与幂等性 | CI |
+| `test-delivery-contract.js` | 短篇交付参数预检 `check-delivery-contract.js`：最终字数、节数、标记与空行交付契约回归 | 统一 gate + Linux / Windows / macOS CI |
 | `test-scan-runtime.js` | CDP argv 边界/报错/JSON 契约与 7 个 scraper 无副作用 import | CI |
-| `test-opencode-plugin.mjs` | 直接执行 OpenCode TypeScript plugin，验大纲守卫、Bash 绕过、写后检查与 compact 恢复 | 被 `check-opencode-adapter.sh` 调用 |
+| `test-opencode-plugin.mjs` | 直接执行 OpenCode 2.x TypeScript plugin（`{ id, setup }`，项目根取 `ctx.location`），验大纲/空细纲守卫、Shell 绕过、写后检查、compaction 注入与 Windows 下 git 子进程 `windowsHide` | 被 `check-opencode-adapter.sh` 调用 |
 | `test-codex-cli-e2e.sh` | 隔离 HOME 后用真实 Codex CLI 检查 repo 21 个 skill 的发现结果 | CLI compatibility CI；需已安装 `codex` |
 | `test-zcode-hooks.sh` | ZCode 严格 JSON Hook、正文守卫与连续性回归 | CI |
 | `test-workbuddy-runtime.py` | WorkBuddy SessionStart 版本门、Bash/PowerShell 中文正文写目标、顶层 `systemMessage`、project/plugin Hook 互斥、pooled runner 角色映射与 CODEBUDDY/AGENTS 条件导入 | CI |
 | `test-charcount-portable.sh` | 跨平台字符统计命令在三平台 + Windows 的正确性 | CI（调 check-python-invocation） |
 | `test-hook-encoding-portable.sh` | 部署 hook 在 Windows 中文系统的编码健壮性 | CI |
-| `test-opencode-cli-e2e.sh` | 真实 OpenCode CLI 加载 smoke（repo skills 发现 / 21 commands / 8 agents / plugin） | CLI compatibility CI；需已安装 `opencode` |
+| `test-opencode-cli-e2e.sh` | 真实 OpenCode 2.x CLI e2e：repo skills 发现 / 21 commands / 8 agents / 插件 active，并用 mock 模型在后台服务上验证写正文拦截、写后兜底与 compaction 注入 | CLI compatibility CI；需已安装 OpenCode 2.x（`@opencode/cli`） |
+| `opencode-mock-llm.mjs` | OpenAI 兼容 mock 模型：按剧本文件发出工具调用并记录请求，供真实 OpenCode 测试驱动运行时 | 被 `test-opencode-cli-e2e.sh` 调用 |
 | `test-skill-numbering.sh` | Step 重排级联安全、锚点 fail-closed、代码块引用、验证零写入/提交回滚、dry-run/write/幂等性 | Linux / Windows Git Bash / macOS CI |
 
 ## 代码生成 / 同步
 
 | 脚本 | 干什么 | 何时跑 |
 |---|---|---|
-| `sync-opencode.py` | 从 Claude agent 模板 + `CLAUDE.md.tmpl` 生成 `opencode/agents/` 与 `AGENTS.md.tmpl`；`--check` 只读验同步 | 改 agent 模板后手动跑；sync CI + 被 check-opencode-adapter 调 |
-| `generate-codex-agents.py` | 从 Claude agent 模板生成 Codex `.toml` agents | 改 agent 模板后手动跑；被 check-codex-adapter 调验确定性 |
+| `sync-opencode.py` | 从 Claude agent 模板 + `CLAUDE.md.tmpl` 生成 `opencode/agents/`（权限按 tools − disallowedTools 生成 2.x 原生 `permissions:` 规则列表）与 `AGENTS.md.tmpl`；`--check` 只读验同步 | 改 agent 模板后手动跑；sync CI + 被 check-opencode-adapter 调 |
+| `generate-codex-agents.py` | 从 Claude agent 模板生成 Codex `.toml` agents（`sandbox_mode = "read-only"` 由有效能力 tools − disallowedTools 推导） | 改 agent 模板后手动跑；被 check-codex-adapter 调验确定性 |
 | `generate-codex-hooks.py` | 从 6 个 event 清单生成 `hooks.json`，POSIX/Windows 共用 launcher 负责解释器探测 | 改 Codex hook 注册后；被 check-codex-adapter 调验确定性 |
 | `generate-workbuddy-adapter.py` | 从受审 TRAE 角色/命令与共享 core 生成 WorkBuddy Commands、Agents 和 runner，并注入 CodeBuddy 专属版本门、输出字段与 PowerShell 解析 | 改 WorkBuddy adapter 或源角色后；被 check-workbuddy-adapter 调验确定性 |
 | `shared-assets.json` + `sync-shared-assets.py` | 为必须随 skill 独立部署的重复 runtime 脚本指定唯一源和目标 | 改共享 runtime 后跑 `sync`；CI 跑 `check` |

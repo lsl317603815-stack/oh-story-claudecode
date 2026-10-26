@@ -631,12 +631,32 @@ class TrackingCommitTests(unittest.TestCase):
         self.assertIn("江晨", result.stderr)
         self.assertEqual(self.read_state()["state_revision"], 1)
 
+    def test_retiring_and_updating_a_character_in_one_transaction_is_rejected(self) -> None:
+        self.init()
+        self.run_tool("commit", transaction(1, character=True))
+        updated = transaction(2, character=True)
+        updated["delta"]["retired_characters"] = ["江晨"]
+        updated["context"]["active_character_names"] = []
+        result = self.run_tool("commit", updated, expect=2)
+        self.assertIn("character 江晨 cannot be retired and updated in the same transaction", result.stderr)
+        self.assertEqual(self.read_state()["state_revision"], 1)
+
     def test_windows_reserved_character_name_is_rejected(self) -> None:
         self.init()
         invalid = transaction(1, character=True)
         invalid["delta"]["character_changes"][0]["name"] = "CON"
         invalid["character_snapshots"] = {"CON": invalid["character_snapshots"]["江晨"]}
         self.run_tool("commit", invalid, expect=2)
+        self.assertEqual(self.read_state()["state_revision"], 0)
+
+    def test_superscript_chapter_is_a_clean_rejection_not_a_traceback(self) -> None:
+        # "²".isdigit() 为真但 int("²") 抛错：必须是干净的校验拒绝，不能漏成 Traceback。
+        self.init()
+        document = transaction(1, foreshadow=True)
+        document["delta"]["foreshadow_changes"][0]["planted_chapter"] = "²"
+        completed = self.run_tool("commit", document, expect=2)
+        self.assertIn("planted_chapter must be an integer", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
         self.assertEqual(self.read_state()["state_revision"], 0)
 
     def test_fact_change_generates_relation_and_entity_views(self) -> None:
@@ -933,6 +953,111 @@ class TrackingCommitTests(unittest.TestCase):
         upgraded = self.read_state()
         self.assertEqual(upgraded["appearances"]["江晨"]["seen"], [3, 9])
         self.assertEqual(upgraded["state_revision"], 1)
+        self.run_tool("check")
+
+
+    # --- ports from upstream: #496 active-character cap 20, #450 input tolerance, #449 retirement log, BOM input ---
+    def cast_document(self, count: int, *, long_fields: bool = False) -> dict[str, object]:
+        document = initial_document()
+        names = [f"女主{index:02d}" for index in range(1, count + 1)]
+        document["context"]["active_character_names"] = names
+        for name in names:
+            entry = snapshot()
+            if long_fields:
+                entry.update(identity="身" * 80, state="状" * 100, goal="目" * 100)
+            document["character_snapshots"][name] = entry
+        return document
+
+    def test_twenty_active_characters_pass_and_the_twenty_first_is_rejected_before_any_write(self) -> None:
+        result = self.run_tool("init", self.cast_document(21), expect=2)
+        self.assertIn("at most 20 names", result.stderr)
+        self.assertFalse((self.project / "追踪/_tracking-state.json").exists())
+        self.run_tool("init", self.cast_document(20))
+        self.assertIn("女主20｜", (self.project / "追踪/上下文.md").read_text(encoding="utf-8"))
+        self.run_tool("check")
+        overflow = transaction(1, character=True)
+        overflow["context"]["active_character_names"] = self.read_state()["context"]["active_character_names"] + ["江晨"]
+        before = self.read_state()
+        result = self.run_tool("commit", overflow, expect=2)
+        self.assertIn("at most 20 names", result.stderr)
+        self.assertEqual(self.read_state(), before)
+
+    def test_a_commit_carrying_twenty_active_characters_succeeds(self) -> None:
+        self.run_tool("init", self.cast_document(20))
+        names = self.read_state()["context"]["active_character_names"]
+        tx = transaction(1)
+        tx["context"]["active_character_names"] = names
+        tx["delta"]["appeared_characters"] = names
+        self.run_tool("commit", tx)
+        self.run_tool("check")
+        self.assertEqual(len(self.read_state()["context"]["active_character_names"]), 20)
+
+    def test_common_model_spellings_and_string_chapters_commit(self) -> None:
+        self.init()
+        tx = transaction(1, foreshadow=True, timeline=True)
+        f = tx["delta"]["foreshadow_changes"][0]
+        f["action"] = "add"; f["planted_chapter"] = "1"; f["planned_chapter"] = f.pop("planned_resolution_chapter")
+        t = tx["delta"]["timeline_events"][0]
+        t["action"] = "新增"; t["time"] = t.pop("story_time")
+        self.run_tool("commit", tx)
+        state = self.read_state()
+        self.assertEqual(state["foreshadow"]["F027"]["planned_resolution_chapter"], 9)
+        self.assertEqual(state["foreshadow"]["F027"]["planted_chapter"], 1)
+        self.run_tool("check")
+
+    def test_status_verb_contradicting_the_status_is_rejected(self) -> None:
+        self.init()
+        tx = transaction(1, foreshadow=True)
+        tx["delta"]["foreshadow_changes"][0]["action"] = "resolve"
+        result = self.run_tool("commit", tx, expect=2)
+        self.assertIn("矛盾", result.stderr)
+
+    def test_all_over_length_fields_are_reported_at_once(self) -> None:
+        self.init()
+        tx = transaction(1, character=True)
+        tx["delta"]["result"] = "长" * 200
+        tx["delta"]["character_changes"][0]["change"] = "变" * 200
+        result = self.run_tool("commit", tx, expect=2)
+        self.assertIn("2 个字段超长", result.stderr)
+        self.assertIn("至少删", result.stderr)
+
+    def test_snapshot_list_and_sentence_shapes_are_coerced(self) -> None:
+        self.init()
+        tx = transaction(1, character=True)
+        tx["character_snapshots"]["江晨"]["identity"] = ["宣传兵", "剪辑师"]
+        tx["character_snapshots"]["江晨"]["knowledge"] = "知道军宣流程"
+        self.run_tool("commit", tx)
+        self.assertEqual(self.read_state()["characters"]["江晨"]["identity"], "宣传兵；剪辑师")
+
+    def test_bom_prefixed_json_input_is_accepted(self) -> None:
+        doc = initial_document()
+        path = Path(self.temporary.name) / "bom.json"
+        path.write_text("\ufeff" + json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([sys.executable, str(TOOL), "init", "--project", str(self.project), "--input", str(path)],
+                           capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_retired_item_still_in_context_is_rejected(self) -> None:
+        self.init()
+        tx = transaction(1)
+        tx["delta"]["retired_context_items"] = ["军方培养江晨的后续安排尚未向读者揭示。"]
+        result = self.run_tool("commit", tx, expect=2)
+        self.assertIn("still in context", result.stderr)
+
+    def test_revision_keeps_the_chapter_retirement_log(self) -> None:
+        self.init()
+        constraint = "军方培养江晨的后续安排尚未向读者揭示。"
+        declared = transaction(1, character=True)
+        declared["context"]["long_term_constraints"] = []
+        declared["delta"]["retired_context_items"] = [constraint]
+        self.run_tool("commit", declared)
+        rev = transaction(1, mode="revision")
+        rev["context"]["long_term_constraints"] = []
+        result = self.run_tool("commit", rev)
+        record = (self.project / "追踪/逐章记录/第001章.md").read_text(encoding="utf-8")
+        self.assertIn("## 本章退役登记", record)
+        self.assertIn(constraint, record)
+        self.assertIn("角色变化（原有 1 项）", result.stderr)
         self.run_tool("check")
 
 

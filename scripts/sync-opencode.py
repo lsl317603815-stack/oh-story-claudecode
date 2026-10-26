@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 """Sync Claude Code agent templates to OpenCode format.
 
-Scans templates/agents/*.md, converts frontmatter to opencode format,
-and writes to opencode/agents/. Also syncs CLAUDE.md.tmpl -> AGENTS.md.tmpl.
+Scans templates/agents/*.md, converts frontmatter to OpenCode 2.x format
+(native `permissions:` rule list), and writes to opencode/agents/. Also syncs
+CLAUDE.md.tmpl -> AGENTS.md.tmpl.
 """
+
+from __future__ import annotations
 
 import argparse
 import os
@@ -23,6 +26,28 @@ BODY_COMMAND_RE = re.compile(r"(?:执行|运行|跑) `([^`]+)`")
 # 委派给别人跑的不算本 agent 的 shell 步骤（「由父流程提示重新运行 X」「提示调用方在主会话跑 X」）。
 # 只在同一行出现委派主语时豁免，避免把「自己跑」写成委派句式蒙混过关。
 BODY_DELEGATION_RE = re.compile(r"(调用方|父流程|主会话|用户|由.{0,6}提示)")
+CAPABILITY_NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
+# OpenCode 2.x 权限 action → 授予它的 Claude 工具。edit 一个 action 同时管 write/edit/patch。
+TOOL_PERMISSIONS = {
+    "read": {"Read"},
+    "glob": {"Glob"},
+    "grep": {"Grep"},
+    "edit": {"Write", "Edit"},
+    "shell": {"Bash"},
+}
+SUPPORTED_TOOLS = set().union(*TOOL_PERMISSIONS.values())
+# Claude 模板用 frontmatter 内联 hook 调 story_hook_cli.js 的写入守卫限定写入路径；OpenCode 没有
+# 单 agent 的内联 hook，改用 2.x 原生的 edit 路径规则收窄到同一批文件。resource 是相对会话目录的
+# 路径（项目外为绝对路径），* 可跨目录匹配（core/src/file-access.ts resolve、util/wildcard.ts）。
+# 守卫名未登记而 agent 又能写时生成失败，不静默放开整个工作区。
+# `..` 绕不过这些规则：2.x 的 write/edit/patch（含 patch 的 move 目标）都先经 FileAccess.resolve，
+# 它用 path.resolve 做词法归一再取 path.relative 作 resource（core/src/file-access.ts resolvePath/
+# resolve，2.0.18 源码核对），规则匹配的是归一后的路径：`x/_analysis_cache/输入-RAW-1/../../正文/第1章.md`
+# 到匹配时已是 `x/正文/第1章.md`，落在 deny。
+WRITE_GUARD_RE = re.compile(r"story_hook_cli\.js\s+([a-z][a-z0-9-]*-guard)\b")
+# 守卫名 → 该守卫放行的 edit resource 列表。当前没有任何 agent 模板挂写入守卫（只读 agent 直接
+# 摘掉 edit/shell）；以后有 agent 挂了守卫却没在这里登记，生成直接失败。
+WRITE_GUARD_EDIT_RESOURCES: dict[str, tuple[str, ...]] = {}
 
 
 def body_bash_commands(body: str) -> list[str]:
@@ -47,7 +72,7 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     """Extract YAML-like frontmatter and body from markdown content."""
     # 结束分隔符必须是独占一行的 `---`（锚定 "\n---\n"），不能用 content.split("---", 2)：
     # 后者会被 frontmatter 值里的三连字符（描述里的 `---`、注释里的 `---`）当成结束标记，
-    # 把剩余键连同 permission/steps 一起截断进正文，且静默 exit 0。
+    # 把剩余键连同 permissions/steps 一起截断进正文，且静默 exit 0。
     # 与同源生成器 generate-codex-agents.py 的解析口径保持一致。
     if not content.startswith("---\n"):
         return {}, content
@@ -94,11 +119,40 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     return fm, body
 
 
-def convert_claude_to_opencode(fm: dict, body: str) -> dict:
+WRITE_HOOK_MATCHER_RE = re.compile(r"^\s*-?\s*matcher:\s*[\"']?([^\"'\n]*)", re.M)
+
+
+def frontmatter_write_guard(content: str) -> str | None:
+    """Name of the write guard hooked in the agent's frontmatter, if any.
+
+    挂了 Write/Edit 的 PreToolUse hook 却认不出守卫名（命令写法变了）时报错：当成没挂守卫会
+    静默给 agent 放开整个工作区的 edit。CRLF 模板先归一；matcher 写 `*`、留空或整段不写都算覆盖写工具。
+    """
+    content = content.replace("\r\n", "\n")
+    end = content.find("\n---\n", len("---"))
+    frontmatter = content[:end] if content.startswith("---\n") and end > 0 else ""
+    match = WRITE_GUARD_RE.search(frontmatter)
+    if match:
+        return match.group(1)
+    matchers = WRITE_HOOK_MATCHER_RE.findall(frontmatter)
+    write_hooked = "PreToolUse" in frontmatter and (not matchers or any(
+        {"Write", "Edit", "MultiEdit", "*", ".*", ""} & {tool.strip() for tool in matcher.split("|")}
+        for matcher in matchers
+    ))
+    if write_hooked:
+        raise ValueError(
+            "frontmatter 挂了 Write/Edit 的 PreToolUse hook，但没认出 story_hook_cli.js 的守卫名；"
+            "更新 WRITE_GUARD_RE 与 WRITE_GUARD_EDIT_RESOURCES，不能按未挂守卫放开 edit"
+        )
+    return None
+
+
+def convert_claude_to_opencode(fm: dict, body: str, write_guard: str | None = None) -> dict:
     """Convert Claude Code agent frontmatter to OpenCode format.
 
     `body` 不是可选的：bash 白名单按「正文是否真的要求执行该命令」逐个 agent 授权，
     少传一个正文就等于凭空收紧/放宽权限，所以这里强制调用方交出正文。
+    `write_guard` 是 frontmatter 挂的写入守卫名：可写 agent 的 edit 收窄到该守卫放行的路径。
     """
     result = {}
     name = fm.get("name", "")
@@ -108,44 +162,45 @@ def convert_claude_to_opencode(fm: dict, body: str) -> dict:
 
     result["mode"] = "subagent"
 
-    tools = _parse_list(fm.get("tools", ""))
-    disallowed = _parse_list(fm.get("disallowedTools", ""))
+    tools = _parse_list(fm["tools"], "tools") if "tools" in fm else []
+    disallowed = (
+        _parse_list(fm["disallowedTools"], "disallowedTools")
+        if "disallowedTools" in fm
+        else []
+    )
+    denied_tools = set(disallowed)
+    explicit_tools = "tools" in fm
+    effective_tools = (set(tools) if explicit_tools else SUPPORTED_TOOLS) - denied_tools
 
-    perm = {}
-    if any(t in tools for t in ("Read", "Glob", "Grep")):
-        perm["read"] = "allow"
-    has_write = any(t in tools for t in ("Write", "Edit"))
-    has_edit_disallowed = any(t in disallowed for t in ("Write", "Edit"))
-
-    # deny priority: disallowedTools overrides Write/Edit in tools
-    # story-researcher is a known exception — opencode's edit permission controls
-    # both Write and Edit, cannot distinguish. story-researcher needs to create
-    # new files (research output), so set edit: allow
-    if name == "story-researcher":
-        perm["edit"] = "allow"
-    elif has_edit_disallowed:
-        perm["edit"] = "deny"
-    elif has_write:
-        perm["edit"] = "allow"
-
-    # bash 同样走 "disallowedTools 优先"。OpenCode 未声明 bash 权限时默认为 ask；只读 agent
-    # 必须写成标量 deny，让上游 disabled() 直接摘掉 bash 工具。不要加“只读命令”白名单：
-    # shell.ts 只鉴权 command 的直接父节点，`( allowlisted-command ) > 正文.md` 会把外层重定向
-    # 藏在 subshell 外，字面量白名单也守不住文件系统边界。
+    # OpenCode defaults to allow. A declared list must also close unlisted tools,
+    # including subagent and MCP. Keep the wildcard first: OpenCode picks the last
+    # matching rule, so later rules override it.
+    perm = {"*": "deny"} if explicit_tools else {}
+    # edit combines write/edit/patch; either source tool grants mutation.
+    for action, source_tools in TOOL_PERMISSIONS.items():
+        if explicit_tools:
+            perm[action] = "allow" if effective_tools & source_tools else "deny"
+        elif source_tools <= denied_tools:
+            perm[action] = "deny"
     mentioned_bash = body_bash_commands(body)
-    restricted_bash = "Bash" in disallowed
-    if restricted_bash:
-        if mentioned_bash:
+    if "Bash" not in effective_tools and mentioned_bash:
+        raise ValueError(
+            f"{name or '<unnamed>'}: agent 未获授权使用 Bash，但正文要求执行 "
+            + "、".join(f"`{command}`" for command in mentioned_bash)
+            + "；改写正文以使用宿主已提供的工作区和 Read/Glob/Grep，不得开放 shell 例外。"
+        )
+    if write_guard and perm.get("edit") == "allow":
+        resources = WRITE_GUARD_EDIT_RESOURCES.get(write_guard)
+        if not resources:
             raise ValueError(
-                f"{name or '<unnamed>'}: 只读 agent 禁止 Bash，但正文要求执行 "
-                + "、".join(f"`{command}`" for command in mentioned_bash)
-                + "；改写正文以使用宿主已提供的工作区和 Read/Glob/Grep，不得开放 shell 例外。"
+                f"{name or '<unnamed>'}: 写入守卫 {write_guard} 没有登记 OpenCode edit 路径规则"
             )
-        perm["bash"] = "deny"
-    elif "Bash" in tools:
-        perm["bash"] = "allow"
+        # 先整条 deny 再逐条放行：OpenCode 取最后一条命中规则，末条 resource 不是 * 工具仍可见。
+        perm["edit"] = "deny"
+        for resource in resources:
+            perm[("edit", resource)] = "allow"
     if perm:
-        result["permission"] = perm
+        result["permissions"] = perm
 
     if "maxTurns" in fm:
         try:
@@ -156,31 +211,54 @@ def convert_claude_to_opencode(fm: dict, body: str) -> dict:
     return result
 
 
-def _parse_list(val: str) -> list[str]:
-    """Parse a YAML-like list like '[Read, Glob, Grep]'."""
-    match = re.search(r"\[(.*)\]", val)
+def _parse_list(val: str, field: str) -> list[str]:
+    """Parse the supported inline capability-list subset or reject it."""
+    if not val:
+        raise ValueError(
+            f"{field}: empty or block-style capability declarations are unsupported"
+        )
+    match = re.fullmatch(r"\[\s*(.*?)\s*\]", val)
     if not match:
+        raise ValueError(f"{field}: expected an inline list like [Read, Glob]")
+    inner = match.group(1)
+    if not inner.strip():
         return []
-    items = match.group(1).split(",")
-    return [item.strip().strip("'").strip('"') for item in items if item.strip()]
+    parsed: list[str] = []
+    for raw_item in inner.split(","):
+        item = raw_item.strip()
+        if not item:
+            raise ValueError(f"{field}: empty capability-list item")
+        if item[0] in {'"', "'"}:
+            quote = item[0]
+            if len(item) < 2 or item[-1] != quote or quote in item[1:-1]:
+                raise ValueError(f"{field}: malformed quoted capability {item!r}")
+            item = item[1:-1]
+        elif '"' in item or "'" in item:
+            raise ValueError(f"{field}: malformed quoted capability {item!r}")
+        if CAPABILITY_NAME_RE.fullmatch(item) is None:
+            raise ValueError(f"{field}: invalid capability name {item!r}")
+        if item not in SUPPORTED_TOOLS:
+            raise ValueError(f"{field}: unsupported OpenCode capability {item!r}")
+        parsed.append(item)
+    return parsed
 
 
 def format_frontmatter(fm: dict) -> str:
     """Format frontmatter dict to YAML-like string."""
     lines = ["---"]
     for key, value in fm.items():
-        if key == "permission" and isinstance(value, dict):
-            lines.append("permission:")
-            for pk, pv in value.items():
-                if isinstance(pv, dict):
-                    # 命令 glob 形式（如 bash）：glob 键必须加引号，裸 `*` 在 YAML 里是别名标记。
-                    # 严禁对这里的键排序：OpenCode 用 findLast 解析，后写的规则覆盖先写的，
-                    # 键顺序即优先级。必须按 dict 的插入顺序原样输出。
-                    lines.append(f"  {pk}:")
-                    for glob, action in pv.items():
-                        lines.append(f'    "{glob}": {action}')
-                else:
-                    lines.append(f"  {pk}: {pv}")
+        if key == "permissions":
+            # 2.x 原生规则列表：每条 action/resource/effect 三键齐全。严禁排序：OpenCode 取
+            # 最后一条命中的规则，列表顺序即优先级，必须按 dict 插入顺序原样输出。
+            # 裸 `*` 在 YAML 里是别名标记，必须加引号。
+            lines.append("permissions:")
+            # 键是 action（resource 为 *）或 (action, resource) 二元组。
+            for key, effect in value.items():
+                action, resource = key if isinstance(key, tuple) else (key, "*")
+                action_text = '"*"' if action == "*" else action
+                lines.append(f"  - action: {action_text}")
+                lines.append(f'    resource: "{resource}"')
+                lines.append(f"    effect: {effect}")
         elif key == "description" and "\n" in value:
             lines.append("description: |")
             for desc_line in value.split("\n"):
@@ -275,7 +353,7 @@ def render_agents() -> dict[str, str]:
             raise ValueError(f"{md_file}: missing agent description")
         # 用**源模板正文**（未做 .claude→.opencode 路径替换）推导 bash 白名单：
         # 授权依据是源定义里写没写这条命令，不是生成产物的措辞。
-        new_fm = convert_claude_to_opencode(fm, body)
+        new_fm = convert_claude_to_opencode(fm, body, frontmatter_write_guard(content))
         new_body = replace_claude_paths(body)
         new_body = fix_path_rules_section(new_body)  # 覆盖路径规则段的错误替换
         output = format_frontmatter(new_fm) + new_body
@@ -498,9 +576,6 @@ def main() -> int:
     print("\n3. Manual maintenance required:")
     print("  - skills/story-setup/references/opencode/plugin.ts (hooks logic)")
     print("  - skills/story-setup/references/opencode/commands/ (slash commands)")
-    print(
-        "  - skills/story-setup/references/opencode/opencode.json.patch (config fragment)"
-    )
     print("\nDone.")
     return 0
 

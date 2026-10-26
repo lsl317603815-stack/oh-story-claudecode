@@ -34,6 +34,8 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
+> **当前 main（未发布）：** 吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来的修复（以本线为底）：情绪不再默认转成身体反应，短篇去掉每节字数和对话占比配额；工作台换新设计并支持深色模式、记住浏览位置、显示行号；起点、七猫、番茄扫榜可抓书库新书；续写状态卡活跃角色上限 6 → 20；OpenCode 只支持 2.x。部署契约为 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需重新运行 `/story-setup` 并新开会话。
+>
 > **v0.14.0 起：** 细纲模板整份改成作者能读的四段人话（章卡、这章怎么演、人物与信息差、结尾，机器字段收进底部写手单），lint 加「不是人话」提醒；细纲字数门、按书对白口径、文风带三道门禁入仓库，候选门从 14 道扩为 15 道。新增第 21 个 Skill `story-audiobook`（有声书）：把已定稿章节按角色卡选音色、试音锁定，逐字切成有声稿，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成 mp3 与字幕。中文主包的 canonical 固定名字集扩为 21 个 Skill，各端命令与路由同步；部署契约为 `setup_skill_version: 1.7.0` / `agents_version: 47`，升级后需重新运行 `/story-setup` 并新开会话。
 >
 > **v0.13.0 起：** 去 AI 味规则按约 412 万字外部网文语料重新验证，被语料否定的规则退役，写手不再压制问号、感叹号和口语连接词；新增可选的按项目模型分工（写手、去 AI 味审查、读者审读可各走别的模型，`/story-setup` 第 8 步勾选）和 `/story-review reader` 读者审读；细纲长度按「细纲:正文 = 1:2.5～1:3」受控，顶部章卡给作者读，超长由批末检查拦截、hook 提醒。部署契约为 `setup_skill_version: 1.6.0` / `agents_version: 45`，升级后需在每个项目重新运行 `/story-setup` 并新开会话；旧细纲会被标成超长，属预期。
@@ -180,7 +182,7 @@ npx skills add "$D"/x/oh-story-* -y -g
 >
 > 升级后如果项目里已经跑过 `/story-setup`，建议在项目根重跑一次 `/story-setup`，同步 hooks / agents / references。每版变更见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)；发版流程见 [RELEASING.md](RELEASING.md)。
 
-> **多 agent 协作要先部署再新开会话**：中文主包在 TRAE 实际注册 8 个通用专业 Agent（story-architect、narrative-writer、consistency-checker、revision-governor 等）+ 5 个数据分析精确角色，共 13 个 Agent；WorkBuddy 实际注册相同的 8 个通用角色 + 数据抓取角色 + 数据只读池化 Runner，共 10 个 Agent。Claude Code / Codex / TRAE Code / WorkBuddy 都建议在部署后新开会话。ZCode 3.3.4、OpenClaw Phase 1、Reasonix Phase 1 与 generic 路径默认走 skills + solo fallback。判断是否生效：新会话里跑 `/story-review`（WorkBuddy plugin-only 用 `/oh-story:story-review`），报告头是 `Effective Mode: full/lean` 即注册成功，是 `Fallback: ... -> solo` 说明当前运行时未暴露该 Agent；WorkBuddy 还必须实际调用基础 Agent、`story-data-fetcher` 及 `story-data-readonly-runner` 承载的一种逻辑职责，不能把设置页的启用状态当成 registry 调度证据。
+> **多 agent 协作要先部署再新开会话**：中文主包在 TRAE 实际注册 8 个通用专业 Agent（story-architect、narrative-writer、consistency-checker、revision-governor 等）+ 5 个数据分析精确角色，共 13 个 Agent；WorkBuddy 实际注册相同的 8 个通用角色 + 数据抓取角色 + 数据只读池化 Runner，共 10 个 Agent。Claude Code / Codex / TRAE Code / WorkBuddy 都建议在部署后新开会话。ZCode 3.3.4、OpenClaw Phase 1、Reasonix Phase 1 与 generic 路径默认走 skills + solo fallback。判断是否生效：新会话里跑 `/story-review`（WorkBuddy plugin-only 用 `/oh-story:story-review`），报告末行「技术备注」里是 `Effective Mode: full/lean` 即注册成功，是 `Fallback: ... -> solo` 说明当前运行时未暴露该 Agent；WorkBuddy 还必须实际调用基础 Agent、`story-data-fetcher` 及 `story-data-readonly-runner` 承载的一种逻辑职责，不能把设置页的启用状态当成 registry 调度证据。
 
 > **导入续写顺序：** 推荐先在写作项目根运行 `/story-setup`（部署 hooks/agents/AGENTS），新开/刷新会话后运行 `/story-import` 导入已有小说，再用 `/story-long-write 日更` 或 `/story-long-write 写第N章` 续写。也可以直接运行 `/story-import`；它会先检测是否已 setup，未部署时让你选择先去 setup 或继续串行导入。
 

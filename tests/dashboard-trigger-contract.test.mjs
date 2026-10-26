@@ -45,6 +45,7 @@ test("Claude Code marketplace exposes story while Codex uses the canonical skill
     "scripts/dashboard-server.mjs",
     "assets/index.html",
     "assets/styles.css",
+    "assets/tokens.css",
     "assets/app.js",
   ]) {
     const bundled = await stat(join(storySkillRoot, relativePath));

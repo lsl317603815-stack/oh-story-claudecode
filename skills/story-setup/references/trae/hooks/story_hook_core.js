@@ -539,7 +539,9 @@ function commandSubstitutions(command) {
   return substitutions
 }
 
-function redirectTargets(command) {
+// keepAll：命令里有 cd 时，相对目标要先接上 cd 目录再判是不是正文（`cd 正文 && cat > 第3章.md`），
+// 所以先全部取出，由调用方接好目录后再过滤。
+function redirectTargets(command, keepAll = false) {
   const value = String(command)
   const targets = []
   let quote = ""
@@ -558,7 +560,7 @@ function redirectTargets(command) {
     if (value[cursor] === "|" || value[cursor] === "&") cursor++
     while (value[cursor] === " " || value[cursor] === "\t") cursor++
     const parsed = readShellWord(value, cursor)
-    if (parsed.word.includes("正文")) targets.push(parsed.word)
+    if (keepAll || parsed.word.includes("正文")) targets.push(parsed.word)
     index = Math.max(index, parsed.next - 1)
   }
   return targets
@@ -649,26 +651,40 @@ function extractProseTargets(command, depth = 0) {
       targets.push(...extractProseTargets(nested, depth + 1))
     }
   }
-  targets.push(...redirectTargets(scannable))
-  for (const raw of shellSegments(scannable)) {
-    const segment = beforeShellRedirection(raw)
+  // `cd 书目录 && cat > 正文/...`：相对写入目标要接在 cd 之后的目录上，否则守卫按会话目录去找细纲，
+  // 把有细纲的章误报成缺细纲。命令里没有 cd 时保持整条命令扫描重定向的原行为。
+  // `>|`、`>&file`、`&>` 是重定向，不是管道或后台符；先统一成 `>`，免得切段时把目标切丢。
+  const segments = shellSegments(scannable.replace(/&>/g, " >").replace(/>\|/g, ">").replace(/>&(?!\d)/g, ">"))
+  const parsed = segments.map((raw) => {
     // 引号感知分词（同 shellWords）：/\s+/ 会把 cp draft.md "my book/正文/第1章.md" 的目标切碎，
     // 末位取到 book/正文/第1章.md —— 判到另一本书上（那本有细纲就直接放行）。
-    const words = shellWords(segment)
+    const words = shellWords(beforeShellRedirection(raw))
     const commandIndex = commandWordIndex(words)
-    const commandName = commandBasename(words[commandIndex])
-    const commandArgs = words.slice(commandIndex + 1)
+    return { raw, name: commandBasename(words[commandIndex]), args: words.slice(commandIndex + 1) }
+  })
+  const hasCd = parsed.some((item) => item.name === "cd")
+  if (!hasCd) targets.push(...redirectTargets(scannable))
+  let cwd = ""
+  const isAbsolute = (value) => /^([\\/~]|[A-Za-z]:[\\/])/.test(value)
+  const underCwd = (value) => (cwd && !isAbsolute(value) ? joinPosix(cwd, value) : value)
+  for (const { raw, name: commandName, args: commandArgs } of parsed) {
+    if (commandName === "cd") {
+      const directory = commandArgs.find((arg) => !arg.startsWith("-"))
+      if (directory) cwd = isAbsolute(directory) || !cwd ? directory : joinPosix(cwd, directory)
+      continue
+    }
+    if (hasCd) targets.push(...redirectTargets(raw, true).map(underCwd).filter((target) => target.includes("正文")))
     if (["sh", "bash", "dash", "ksh", "zsh"].includes(commandName)) {
       const nested = nestedShellCommand(commandArgs)
       if (nested) targets.push(...extractProseTargets(nested, depth + 1))
     }
     if (commandName === "tee" || commandName === "touch") {
-      for (const destination of writeOperands(commandName, commandArgs)) {
+      for (const destination of writeOperands(commandName, commandArgs).map(underCwd)) {
         if (isStorySourceTarget(destination)) targets.push(destination)
       }
     }
     if (commandName === "cp" || commandName === "mv" || commandName === "install") {
-      for (const destination of copyLikeTargets(commandName, commandArgs)) {
+      for (const destination of copyLikeTargets(commandName, commandArgs).map(underCwd)) {
         if (isStorySourceTarget(destination)) targets.push(destination)
       }
     }
@@ -798,6 +814,30 @@ function revisionBlockReason(root, absolute) {
   return null
 }
 
+// 未展开的 shell 变量：$VAR / ${VAR} / $(cmd)。与 codex UNEXPANDED_SHELL_VAR 同式。
+const UNEXPANDED_SHELL_VAR = /\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|\()/
+
+// 细纲「实质为空」：去掉文件头 BOM 与每行行首的 Markdown 标题标记（空格/Tab 后接的 #）后，
+// 剩下的非空白字符（空白 = ASCII 空白 + 全角空格）不足 OUTLINE_MIN_CHARS 个码点。标题文字照算
+// （`## 核心事件：…` 这种把内容写在标题行上的细纲是写了东西的）。只量写没写东西，
+// 不查细纲字段——旧书的细纲格式各异，照样放行。读不了（权限/是目录）或不是合法 UTF-8
+// （GBK 等旧编码，各端解码计数口径不同）都按非空放行（宁可漏拦）。
+// codex py _outline_is_empty 与 guard-outline-before-prose.sh outline_is_empty 同口径。
+const OUTLINE_MIN_CHARS = 30
+function outlineIsEmpty(file) {
+  let text
+  try {
+    const bytes = fs.readFileSync(file)
+    text = bytes.toString("utf8")
+    if (!Buffer.from(text, "utf8").equals(bytes)) return false
+  } catch {
+    return false
+  }
+  if (text.startsWith("\uFEFF")) text = text.slice(1)
+  const body = text.split("\n").map((line) => line.replace(/^[ \t]*#+/, "")).join("")
+  return Array.from(body.replace(/[ \t\r\n\f\v\u3000]/g, "")).length < OUTLINE_MIN_CHARS
+}
+
 function proseBlockReason(root, absolute) {
   const base = path.basename(absolute)
   const parent = path.basename(path.dirname(absolute))
@@ -827,13 +867,24 @@ function proseBlockReason(root, absolute) {
   const outlineDir = path.join(book, "大纲")
   let found = false
   if (!exists) {
+    let outlines = []
     try {
-      found = fs.readdirSync(outlineDir).some((file) => {
+      outlines = fs.readdirSync(outlineDir).filter((file) => {
         const candidate = file.match(/^细纲_第0*(\d+)章.*\.md$/)
         return candidate && candidate[1] === chapter
-      })
+      }).sort()
     } catch {}
+    found = outlines.length > 0
+    // 同章有多份细纲（补零差异/带标题）时任一份写了内容就放行。
+    if (found && outlines.every((file) => outlineIsEmpty(path.join(outlineDir, file)))) {
+      return `⛔ 写正文被拦截：第 ${chapter} 章的细纲（${safeRelative(root, path.join(outlineDir, outlines[0]))}）是空的（不计 # 号和空白不到 ${OUTLINE_MIN_CHARS} 字）。先按 story-long-write 单章流程把细纲写完整（这章发生什么、主角做什么选择），再写正文。`
+    }
     if (!found) {
+      // `cat > "$PROJ/正文/第001章.md"` 这类目标里的 shell 变量守卫展开不了，书目录按字面拼出来
+      // 必然找不到细纲。仍然拦（fail closed），但如实说路径没解析出来，不谎报「缺少细纲」。
+      if (UNEXPANDED_SHELL_VAR.test(safeRelative(root, absolute)) && !fs.existsSync(book)) {
+        return `⛔ 写正文被拦截：写入路径含未展开的 shell 变量（${safeRelative(root, absolute)}），守卫无法确认对应细纲。改用字面项目路径（如 书名/正文/第${chapter.padStart(3, "0")}章_标题.md）重新写入。`
+      }
       return `⛔ 写正文被拦截：第 ${chapter} 章缺少细纲（${safeRelative(root, outlineDir)}/细纲_第${chapter}章.md）。先按 story-long-write 单章流程补建细纲再写正文。`
     }
   }
@@ -895,6 +946,7 @@ function proseBlockReason(root, absolute) {
 // 】 是章尾系统播报模板的收束符（agent-references/hooks-chapter.md 章尾实战模板一/四），ASCII "
 // 是 normalize-punctuation.js --quote-mode ascii 的合法收引号，两者都不该被判「疑似截断」。
 const TERMINAL = new Set(Array.from("。！？…”』」）)!?.~—】\""))
+// 写后网已改为按成对引号占位判定；保留导出以兼容 adapter。
 const QUOTE_OPENERS = new Set(["「", "“", "‘", "『", '"'])
 const SOFT_PATTERNS = [
   // 型号后缀（AI语言模型/AI助手/人工智能语言模型/AI模型/AI大模型）必须可选吃掉：否则前视断言
@@ -1244,7 +1296,8 @@ function skippableLine(line) {
 // 的行整行跳过。js↔py 同构实现（codex
 // story_codex_hook.py）由 scripts/check-hook-regex-sync.sh（规范串逐字锁）与
 // scripts/test-prose-net-parity.sh（fixture 逐字 diff）锁 parity，文案以本核为准。
-const TOXIC_QUOTE_SPANS = [/「[^」]*」/g, /『[^』]*』/g, /【[^】]*】/g, /“[^”]*”/g, /‘[^’]*’/g, /"[^"]*"/g, /'[^']*'/g]
+// 单引号须成对；词内撇号（don't、O’Connor）不作为开闭引号。
+const TOXIC_QUOTE_SPANS = [/「[^」]*」/g, /『[^』]*』/g, /【[^】]*】/g, /“[^”]*”/g, /(?<![A-Za-z0-9_])‘(?:[^’]|(?<=[A-Za-z0-9_])’(?=[A-Za-z0-9_]))*(?!(?<=[A-Za-z0-9_])’[A-Za-z0-9_])’/g, /"[^"]*"/g, /(?<![A-Za-z0-9_])'(?:[^']|(?<=[A-Za-z0-9_])'(?=[A-Za-z0-9_]))*(?!(?<=[A-Za-z0-9_])'[A-Za-z0-9_])'/g]
 const TOXIC_QUOTE_CHARS = new Set(Array.from("「」『』【】“”‘’\"'"))
 // 分句起点边界（前一字符属于它才认「是A，不是B」的分句首「是」）；同时用作确认语的右边界。
 const TOXIC_CLAUSE_BOUNDARY = new Set(Array.from("，,。.！!？?；;：:、…—~ \t　"))
@@ -1277,6 +1330,11 @@ const TOXIC_REVERSE_TAIL = /.*[，,]\s*(?:而)?不是([^。！？!?\n]*)$/
 // 否定类里等效），又不能落在任何规则的接受位。句号占位会替 trailer-summary 的句末 [。！] 伪造出
 // 终止符，让「这一战注定是「血屠」的开端，…」这类引号里放代号/绰号的叙述行被误报，且报出的
 // 『这一战注定是。』在原文里 grep 不到。占位长度不变，故 trailer 窗口切点不漂移。
+// 摘录按码点截取：UTF-16 切片会把扩展区汉字/emoji 的代理对切成半个，与 codex py 的逐码点切片错开。
+function codePointSlice(value, start, end) {
+  return Array.from(value).slice(start, end).join("")
+}
+
 function maskQuotedSpans(line) {
   let out = line
   for (const spans of TOXIC_QUOTE_SPANS) out = out.replace(spans, (m) => "？".repeat(m.length))
@@ -1339,7 +1397,7 @@ function toxicPhraseFindings(text) {
   })
   for (const [lineNo, masked] of content) {
     const hit = matchToxicSentence(masked)
-    if (hit) findings.push(`第${lineNo}行 毒句式[${hit[0]}]：『${hit[2].slice(0, 20)}』——${hit[1]}`)
+    if (hit) findings.push(`第${lineNo}行 毒句式[${hit[0]}]：『${codePointSlice(hit[2], 0, 20)}』——${hit[1]}`)
   }
   // trailer-ending 只扫文末 600 字窗口（引号占位后按行累计，边界行整行计入）。
   let acc = 0
@@ -1351,9 +1409,9 @@ function toxicPhraseFindings(text) {
   for (let i = cut; i < content.length; i++) {
     const [lineNo, masked] = content[i]
     const match = TOXIC_RETIRED_LABELS.has("trailer-ending") ? null : masked.match(TOXIC_TRAILER_PATTERN)
-    if (match) findings.push(`第${lineNo}行 毒句式[trailer-ending]：『${match[0].slice(0, 20)}』——删章尾预告腔，用正在发生的动作或画面收章。`)
+    if (match) findings.push(`第${lineNo}行 毒句式[trailer-ending]：『${codePointSlice(match[0], 0, 20)}』——删章尾预告腔，用正在发生的动作或画面收章。`)
     const summary = TOXIC_RETIRED_LABELS.has("trailer-summary") ? null : masked.match(TOXIC_TRAILER_SUMMARY_PATTERN)
-    if (summary) findings.push(`第${lineNo}行 毒句式[trailer-summary]：『${summary[0].slice(0, 20)}』——删章尾状态总结句，收束状态是细纲的规划口径，正文落到具体动作、画面或台词上。`)
+    if (summary) findings.push(`第${lineNo}行 毒句式[trailer-summary]：『${codePointSlice(summary[0], 0, 20)}』——删章尾状态总结句，收束状态是细纲的规划口径，正文落到具体动作、画面或台词上。`)
   }
   if (findings.length) findings.push("毒句式是确定性 AI 指纹：本章须清零后再继续。完整扫描：node <skill>/scripts/check-ai-patterns.js --check <正文文件>")
   return findings
@@ -1368,21 +1426,21 @@ function proseNetFindings(text, whitelistEntries = []) {
     const lineNo = index + 1
     content.push([lineNo, line])
     let hit = false
-    if (!QUOTE_OPENERS.has(line[0])) {
-      for (const [regex, label] of SOFT_PATTERNS) {
-        const match = line.match(regex)
-        if (match) {
-          findings.push(`第${lineNo}行 元信息泄漏（${label}）：「${match[0].slice(0, 20)}」`)
-          hit = true
-          break
-        }
+    // 只豁免成对引号内的内容，继续检查引号外叙述（台词开头的行里，引号外的拒绝语照样要拦）。
+    const outsideQuotes = maskQuotedSpans(line)
+    for (const [regex, label] of SOFT_PATTERNS) {
+      const match = outsideQuotes.match(regex)
+      if (match) {
+        findings.push(`第${lineNo}行 元信息泄漏（${label}）：「${codePointSlice(match[0], 0, 20)}」`)
+        hit = true
+        break
       }
     }
     if (hit) return
     for (const [regex, label] of HARD_PATTERNS) {
       const match = line.match(regex)
       if (match) {
-        findings.push(`第${lineNo}行 ${label}：「${match[0].slice(0, 20)}」`)
+        findings.push(`第${lineNo}行 ${label}：「${codePointSlice(match[0], 0, 20)}」`)
         hit = true
         break
       }
@@ -1392,11 +1450,12 @@ function proseNetFindings(text, whitelistEntries = []) {
   for (let i = 1; i < content.length; i++) {
     const previous = content[i - 1][1]
     const [lineNo, current] = content[i]
-    if (previous === current && current.length >= 8) findings.push(`第${lineNo}行 紧邻复读：整行与上一行完全相同「${current.slice(0, 20)}」`)
+    const characters = Array.from(current)
+    if (previous === current && characters.length >= 8) findings.push(`第${lineNo}行 紧邻复读：整行与上一行完全相同「${characters.slice(0, 20).join("")}」`)
   }
   if (content.length) {
     const [lineNo, last] = content[content.length - 1]
-    if (!TERMINAL.has(Array.from(last).pop())) findings.push(`第${lineNo}行 疑似截断：结尾「…${last.slice(-12)}」未以标点收束`)
+    if (!TERMINAL.has(Array.from(last).pop())) findings.push(`第${lineNo}行 疑似截断：结尾「…${codePointSlice(last, -12)}」未以标点收束`)
   }
   // 正文内不使用 HTML 跳过标记；风格跳过也不改变 Hook 的语言与标记检查。
   findings.push(...toxicPhraseFindings(text))
@@ -1433,7 +1492,8 @@ function wordcountFinding(absolute, text) {
     }
   } catch {}
   if (!target) return null
-  const actual = Array.from(text).length
+  // CRLF 算一个换行：Windows 落盘的正文不能凭行尾多出一半换行字数（与 codex py 同口径）。
+  const actual = Array.from(text.replace(/\r\n?/g, "\n")).length
   return actual < target * 0.9
     ? `字数：第${chapter}章 实际 ${actual} 字 < 目标 ${target} 的 90%（${Math.floor(target * 0.9)}）。对照细纲字数预算定位欠账的密点、一次性重写到配额，别挤牙膏回炉。`
     : null
@@ -1745,6 +1805,8 @@ function stagedMarkdownWarnings(root) {
     output = spawnSync("git", ["-C", root, "-c", "core.quotepath=false", "diff", "--cached", "--relative", "--name-only", "--diff-filter=ACM", "-z", "--", "."], {
       encoding: "buffer",
       stdio: ["ignore", "pipe", "ignore"],
+      // Windows: without this, git flashes a console window every time the hook runs.
+      windowsHide: true,
     })
     if (output.status !== 0 || !output.stdout) return ""
   } catch {

@@ -5,10 +5,25 @@ description: |
   （OUTPUT_MODE: json，抽取本书刚接纳的一章）调用。
   输出格式严格遵循本文件「输出格式」章节；不依赖外部输出模板文件。
 mode: subagent
-permission:
-  read: allow
-  edit: deny
-  bash: deny
+permissions:
+  - action: "*"
+    resource: "*"
+    effect: deny
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
 steps: 12
 ---
 

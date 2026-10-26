@@ -3,3 +3,5 @@ description: 短剧剧本写作。不写小说直接出剧本（横竖屏），�
 ---
 
 请使用 story-drama-write skill 帮我写短剧剧本：立项（含画幅）与分集纲逐项采访拍板，构思案锁版后再出单集全稿。
+
+用户参数：$ARGUMENTS

@@ -2,12 +2,12 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.7.0`
-- `agents_version: 47`
+- `setup_skill_version: 1.8.0`
+- `agents_version: 48`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `47`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `47`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `48`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `48`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
 
 ## v46（新增有声书 Skill）
 
@@ -33,6 +33,17 @@
 - 同步：日更与修订流程、SKILL.md、artifact-protocols、writing-craft、rules/story-outline.md、story-import 反推模板、story-grill 渲染、story-architect / narrative-writer / consistency-checker 各端 agent 卡、`current-contract.json` 的细纲必含段落、hook 提示文案；工程词泄漏表（hook 两份核与 check-degeneration）新增「这章怎么演」「人物与信息差」「写手单」。
 - 旧细纲不阻塞：读取方回退按原字段读取；新 lint 会对旧细纲报长度和「不是人话」提醒，这是预期的，按新模板重写即可。
 - 合入发版时：agent 卡、规则模板和共享核有变，`agents_version` 需在 45 之上再升一级；TRAE 共享核登记表已补新哈希。
+
+## v48（吸收原仓库 zenstory-ai v0.9.0 的修复，OpenCode 只支持 2.x）
+
+- `agents_version` 47 → 48、`setup_skill_version` 1.7.0 → 1.8.0：合入原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来的修复（以本线为底，不采用其资料重组与 schema 4 追踪）。agent 卡、规则模板、共享 hook 核与 OpenCode 部署流程都变了，v47 及更早的项目会在会话启动时收到重跑提示。原仓库的 `agents_version` 最高 36，本线 48 高于两边全部旧值。
+- **OpenCode 只支持 2.x。** 插件改为 2.x `{ id, setup }` 形态，`.opencode/plugins/` 自动发现，不再写 `opencode.json` 补丁；重新部署会从项目 `opencode.json(c)` 的 `plugin` / `plugins` 里删掉旧版留下的 `story-hooks.ts` 项。版本门 fail-closed：`opencode --version` 低于 2 或读不出版本时停止 OpenCode 部署（其它端照常），因为 1.x 加载不了插件、也不认 agents 的 `permissions:`，只读 agent 会拿到写文件与 shell 权限。OpenCode agent 定义改用 2.x `permissions:` 规则列表。
+- 写作规则：情绪不再默认转成身体反应（可以直写，落在选择、台词、物件或后果上；身体细节要有后果才留）；短篇去掉每节字数、对话占比、「每节一动一静」等固定配额；本书 `设定/文风.md` 声明的叙述姿态优先于写手默认的深度限知。narrative-writer 各端模板、anti-ai-writing、quality-checklist、writing-craft 等同步。启用模型分工（写手走 agy）的项目，重新部署后 `.claude/models/narrative-writer-prompt.md` 会按新模板重新生成。
+- hook：细纲为空（去掉 BOM、标题和空白后不足 30 字）时拦下首次建章；Windows 下查 Git 不再弹控制台窗口；`cd 书 && cat > 正文/…`、`&>`、`>|` 等写法能被识别；引号外的模型拒绝语与 AI 自称在对白行也会被查出。
+- 追踪：续写状态卡活跃角色上限 6 → 20；带 BOM 的 JSON 输入可读；超长字段一次报全；修订不再清空「本章退役登记」。
+- 其它：OpenCode 21 个命令统一带 `用户参数：$ARGUMENTS`；短篇写前用 `check-delivery-contract.js` 锁定交付参数；长篇只做规划的请求不会进入正文写作；面向作者的汇报改成白话，机器字段只放末行「技术备注」。
+
+升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。OpenCode 用户先升级到 2.x（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。
 
 ## v45（细纲长度控制）
 
@@ -225,7 +236,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 47` 与 `setup_skill_version: 1.7.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 48` 与 `setup_skill_version: 1.8.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。

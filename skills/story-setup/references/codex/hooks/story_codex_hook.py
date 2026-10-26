@@ -541,7 +541,8 @@ def _net_is_skippable(stripped: str) -> bool:
 # 占位后仍残留引号字符（跨行对话/未闭合）的行整行跳过。
 # js↔py 由 scripts/check-hook-regex-sync.sh（规范串逐字锁）与
 # scripts/test-prose-net-parity.sh（fixture 逐字 diff）锁 parity。
-_TOXIC_QUOTE_SPANS = [re.compile(r"「[^」]*」"), re.compile(r"『[^』]*』"), re.compile(r"【[^】]*】"), re.compile(r"“[^”]*”"), re.compile(r"‘[^’]*’"), re.compile(r'"[^"]*"'), re.compile(r"'[^']*'")]
+# 单引号须成对；词内撇号（don't、O’Connor）不作为开闭引号。
+_TOXIC_QUOTE_SPANS = [re.compile(r"「[^」]*」"), re.compile(r"『[^』]*』"), re.compile(r"【[^】]*】"), re.compile(r"“[^”]*”"), re.compile(r"(?<![A-Za-z0-9_])‘(?:[^’]|(?<=[A-Za-z0-9_])’(?=[A-Za-z0-9_]))*(?!(?<=[A-Za-z0-9_])’[A-Za-z0-9_])’"), re.compile(r'"[^"]*"'), re.compile(r"(?<![A-Za-z0-9_])'(?:[^']|(?<=[A-Za-z0-9_])'(?=[A-Za-z0-9_]))*(?!(?<=[A-Za-z0-9_])'[A-Za-z0-9_])'")]
 _TOXIC_QUOTE_CHARS = set("「」『』【】“”‘’\"'")
 # 分句起点边界（前一字符属于它才认「是A，不是B」的分句首「是」）；同时用作确认语的右边界。
 _TOXIC_CLAUSE_BOUNDARY = set("，,。.！!？?；;：:、…—~ \t　")
@@ -672,15 +673,15 @@ def prose_net_findings(text: str, whitelist_entries: list[str] | None = None) ->
         if _net_is_skippable(s):
             continue
         content.append((i, s))
-        is_dialogue = s[0] in _NET_QUOTE_OPENERS
         hit = False
-        if not is_dialogue:
-            for rx, label in _NET_SOFT_PATTERNS:
-                m = rx.search(s)
-                if m:
-                    findings.append(f"第{i}行 元信息泄漏（{label}）：「{m.group(0)[:20]}」")
-                    hit = True
-                    break
+        # 只豁免成对引号内的内容，继续检查引号外叙述（台词开头的行里，引号外的拒绝语照样要拦）。
+        outside_quotes = _toxic_mask_quoted(s)
+        for rx, label in _NET_SOFT_PATTERNS:
+            m = rx.search(outside_quotes)
+            if m:
+                findings.append(f"第{i}行 元信息泄漏（{label}）：「{m.group(0)[:20]}」")
+                hit = True
+                break
         if hit:
             continue
         for rx, label in _NET_HARD_PATTERNS:
@@ -880,7 +881,7 @@ def _wordcount_finding(abs_path: Path, text: str) -> str | None:
         break
     if not target:
         return None
-    actual = len(text)
+    actual = len(text.replace("\r\n", "\n").replace("\r", "\n"))
     if actual < target * 0.9:
         return (f"字数：第{num}章 实际 {actual} 字 < 目标 {target} 的 90%（{int(target*0.9)}）。"
                 f"对照细纲字数预算定位欠账的密点、一次性重写到配额，别挤牙膏回炉。")
@@ -1530,7 +1531,8 @@ def _command_substitutions(command: str) -> list[str]:
     return substitutions
 
 
-def _redirect_targets(command: str) -> list[str]:
+def _redirect_targets(command: str, keep_all: bool = False) -> list[str]:
+    # keep_all：与 JS 核 redirectTargets 同构，有 cd 时先取全部目标，接上 cd 目录后再判正文。
     targets: list[str] = []
     quote = ""
     escaped = False
@@ -1563,7 +1565,7 @@ def _redirect_targets(command: str) -> list[str]:
         while command[cursor:cursor + 1] in (" ", "\t"):
             cursor += 1
         target, cursor = _read_shell_word(command, cursor)
-        if "正文" in target:
+        if keep_all or "正文" in target:
             targets.append(target)
         index = max(index + 1, cursor)
     return targets
@@ -1666,29 +1668,54 @@ def extract_prose_targets_from_command(command: str, depth: int = 0) -> list[str
     if depth < 8:
         for nested in _command_substitutions(scannable):
             targets.extend(extract_prose_targets_from_command(nested, depth + 1))
-    targets.extend(_redirect_targets(scannable))
+    # 与 JS 核同构：`cd 书目录 && cat > 正文/...` 的相对写入目标接在 cd 之后的目录上；
+    # 命令里没有 cd 时保持整条命令扫描重定向的原行为。
     # cp/mv: the write destination is the last positional arg of the segment. Parse it (regex can't
     # tell a 正文 source from a 正文 dest, and a trailing 2>/dev/null / >log / || breaks end-anchoring).
-    for raw_segment in _shell_segments(scannable):
-        seg = _before_shell_redirection(raw_segment)
+    parsed = []
+    # `>|`、`>&file`、`&>` 是重定向，不是管道或后台符；先统一成 `>`，免得切段时把目标切丢。
+    segment_source = re.sub(r">&(?!\d)", ">", scannable.replace("&>", " >").replace(">|", ">"))
+    for raw_segment in _shell_segments(segment_source):
         # 引号感知分词（同 JS 核 shellWords）：str.split() 会按 U+3000 和引号内空格切碎目标，
         # 末位取到 book/正文/第1章.md —— 判到另一本书上（那本有细纲就直接放行）。
-        words = _shell_words(seg)
+        words = _shell_words(_before_shell_redirection(raw_segment))
         command_index = _command_word_index(words)
-        command_name = _command_basename(words[command_index]) if command_index < len(words) else ""
-        command_args = words[command_index + 1:]
+        name = _command_basename(words[command_index]) if command_index < len(words) else ""
+        parsed.append((raw_segment, name, words[command_index + 1:]))
+    has_cd = any(name == "cd" for _, name, _ in parsed)
+    if not has_cd:
+        targets.extend(_redirect_targets(scannable))
+    cwd = ""
+
+    def is_absolute(value: str) -> bool:
+        return bool(re.match(r"^([\\/~]|[A-Za-z]:[\\/])", value))
+
+    def under_cwd(value: str) -> str:
+        return _join_posix(cwd, value) if cwd and not is_absolute(value) else value
+
+    for raw_segment, command_name, command_args in parsed:
+        if command_name == "cd":
+            directory = next((arg for arg in command_args if not arg.startswith("-")), None)
+            if directory:
+                cwd = directory if is_absolute(directory) or not cwd else _join_posix(cwd, directory)
+            continue
+        if has_cd:
+            targets.extend(
+                resolved for resolved in (under_cwd(target) for target in _redirect_targets(raw_segment, True))
+                if "正文" in resolved
+            )
         if command_name in ("sh", "bash", "dash", "ksh", "zsh"):
             nested = _nested_shell_command(command_args)
             if nested:
                 targets.extend(extract_prose_targets_from_command(nested, depth + 1))
         if command_name in ("tee", "touch"):
             targets.extend(
-                destination for destination in _write_operands(command_name, command_args)
+                destination for destination in map(under_cwd, _write_operands(command_name, command_args))
                 if _is_story_source_target(destination)
             )
         if command_name in ("cp", "mv", "install"):
             targets.extend(
-                destination for destination in _copy_like_targets(command_name, command_args)
+                destination for destination in map(under_cwd, _copy_like_targets(command_name, command_args))
                 if _is_story_source_target(destination)
             )
     return list(dict.fromkeys(target for target in targets if target))
@@ -1856,6 +1883,26 @@ def revision_block_reason(root: Path, abs_path: Path) -> str | None:
     return None
 
 
+# 未展开的 shell 变量：$VAR / ${VAR} / $(cmd)。与 JS core UNEXPANDED_SHELL_VAR 同式。
+UNEXPANDED_SHELL_VAR = re.compile(r"\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|\()")
+
+# 细纲「实质为空」：与 JS core outlineIsEmpty 同口径（去 BOM 与每行行首的 Markdown 标题标记后，
+# 标题文字照算，非空白字符——ASCII 空白 + 全角空格之外——不足 _OUTLINE_MIN_CHARS 个码点）。只量写没写东西，
+# 不查细纲字段；读不了或不是合法 UTF-8 按非空放行。
+_OUTLINE_MIN_CHARS = 30
+
+
+def _outline_is_empty(file: Path) -> bool:
+    try:
+        text = file.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    body = "".join(re.sub(r"^[ \t]*#+", "", line) for line in text.split("\n"))
+    return len(re.sub(r"[ \t\r\n\f\v\u3000]", "", body)) < _OUTLINE_MIN_CHARS
+
+
 def prose_block_reason(root: Path, abs_path: Path) -> str | None:
     base = abs_path.name
     parent = abs_path.parent.name
@@ -1891,13 +1938,25 @@ def prose_block_reason(root: Path, abs_path: Path) -> str | None:
     outline_dir = book_dir / "大纲"
     found = False
     if not exists:
+        outlines: list[Path] = []
         if outline_dir.is_dir():
-            for candidate in outline_dir.iterdir():
-                fm = re.match(r"^细纲_第0*(\d+)章.*\.md$", candidate.name)
-                if fm and fm.group(1) == num:
-                    found = True
-                    break
+            outlines = sorted(
+                (c for c in outline_dir.iterdir()
+                 if (fm := re.match(r"^细纲_第0*(\d+)章.*\.md$", c.name)) and fm.group(1) == num),
+                key=lambda c: c.name,
+            )
+        found = bool(outlines)
+        # 同章有多份细纲（补零差异/带标题）时任一份写了内容就放行（文案与 JS core 逐字一致）。
+        if found and all(_outline_is_empty(c) for c in outlines):
+            return (
+                f"⛔ 写正文被拦截：第 {num} 章的细纲（{safe_rel(root, outlines[0])}）是空的"
+                f"（不计 # 号和空白不到 {_OUTLINE_MIN_CHARS} 字）。先按 story-long-write 单章流程把细纲写完整"
+                "（这章发生什么、主角做什么选择），再写正文。"
+            )
         if not found:
+            # 文案与 JS core 逐字一致：shell 变量展不开时仍拦，但如实说路径没解析出来。
+            if UNEXPANDED_SHELL_VAR.search(safe_rel(root, abs_path)) and not book_dir.exists():
+                return f"⛔ 写正文被拦截：写入路径含未展开的 shell 变量（{safe_rel(root, abs_path)}），守卫无法确认对应细纲。改用字面项目路径（如 书名/正文/第{int(num):03d}章_标题.md）重新写入。"
             return f"⛔ 写正文被拦截：第 {num} 章缺少细纲（{safe_rel(root, outline_dir)}/细纲_第{num}章.md）。先按 story-long-write 单章流程补建细纲再写正文。"
     checkpoint_issue = tracking_checkpoint_issue(
         book_dir,

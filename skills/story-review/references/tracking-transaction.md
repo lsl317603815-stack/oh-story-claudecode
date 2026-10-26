@@ -163,11 +163,12 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 - `delta.appeared_characters`：`append` 必填，列出本章实际出场的具名角色（核心与临时都可以列，工具只为已有快照的核心角色记录出场章）；本章没有具名角色出场才写 `[]`。它是「某角色多少章没露面」的唯一来源，省略会被拒。`character_changes` 与 `character_snapshots` 里的角色自动算出场。修订事务只在出场名单变了时才给，给了就按新名单重记该章。
 - `delta.recap`（可选，≤900 字节，约 300 字）：本章回顾，写关键事件、人物此刻的情绪与处境、结尾停在哪个画面，让下一章第一段能直接接上。状态卡只给最近 2 章显示回顾，更早的在逐章记录里。修订某章时不给 `recap` 会清掉该章旧回顾——改写后的剧情不能沿用旧回顾。
 - `delta.result` ≤360 字节（约 120 个汉字）：它会原样成为 `上下文.md` 近章速记里的本章一行，与 `recent_chapters[].summary` 同上限。
+- `commit` 事务里所有超长字段一次报全，并换算成「现 N 字、上限约 M 字、至少删 K 字」；逐章记录超过 4096 字节时列出最长几项。一次改完再提交。含义明确的写法照收：纯数字字符串章号（`"12"`）、`action` 同义词（add/new/update→upsert，remove/删除→delete；resolve/回收 缺省补 `status=已回收`，advance/推进 补 `已埋`，与 status 矛盾则拒绝）、少数同义字段名（如 `planned_chapter`、`time`），以及快照单句字段写成列表、列表字段只写一句。
 - `context` 的允许字段随子命令不同：`init` 收 `position`、`long_term_constraints`、`active_character_names`、`continuity_risks`、`recent_chapters`、`next_chapter_commitments` 六项；`commit` 只收前四项。`recent_chapters` 与 `next_chapter_commitments` 在 commit 时由工具从当前视图和本章 `delta` 派生，手填会在任何写入前被拒（`context contains unsupported fields: ...`，exit 2）。照 init 示例套 commit 事务是最容易踩的一处。
 - `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。
 - 角色快照的四个列表不限制条数，只限制单项长度和最终文件总字节：目标 ≤4096 字节，超过警告；硬上限 8192 字节，超过则在任何写入前拒绝。
-- 没有快照的角色变化视为临时角色，不建立状态文件；`context.active_character_names` 最多 6 人且必须已有当前快照。
-- `context.long_term_constraints` 和 `context.continuity_risks` 是整份提交的当前值。凡是上一版有、本次没有的条目，必须逐条列进 `delta.retired_context_items`，否则工具在任何写入前拒绝——漏写不会被当成删除。实际退役的条目由工具写进本章逐章记录的 `## 本章退役登记`，随后仍可回查。
+- 没有快照的角色变化视为临时角色，不建立状态文件；`context.active_character_names` 是下一章的活跃角色，不是核心角色总数或主角数：最多 20 人且必须已有当前快照，只列下一章出场或被直接牵动的核心角色，其余核心角色保留快照，需要时读 `追踪/角色状态/{名}.md`。
+- `context.long_term_constraints` 和 `context.continuity_risks` 是整份提交的当前值。凡是上一版有、本次没有的条目，必须逐条列进 `delta.retired_context_items`，否则工具在任何写入前拒绝——漏写不会被当成删除。实际退役的条目由工具写进本章逐章记录的 `## 本章退役登记`，随后仍可回查；之后修订这一章时工具会把这份登记原样带过来。仍留在 context 里的条目不能同时列进 `retired_context_items`。
 ### 跨章连续性守卫（位置 / 持有物）
 
 `location` 与 `abilities_resources` 是整份覆盖的快照字段，一旦被无声改写就是读者一眼看穿的硬伤——上一章住学校宿舍、下一章骑车从家出发；上一章娘摆针线摊、下一章变卖菜摊。工具对这两项做前后比对：
@@ -196,7 +197,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 - `伏笔.md` 只呈现已经埋设过的当前状态。未来规划仍留在大纲。
 - `timeline_events.action` 可为 `upsert/delete`。`未揭示` 的 `reveal_chapter` 必须为 `null`；部分/完全揭示只能填写已经发生的实际章节。
 - `fact_changes.action` 可为 `upsert/delete`。事实 ID 用 `K001` 或 `R001`；类别覆盖身份/血缘/亲属/婚姻/别名/传承/从属/合作/敌对/所有权/规则/权限/不可逆状态/历史因果。每条必须带 `evidence`；关系类必须带 `related_entities`；单值槽位 `cardinality=one` 不得同时存在两个不同 object。未揭示的作者真相不会出现在读者视图，但会在作者用事实档案中保留。
-- `mode=revision` 时，逐章记录必须重算为修订后该章仍然成立的完整连续性记录；当前角色、伏笔、时间线和上下文则提交受影响对象截至最新已写章的当前值。
+- `mode=revision` 时，逐章记录必须重算为修订后该章仍然成立的完整连续性记录（只交改动会把原有条目整节清空，工具会打 WARNING 列出被清空的小节）；当前角色、伏笔、时间线和上下文则提交受影响对象截至最新已写章的当前值。
 - 长期事实与关系的完整收录边界、召回路径和跨总纲/卷纲/细纲/正文的修订要求见当前写作流程的“跨产物修订与长期事实”协议。
 - 修订导入截止章内的正文时，会新增或覆盖该章的逐章记录；`imported_through_chapter` 不变。
 
@@ -212,7 +213,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 6. `## 下一章承诺`
 7. `## 连贯性风险`
 
-其中活跃角色最多 6 人、活跃伏笔确定性选取最多 8 条、近章保留 5 章。这些是下一章热上下文容量，不是完整角色状态的容量限制。
+其中活跃角色最多 20 人、活跃伏笔确定性选取最多 8 条、近章保留 5 章。这些是下一章热上下文容量，不是完整角色状态的容量限制；人多且各角色状态行写得长时可能先撞字节上限，超了先压短状态行，再减人数。
 
 - **活跃伏笔**：已逾期（计划回收章早于下一章）的排最前并标【逾期k章】，三章内到期的其次并标【临近】，其余按重要度、计划回收章、ID 排；超过 8 条时末行写明隐藏了几条。到期的次要伏笔因此能挤掉远期的重要伏笔。
 - **核心角色状态**：每人一行必选（身份、状态、位置、持有、目标）；15 章以上未出场的加【久别k章，上次出场第X章】。

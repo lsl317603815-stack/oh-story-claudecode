@@ -3,3 +3,5 @@ description: 采访式创作定稿。一次一题逐项拍板产出世界观/角
 ---
 
 请使用 story-grill skill，以采访式流程帮我逐项拍板并落盘设定/卷纲/细纲。
+
+用户参数：$ARGUMENTS

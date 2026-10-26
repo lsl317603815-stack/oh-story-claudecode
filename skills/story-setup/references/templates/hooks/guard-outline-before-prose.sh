@@ -3,7 +3,8 @@
 # 写「正文」前必须先有对应大纲/细纲，否则阻止（exit 2，BLOCKING）。
 #
 # 细纲门只拦「首次创建正文文件且缺细纲」；追踪门另按部署代际判定：
-#   - 长篇 正文/第N章_*.md ：要求同书 大纲/细纲_第N章.md 存在
+#   - 长篇 正文/第N章_*.md ：要求同书 大纲/细纲_第N章.md 存在且写了内容
+#     （不计 # 号和空白至少 30 字；不查细纲字段，旧书细纲照样放行）
 #   - 短篇 正文.md         ：要求同目录 小节大纲.md 存在
 #   - agents_version >= 28 的普通长篇缺 _tracking-state.json 时，首建与修改都拦截
 #   - 拆文库/{书名} 在场时保留受控 story-import 窗口，与共享严格核一致
@@ -65,6 +66,27 @@ extract_target_bash() {
     fi
   done
   return 1
+}
+
+# 细纲「实质为空」：去掉文件头 BOM 与每行行首的 Markdown 标题标记（空格/Tab 后接的 #）后，标题文字
+# 照算，非空白字符（空白 = ASCII 空白 + 全角空格）不足 30 个码点即为空。与 JS core outlineIsEmpty / codex py
+# _outline_is_empty 同口径。纯 bash + 字节运算：LC_ALL=C 下删掉 UTF-8 续字节（0x80-0xBF）后的字节数就是
+# 码点数，不依赖任何 UTF-8 区域设置，也不依赖 node（node 在场时共享核 prose-block-reason 已先判过）。
+# 非普通文件/读不了/不是合法 UTF-8（GBK 等旧编码）按非空放行（宁可漏拦不可误伤）。
+OUTLINE_MIN_CHARS=30
+# 一行合法 UTF-8 的字节序列（Unicode 表 3-7，拒超长编码与代理区），LC_ALL=C 下逐字节匹配。
+UTF8_LINE=$'^([^\x80-\xff]|[\xc2-\xdf][\x80-\xbf]|\xe0[\xa0-\xbf][\x80-\xbf]|[\xe1-\xec\xee\xef][\x80-\xbf][\x80-\xbf]|\xed[\x80-\x9f][\x80-\xbf]|\xf0[\x90-\xbf][\x80-\xbf][\x80-\xbf]|[\xf1-\xf3][\x80-\xbf][\x80-\xbf][\x80-\xbf]|\xf4[\x80-\x8f][\x80-\xbf][\x80-\xbf])*$'
+outline_is_empty() {
+  local f="$1" n bom fws tab
+  [ -f "$f" ] && [ -r "$f" ] || return 1
+  if grep -qvaE "$UTF8_LINE" "$f"; then return 1; fi
+  bom="$(printf '\357\273\277')"
+  fws="$(printf '\343\200\200')"
+  tab="$(printf '\t')"
+  n="$( { sed -e "1s/^${bom}//" -e "s/^[ ${tab}]*#*//" "$f" || true; } \
+    | sed "s/${fws}//g" | tr -d ' \t\r\n\f\v' | tr -d '\200-\277' | wc -c | tr -d ' ')"
+  case "$n" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$n" -lt "$OUTLINE_MIN_CHARS" ]
 }
 
 TARGET=""
@@ -198,13 +220,25 @@ case "$BASE" in
     fi
     OUTLINE_DIR="$BOOK_DIR/大纲"
     FOUND=""
+    FIRST_OUTLINE=""
     if [ -d "$OUTLINE_DIR" ]; then
-      # 容忍补零差异与标题后缀：按整数章号匹配 大纲/细纲_第*章*.md
+      # 容忍补零差异与标题后缀：按整数章号匹配 大纲/细纲_第*章*.md。同章有多份细纲时
+      # 任一份写了内容就放行（与 JS core 同口径）；FOUND 取第一份写了内容的，供下方提醒读取；
+      # FIRST_OUTLINE 取字典序第一份，供空细纲文案引用。
       for f in "$OUTLINE_DIR"/细纲_第*章*.md; do
         [ -e "$f" ] || continue
         fnum="$(basename "$f" | sed -n 's/^细纲_第0*\([0-9][0-9]*\)章.*/\1/p')"
-        if [ "$fnum" = "$NUM" ]; then FOUND="$f"; break; fi
+        [ "$fnum" = "$NUM" ] || continue
+        [ -n "$FIRST_OUTLINE" ] || FIRST_OUTLINE="$f"
+        if ! outline_is_empty "$f"; then FOUND="$f"; break; fi
       done
+    fi
+    if [ -n "$FIRST_OUTLINE" ] && [ -z "$FOUND" ]; then
+      # ROOT 是 pwd -P 物理路径，目标路径可能是逻辑路径（macOS /var → /private/var），两种前缀都剥。
+      OUTLINE_REL="${FIRST_OUTLINE#"$ROOT"/}"
+      [ -n "${CLAUDE_PROJECT_DIR:-}" ] && OUTLINE_REL="${OUTLINE_REL#"${CLAUDE_PROJECT_DIR%/}"/}"
+      printf '%s\n' "⛔ 写正文被拦截：第 ${NUM} 章的细纲（${OUTLINE_REL}）是空的（不计 # 号和空白不到 ${OUTLINE_MIN_CHARS} 字）。先按 story-long-write 单章流程把细纲写完整（这章发生什么、主角做什么选择），再写正文。" >&2
+      exit 2
     fi
     if [ -z "$FOUND" ]; then
       printf '%s\n' "⛔ 写正文被拦截：第 ${NUM} 章缺少细纲（${OUTLINE_DIR#$ROOT/}/细纲_第${NUM}章.md）。" >&2

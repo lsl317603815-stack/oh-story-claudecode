@@ -401,6 +401,38 @@ const hasBlocking = allFindings.some((f) => f.severity === 'blocking');
 const hasActionable = allFindings.some((f) => f.severity === 'blocking' || f.severity === 'advisory');
 if (options.failOn === 'blocking' ? hasBlocking : hasActionable) process.exitCode ||= 1;
 
+// 把行内 HTML 注释（含 `<!--`、`-->` 本身）换成等长空格；openBefore 表示上一行留下未闭合注释。
+// unclosedOpenings 里的 `<!--` 到文末都没闭合：只抹掉这四个字符，后面照常当正文。
+// openedAt 是本行最后一个开始注释的 `<!--` 位置（"行号:列号"），没有则为 null。
+function maskHtmlComments(line, openBefore, lineIndex = 0, unclosedOpenings = new Set()) {
+  let out = '';
+  let open = openBefore;
+  let cursor = 0;
+  let openedAt = null;
+  while (cursor < line.length) {
+    if (open) {
+      const close = line.indexOf('-->', cursor);
+      const end = close === -1 ? line.length : close + 3;
+      out += ' '.repeat(end - cursor);
+      cursor = end;
+      if (close !== -1) open = false;
+      continue;
+    }
+    const start = line.indexOf('<!--', cursor);
+    if (start === -1) {
+      out += line.slice(cursor);
+      break;
+    }
+    out += line.slice(cursor, start) + '    ';
+    cursor = start + 4;
+    const key = `${lineIndex}:${start}`;
+    if (unclosedOpenings.has(key)) continue;
+    open = true;
+    openedAt = key;
+  }
+  return { text: out, open, openedAt };
+}
+
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -415,13 +447,17 @@ function die(message) {
   process.exit(2);
 }
 
-function scanDocument(input, ctx = {}) {
+// unclosedOpenings：到文末都没闭合的 `<!--` 位置（"行号:列号"）。未闭合的注释不是注释，
+// 否则一个漏写的 `-->` 会把后面整章藏起来；这些位置按正文扫描，只把 `<!--` 本身抹掉。
+function scanDocument(input, ctx = {}, unclosedOpenings = new Set()) {
   const lines = input.split(/\r?\n/);
   const findings = [];
   let fence = null;
   let inFrontMatter = hasYamlFrontMatter(lines);
   let block = [];
   const proseLines = [];
+  let commentOpen = false;
+  let commentStart = null;
 
   const flushBlock = () => {
     if (block.length === 0) return;
@@ -446,14 +482,26 @@ function scanDocument(input, ctx = {}) {
       continue;
     }
 
-    if (fenceMarker) {
+    if (fenceMarker && !commentOpen) {
       flushBlock();
       fence = fenceMarker;
       continue;
     }
 
-    block.push({ text: line, lineNo: index + 1 });
-    proseLines.push({ text: line, lineNo: index + 1 });
+    // HTML 注释（如 `<!-- 去味:跳过 -->` 豁免标记、作者批注）是元信息不是正文：注释段等长换成空格
+    // 保列号，整行都是注释的直接跳过；注释可跨行。否则 `<!--`/`-->` 会被当成破折号候选，
+    // 跨行注释里的句子也会被当正文报句式（上游 #449）。
+    const masked = maskHtmlComments(line, commentOpen, index, unclosedOpenings);
+    commentOpen = masked.open;
+    if (masked.openedAt !== null) commentStart = masked.openedAt;
+    if (masked.text !== line && !masked.text.trim()) continue;
+
+    block.push({ text: masked.text, lineNo: index + 1 });
+    proseLines.push({ text: masked.text, lineNo: index + 1 });
+  }
+
+  if (commentOpen && commentStart !== null) {
+    return scanDocument(input, ctx, new Set([...unclosedOpenings, commentStart]));
   }
 
   flushBlock();

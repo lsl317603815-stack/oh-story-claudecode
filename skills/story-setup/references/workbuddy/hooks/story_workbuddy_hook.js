@@ -88,6 +88,8 @@ function projectRoot() {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      // Windows: without this, git flashes a console window every time the hook runs.
+      windowsHide: true,
     })
     if (result.status === 0 && result.stdout.trim()) return path.resolve(result.stdout.trim())
   } catch {}
@@ -107,7 +109,7 @@ function runtimeTargetEnabled(root, targetName) {
   return match[1].split(",").map((item) => item.trim()).includes(targetName)
 }
 
-const WORKBUDDY_AGENTS_VERSION = 47
+const WORKBUDDY_AGENTS_VERSION = 48
 
 function workbuddyAgentsVersionFindings(sentinelText) {
   const match = String(sentinelText || "").match(/^agents_version:\s*(.*?)\s*$/m)

@@ -206,15 +206,15 @@ function isContent(trimmed) {
 
 // 去掉成对引号内的片段（台词/系统词/引用物件），只留引号外叙述。复读判定用：重复台词是体裁
 // 手法（豁免），但「叙述 + 引号内物件/短台词」混合行里引号外叙述的复读仍是退化，不能整行豁免。
+// 与 quotedRanges 同口径（含词内撇号规则），复读判定与泄漏豁免不再各认一套引号。
 function stripQuoted(text) {
-  return text
-    .replace(/「[^」]*」/g, '')
-    .replace(/『[^』]*』/g, '')
-    .replace(/【[^】]*】/g, '')
-    .replace(/“[^”]*”/g, '')
-    .replace(/‘[^’]*’/g, '')
-    .replace(/"[^"]*"/g, '')
-    .replace(/'[^']*'/g, '');
+  const ranges = quotedRanges(text);
+  if (ranges.length === 0) return text;
+  let out = '';
+  for (let i = 0; i < text.length; i += 1) {
+    if (!ranges.some((range) => i >= range.start && i < range.end)) out += text[i];
+  }
+  return out;
 }
 
 function visibleLength(text) {
@@ -454,7 +454,7 @@ function isWhitelistedPhrase(text, whitelist) {
 // ASCII 单引号若两侧都是字母，视为 can't 一类撇号，不当成台词界线。
 function quotedRanges(text) {
   const ranges = [];
-  const directional = [['「', '」'], ['『', '』'], ['【', '】'], ['“', '”'], ['‘', '’']];
+  const directional = [['「', '」'], ['『', '』'], ['【', '】'], ['“', '”']];
   for (const [open, close] of directional) {
     let cursor = 0;
     while (cursor < text.length) {
@@ -466,18 +466,34 @@ function quotedRanges(text) {
       cursor = closeAt + close.length;
     }
   }
-  for (const quote of ['"', "'"]) {
-    const points = [];
-    for (let i = 0; i < text.length; i += 1) {
-      if (text[i] !== quote) continue;
-      if (quote === "'" && /[A-Za-z]/.test(text[i - 1] || '') && /[A-Za-z]/.test(text[i + 1] || '')) continue;
-      points.push(i);
-    }
-    for (let i = 0; i + 1 < points.length; i += 2) {
-      ranges.push({ start: points[i], contentStart: points[i] + 1, contentEnd: points[i + 1], end: points[i + 1] + 1 });
+  const straight = [];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === '"') straight.push(i);
+  }
+  for (let i = 0; i + 1 < straight.length; i += 2) {
+    ranges.push({ start: straight[i], contentStart: straight[i] + 1, contentEnd: straight[i + 1], end: straight[i + 1] + 1 });
+  }
+  ranges.push(...apostropheQuoteRanges(text, '‘', '’'), ...apostropheQuoteRanges(text, "'", "'"));
+  return ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+// 单引号须成对；词内撇号（don't、O’Connor、can’t）既不开引号也不收引号，否则 ‘读完 O’Connor 的信…’
+// 会在 O’ 处提前收尾、把后半句台词当叙述误报，don‘t … John’s 又会把中间整段叙述当台词漏报。
+// 开引号前一字不能是词字符；收引号不能夹在两个词字符之间；未闭合不豁免（同上游 fc609889）。
+function apostropheQuoteRanges(text, open, close) {
+  const ranges = [];
+  const word = (ch) => /[A-Za-z0-9_]/.test(ch || '');
+  let start = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (start < 0) {
+      if (ch === open && !word(text[i - 1])) start = i;
+    } else if (ch === close && !(word(text[i - 1]) && word(text[i + 1]))) {
+      ranges.push({ start, contentStart: start + 1, contentEnd: i, end: i + 1 });
+      start = -1;
     }
   }
-  return ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+  return ranges;
 }
 
 function quoteRangeIndexAt(ranges, start, length = 1) {

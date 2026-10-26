@@ -70,6 +70,9 @@ if [ "${CLAUDE_REAL_CHECK:-0}" = "1" ]; then
     || fail "CLAUDE_REAL_CHECK=1 but claude is not on PATH"
   TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ohstory-claude-check.XXXXXX")"
   trap 'rm -rf "$TMP_DIR"' EXIT
+  # Every claude call below runs against an isolated home/config, never the caller's.
+  mkdir -p "$TMP_DIR/home" "$TMP_DIR/config"
+  export HOME="$TMP_DIR/home" USERPROFILE="$TMP_DIR/home" CLAUDE_CONFIG_DIR="$TMP_DIR/config"
   echo "  Claude: $(claude --version)"
 
   # Marketplace validation alone does not validate component frontmatter. Build

@@ -431,6 +431,28 @@ describe("CLI portability", () => {
 });
 
 describe("HTTP API", () => {
+  test("serves the bundled page and every asset it references", async () => {
+    const baseUrl = await startServer(await createWorkspace());
+
+    const page = await fetch(`${baseUrl}/`);
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("content-type"), /^text\/html/);
+    const html = await page.text();
+    const assetPaths = [...html.matchAll(/(?:href|src)="(\/[^"]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(assetPaths.sort(), ["/app.js", "/styles.css", "/tokens.css"]);
+
+    for (const [assetPath, contentType] of [
+      ["/tokens.css", /^text\/css/],
+      ["/styles.css", /^text\/css/],
+      ["/app.js", /javascript/],
+    ]) {
+      const asset = await fetch(`${baseUrl}${assetPath}`);
+      assert.equal(asset.status, 200, `${assetPath} must be served from the story skill bundle`);
+      assert.match(asset.headers.get("content-type"), contentType);
+      assert.ok((await asset.text()).length > 0, `${assetPath} must not be empty`);
+    }
+  });
+
   test("serves lazy roots, directory pages, and on-demand search", async () => {
     const root = await createWorkspace();
     const baseUrl = await startServer(root);
@@ -466,6 +488,22 @@ describe("HTTP API", () => {
       `${baseUrl}/api/tree?path=${encodeURIComponent("长篇/示例书/.git")}`,
     );
     assert.equal(hiddenDirectory.status, 403);
+  });
+
+  test("escapes HTML-significant characters in JSON responses", async () => {
+    const root = await createWorkspace();
+    const baseUrl = await startServer(root);
+    const query = "<script>alert(1)</script>&\u2028\u2029";
+
+    const response = await fetch(
+      `${baseUrl}/api/search?q=${encodeURIComponent(query)}&scope=projects`,
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+
+    const rawBody = await response.text();
+    assert.doesNotMatch(rawBody, /[<>&\u2028\u2029]/u);
+    assert.equal(JSON.parse(rawBody).query, query.trim());
   });
 
   test("loads and atomically saves an editable file", async () => {

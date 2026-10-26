@@ -103,7 +103,17 @@ function outputFilename(channel, date) {
   return `黑岩书库列表_${channel}_${date}.md`;
 }
 
-function buildAndSave(allBooks, total, filtered, filepath) {
+/**
+ * 文件头「数据质量」：书库没有热度字段，列表模式只有书单；--detail 按详情取到几成定级。
+ */
+function dataQuality(books, detail) {
+  if (!detail) return "[仅列表-无核心指标]";
+  const got = books.filter((b) => b && b.detailOk).length;
+  if (got === books.length) return "[OK]";
+  return got / books.length < 0.5 ? "[详情解析异常/登录态缺失]" : "[部分详情缺失]";
+}
+
+function buildAndSave(allBooks, total, filtered, filepath, detail = DETAIL) {
   const maleBooks = filtered.filter((b) => b.classifyStr === "男频");
   const femaleBooks = filtered.filter((b) => b.classifyStr === "女频");
   const otherBooks = filtered.filter(
@@ -125,8 +135,9 @@ function buildAndSave(allBooks, total, filtered, filepath) {
     `- 抓取时间（UTC）：${RUN_CLOCK.utc}`,
     `- 报告日期（本地）：${RUN_CLOCK.localDate}`,
     `- 总条目：${total}`,
-    `- 已采集：${filtered.length} 条（${PAGES} 页）`,
-    DETAIL ? "- 含详情（标签、简介）" : "- 列表模式（加 --detail 获取标签和简介）",
+    `- 已采集：${filtered.length} 条（${Math.ceil(allBooks.length / PAGE_SIZE)} 页）`,
+    detail ? "- 含详情（标签、简介）" : "- 列表模式（加 --detail 获取标签和简介）",
+    `- 数据质量：${dataQuality(filtered, detail)}`,
     "",
     "---",
     "",
@@ -140,8 +151,9 @@ function buildAndSave(allBooks, total, filtered, filepath) {
       try {
         const b = g.books[i];
         lines.push(`### #${i + 1} ${b.name}`);
+        // 元信息按位置读作「作者 · 题材」：缺作者时用占位，否则题材会被当成作者
         const meta = [
-          b.userName,
+          b.userName || "佚名",
           // 分别入数组再拼：预先 classifyStr + "/" + typeDesc 会把缺字段拼成
           // 「undefined/undefined」这种真值字符串，filter(Boolean) 拦不住，直接写进报告
           [b.classifyStr, b.typeDesc].filter(Boolean).join("/"),
@@ -317,6 +329,7 @@ function main() {
           filtered[i].tags = detail.data.tags || [];
           filtered[i].description = detail.data.description || "";
           filtered[i].chapterCount = detail.data.chapterCount || 0;
+          filtered[i].detailOk = true;
         }
         if ((i + 1) % 10 === 0) {
           console.log(`    已获取 ${i + 1}/${filtered.length}`);
@@ -343,5 +356,6 @@ module.exports = {
   fetchBookDetail,
   fmtWords,
   outputFilename,
+  dataQuality,
   buildAndSave,
 };

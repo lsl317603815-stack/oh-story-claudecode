@@ -1,7 +1,7 @@
 ---
 name: story-long-write
 version: 1.5.0
-description: "长篇网文写作。从大纲到正文，辅助中文长篇网络小说的创作，包括世界观、人物、题材契约、情节线管理、分支推演与作者文风蒸馏。触发方式：/story-long-write、/写长篇、「帮我开书」「写大纲」「分支推演」「作者文风蒸馏」「切换写作方法」「日更」「续写」「继续写」「修改第X章」「回炉」「重写第X章」。"
+description: "长篇网文写作。从大纲到正文，辅助中文长篇网络小说的创作，包括世界观、人物、题材契约、情节线管理、分支推演与作者文风蒸馏；支持只讨论结构、只写大纲或指定细纲，明确要求正文后才写章节。触发方式：/story-long-write、/写长篇、「帮我开书」「写大纲」「规划剧情」「补细纲」「分支推演」「作者文风蒸馏」「切换写作方法」「日更」「续写」「继续写」「修改第X章」「回炉」「重写第X章」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story-long-write：长篇网文写作
@@ -10,9 +10,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> 运行环境兼容性：Claude Code / OpenCode / TRAE Code / WorkBuddy（CodeBuddy Code）/ Codex / ZCode / OpenClaw 是内置适配目标；NarraFork、Web AI、自定义 Agent 等能读取项目文件的环境，可按本 skill 执行长篇流程。先识别当前运行时，只检查对应的专业 agent 定义：Claude `.claude/agents/{agent}.md`、OpenCode `.opencode/agents/{agent}.md`、TRAE Code `.trae/agents/{agent}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{agent}.md`、Codex `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 智能体与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不凭磁盘文件猜注册名：只有当前 Agent registry 真实返回 `oh-story:{agent}` 时，才使用该精确命名空间值；未返回则按本 Skill 的 solo/direct fallback，不拿 plugin manifest 或另一端残留文件冒充 registry。Codex 使用同名 `agent_type`，Claude/OpenCode 保留 `subagent_type`。找不到当前运行时定义、当前运行时未暴露对应 Agent registry/tool，或 Codex 返回 `unknown agent_type` 时，直接 solo/direct 执行并报告 fallback。只有**当前运行时确实是 ZCode**时，才因 ZCode 3.3.4 不执行项目 custom agents 而强制 solo/direct；项目磁盘上仅仅并存 `.zcode/` 不是其他运行时降级的依据。
+> 运行环境兼容性：Claude Code / OpenCode / TRAE Code / WorkBuddy（CodeBuddy Code）/ Codex / ZCode / OpenClaw 是内置适配目标；NarraFork、Web AI、自定义 Agent 等能读取项目文件的环境，可按本 skill 执行长篇流程。先识别当前运行时，只检查对应的专业 agent 定义：Claude `.claude/agents/{agent}.md`、OpenCode `.opencode/agents/{agent}.md`、TRAE Code `.trae/agents/{agent}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{agent}.md`、Codex `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 智能体与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不凭磁盘文件猜注册名：只有当前 Agent registry 真实返回 `oh-story:{agent}` 时，才使用该精确命名空间值；未返回则按本 Skill 的 solo/direct fallback，不拿 plugin manifest 或另一端残留文件冒充 registry。Codex 使用同名 `agent_type`，Claude 保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。找不到当前运行时定义、当前运行时未暴露对应 Agent registry/tool，或 Codex 返回 `unknown agent_type` 时，直接 solo/direct 执行并报告 fallback。只有**当前运行时确实是 ZCode**时，才因 ZCode 3.3.4 不执行项目 custom agents 而强制 solo/direct；项目磁盘上仅仅并存 `.zcode/` 或其他端的 agent 目录，不是当前运行时降级、也不是改用他端定义的依据。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进汇报最后一行「技术备注：」；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
 **中文正文范围**：本 skill 只交付中文长篇正文。用户要求英文小说、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -46,39 +46,49 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ## 写作流程
 
-根据用户意图和项目状态选择场景：
+先确定操作对象（结构、大纲、细纲还是正文）、交付范围和停点，再看项目状态；空项目不等于授权完整开书。
 
 | 场景 | 触发条件 | 执行流程 |
 |------|----------|----------|
-| **开书** | "帮我开书" / 项目目录为空 | Phase 1→2→3：建项目、核心设定、卷纲与首批 10 章细纲；**默认停在细纲交付，不自动写正文** |
-| **写指定章** | "写第 N 章" / "写第1章" / "开书并写首章" | Phase 4 单章候选写作；只写用户点名的章节，写完 Phase 5 检查后停在接纳边界。用户明确接纳后才入正式正文和追踪。空项目/无细纲先补 Phase 1→3 |
-| **补纲/扩纲** | "出细纲/补细纲/规划下一段剧情/接下来写XX剧情（先出细纲）" **且**项目已有大纲 | Phase 3「中途补纲/扩纲小流程」（见 `references/workflow-setup.md`）：选同类剧情单元→追加剧情单元卡→按剧情批滚动补细纲；**默认停在细纲交付，不自动写正文** |
+| **结构讨论** | "只讨论/推敲故事结构" / "先聊聊结构，别建文件" | 只在对话里交付结构方案，不建工程、不落盘；不要求先填完设定或细纲 |
+| **大纲规划** | "写大纲/规划全书/规划第X卷"，未要求细纲或正文 | 按需取 Phase 1→3，只交付所请求层级的大纲/卷纲及必要设定；不自动展开细纲，不写正文 |
+| **开书** | "帮我开书"（未限定规划层级）/ 项目目录为空且用户要开新书 | Phase 1→2→3：建项目、核心设定、卷纲与首批 10 章细纲；**默认停在细纲交付，不自动写正文** |
+| **写指定章** | "写第 N 章" / "写第1章" / "开书并写首章"，对象是正文 | Phase 4 单章候选写作；只写用户点名的章节，写完 Phase 5 检查后停在接纳边界。用户明确接纳后才入正式正文和追踪。缺前置时先补必要设定、卷纲和点名章细纲，不套用完整开书的 10 章默认 |
+| **补纲/扩纲** | "出细纲/补细纲/写第N章细纲/规划下一段剧情/接下来写XX剧情（先出细纲）" **且**项目已有大纲 | 既有剧情单元内只补点名章；需要新剧情单元才走 Phase 3「中途补纲/扩纲小流程」（见 `references/workflow-setup.md`）：选同类剧情单元→追加剧情单元卡→按剧情批滚动补细纲。点名范围不扩到整单元；未点名时按剧情批建纲；**默认停在细纲交付，不自动写正文** |
 | **分支推演** | "分支推演/路线比较/推演几个走向/这几条路哪条更好" | 读取 `references/branch-forecast.md`；在总纲方向、卷纲/剧情单元或关键细纲层生成 2-3 个互斥方案并比较，默认停在选择报告；未经用户明确选择，不映射到正式大纲 |
 | **写作方法/文风蒸馏** | "作者文风蒸馏/货架文风蒸馏/切换A分支或B分支/编译写作方法" | 完整读取 `references/style-method-branches.md`；默认只构建或检查语料、编译候选与盲测包，不写正文。只有盲测通过并经用户明确绑定才修改项目 `设定/写作方法.json` |
 | **日更续写** | 关键词（"日更"/"续写"/"继续写"）**且**项目已有正文+追踪 | 加载 `references/workflow-daily.md` |
-| **大修** | "修改第X章" / "回滚" / "回炉" / "重写第X章" / 修改总纲、卷纲、细纲、身世、关系或世界规则 | 需要理解总体设计时先读 `references/continuity-governance-design.md`；执行时完整加载 `references/workflow-revision.md` + `references/revision-impact-and-canon.md`，修改前/后分别调用 `revision-governor` 的 `plan/verify`；语义修改必须过 `scripts/revision_guard.py` 活动清单、审批戳和追踪门禁 |
+| **大修** | "修改第X章" / "回滚" / "回炉" / "重写第X章"（对象是已写正文）/ 修改既有总纲、卷纲、细纲、身世、关系或世界规则 | 只改既有大纲/设定时同样走本流程，但不因此把请求当成写新正文；影响清单里涉及已写正文的同步项，先用白话向作者说明再按清单执行。需要理解总体设计时先读 `references/continuity-governance-design.md`；执行时完整加载 `references/workflow-revision.md` + `references/revision-impact-and-canon.md`，修改前/后分别调用 `revision-governor` 的 `plan/verify`；语义修改必须过 `scripts/revision_guard.py` 活动清单、审批戳和追踪门禁 |
 
-> **开新卷**：如果新卷引入新角色/势力/设定，先回 Phase 2 增量补充，再进 Phase 3 补充新卷细纲，最后 Phase 4 写作。如果纯延续，直接回 Phase 3。
+**对象优先**："写第N章细纲""修改第N章细纲"的对象是细纲，属于规划，不因字面命中"写第N章/修改第X章"而写或改正文；"以后再写正文"不是本轮写正文的授权。仅规划的新请求优先于还在进行的日更批量：停止旧批量，不在规划完成后自动恢复。对象不明，或同一请求里范围互相冲突时，只就冲突项问一句，不重问已明确的部分。
+
+**规划续接**：刚完成的是规划（结构、大纲、卷纲、细纲、分支推演）时，"继续/按这个来/确认方案"只在当前规划范围内往下做，完成即停，不自动转细纲或正文。"继续写/接着写"指正文：下一章已有细纲时只问一句「要接着写第N章正文候选吗？」（默认是），不列选项表；缺细纲就问是否先补这一章细纲。规划模式不调用 narrative-writer、不创建章节候选；委派 story-architect 时传同一范围和停点。
+
+> **开新卷**：如果新卷引入新角色/势力/设定，先回 Phase 2 增量补充，再进 Phase 3 补充新卷细纲；Phase 3 只做到本次请求的层级，用户另行要求正文后才进 Phase 4。如果纯延续，直接回 Phase 3。
 
 ### 裸调用与停靠点（防失控）
 
 `/story-long-write` 或 `$story-long-write` **裸调用**（没有"开书/写第N章/日更/续写/修改"等明确意图）时，先只做项目状态诊断并列出下一步选项，**不得自动进入正文写作，也不得把已有项目默认为日更 3 章**：
 
-- 空项目 → 建议说「帮我开书」或先提供 `选题决策.md`；
-- 已有设定/大纲但无正文 → 建议说「写第1章」「只写1章」或「日更2章」；
-- 已有正文+追踪 → 展示最后完成章节与下一章细纲状态，建议说「写下一章候选」「接受候选并定稿」「自动定稿连续写3章」或「修改第X章」。
+- 空项目 → 建议说「先聊聊结构」「写大纲」「帮我开书」，或先提供 `选题决策.md`；
+- 已有设定/大纲但无正文 → 建议说「补细纲」「写第1章」「只写1章」或「日更2章」；
+- 已有正文+追踪 → 展示最后完成章节与下一章细纲状态，建议说「写下一章候选」「接受候选并定稿」「自动定稿连续写3章」「规划下一卷」或「修改第X章」。
 
-**开书默认停靠**：用户只说"开书/写大纲/帮我开书"时，完成 Phase 1→3 与首批 10 章细纲后停止，报告已生成文件和下一步命令；除非用户同一句明确说"并写第1章/写 N 章/日更"，否则不要自动进入 Phase 4 正文。
+**开书默认停靠**：用户只说"开书/帮我开书"时，完成 Phase 1→3 与首批 10 章细纲后停止，报告已生成文件和下一步说法；只说"写大纲/规划第X卷"时停在所请求的大纲层级。除非用户同一句明确说"并写第1章/写 N 章/日更"，否则不要自动进入 Phase 4 正文。
 
 **正文候选与连续任务**：写正文必须由用户显式给出章节范围、字数目标或日更意图。未明确“自动定稿/无需逐章确认/连续写完并自动定稿”时，一律使用 `review` 模式：只生成精确下一章候选，完成质检后停下等待接纳，不写正式正文、不推进追踪。用户在本次任务明确授权自动定稿时，才使用 `auto` 模式串行执行目标；每章仍单独创建许可、过 Gate、写入、提交追踪和 doctor，微批次最多 3 章。授权只对本次任务有效，用户中断、结构性路线分歧或任一门禁失败即暂停。
 
-**匹配优先级**：同时命中多行时，按 大修 → 写作方法/文风蒸馏 → 写指定章 → 分支推演 → 补纲/扩纲 → 日更续写 → 开书 的顺序匹配。用户明确要求比较多个走向时必须先停在推演结果，不得把任一方案自动视为已选；用户点名要"细纲/补纲/规划剧情"而未要正文时，优先入 补纲/扩纲，不入日更。日更续写的 AND 条件（项目已有正文+追踪）不满足时，提示用户"项目还没有正文，建议先开书/写第1章"。
+**匹配优先级**：先按上方「对象优先」判断对象，再在同一类里按顺序匹配。对象是正文或已写内容时：大修 → 写作方法/文风蒸馏 → 写指定章 → 日更续写；只规划时：分支推演 → 结构讨论 → 补纲/扩纲 → 大纲规划 → 开书，越窄越优先。用户明确要求比较多个走向时必须先停在推演结果，不得把任一方案自动视为已选；用户点名要"细纲/补纲/规划剧情"而未要正文时，优先入 补纲/扩纲，不入日更。日更续写的 AND 条件（项目已有正文+追踪）不满足时，提示用户"项目还没有正文，建议先开书/写第1章"。
 
 **日更续写保持在 workflow 内**：一旦本次请求路由到 `references/workflow-daily.md`，后续“继续/续写/日更”仍按候选协议解释，不得跳出 workflow 直接写正式正文，也不得把这些词冒充接纳指令。`review` 模式停在本章候选；只有本次任务已有明确 `auto` 授权才连续执行。细纲缺失、章节号冲突、结构性路线分歧或门禁失败都立即暂停。
 
 **日更中的旧内容回改必须切换事务**：一旦发现要回滚/修订已提交章或既有大纲/设定，暂停新章，转入大修流程并调用 `revision-governor` 两次。`追踪/修改影响/active.json` 未经复核和摘要审批前不得恢复日更；验收后重新读取 `追踪/上下文.md`，不能沿用修订前的热上下文。
 
-无法判断场景时，列出上述场景表让用户选择，不要开放式提问。
+无法判断场景时，给 2-4 个白话选项（如「只聊结构」「写大纲」「补第N章细纲」「写第N章正文」）让用户选，不贴场景表，也不开放式提问。
+
+### 面向作者的汇报
+
+给作者看的汇报、提问和停下说明只讲三件事：写了/改了什么（章名、发生了什么）；要作者定的事（一句白话问题＋白话选项＋推荐默认）；下一步怎么说。不写脚本名、字段名、参数名、状态码和内部清单名（如 `chapter_candidate.py`、`approval_mode`、`outline_underfilled`、`missing_primary_contract`、大纲安全七检、结构五问、S1-S4）；门禁和审查结果翻成白话，如「语言和格式都过了」「自查过设定和前文，没发现冲突」「第3段有两句像在替读者总结，已改」；编号必带故事标签，如「伏笔 F057（那封信的去处）」。候选章汇报写清：这章写了什么、字数、需要作者看一眼的地方、候选稿所在文件，以及接纳的说法（如「接受这章」）。回执、Notice、Fallback 等机器行只放最末一行「技术备注：」，其前可有一句下一步建议（如新开对话）。子 agent 返回的术语由主会话翻译后再说。
 
 ### 路径与术语约定
 
@@ -328,7 +338,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 9. **检查**：先做“收一个、变一个、开一个”三问：本章兑现了哪笔期待或付了什么利息？七类状态哪项发生可见变化？章尾留下了什么可真实承接的下一步？低压/过场章可用决定、行动、关系变化、阶段目标或情绪余势，不强求硬悬念/爽点。再查爽点是否到位（按章节定位，高压/推进章必查）及钩子诚信（下一章不得撤回、误会化或切线逃债）。两条可证伪核对（不达标→修复）：① 爽点出手前是否有可指认的危机/期待段落（指到具体情节点）？指不出=空洞 → 回步骤 8 补铺垫情节点（plot-emotion-system 倒推法）；② 装逼/打脸/揭露章，在场配角是否写出差异化反应（集体震惊/各异），还是只写主角动作？没有 → 补在场配角反应（plot-core-methods）
 10. **元信息扫描**：检查标题行以外的正文，命中 `第[一二三四五六七八九十百千万两0-9]+章|上一章|上章|前一章|本章|这一章|前文|后文|伏笔|细纲|读者` 时必须改写为场景内表达；只有角色在故事世界内真实阅读/讨论“第X章”文本，或真实身为作者/读者并谈论读者身份时例外。
 	11. **禁用词扫描**：先过**最毒句式速查**（实测最易漏，命中即改）：①「不是A，(而)是B」全家族——含「没有X，没有Y(，只是Z)」排比否定、「是B，不是A」反序、「他没X，也没有Y。他只是Z」先抑后扬，；②声线反差「声音不大/不高…却…」；③「，带着……」万能状语；④预告/总结收尾「没人知道…」「(这)才刚刚开始/开头」「正朝着…压过去」「即将拉开序幕」「这一刻…」；⑤叙述里短词加引号强调（他是被请来"把关"的）。再复核 detector 的 `formulaic-parallelism` advisory：跨段「不是A。/也不是B。/只是C。」、`至于X不X，怎么X`、同动词 `不V A，不V B` 即使写在台词里也不能跳过，确属人物当场的功能性表达才保留。然后对照 `references/banned-words.md` 全表：一级词（高频AI腔）命中即替换；二级词（低频/语境相关）高频出现时替换，偶发可参考 `references/anti-ai-writing.md` 定性裁定
-12. **接纳前流水线、接纳与追踪**：候选稿写完后不再手工逐个跑脚本，按下方 Phase 5「全部在接纳前完成」循环运行 `scripts/chapter_candidate.py next --project {项目目录}`，只执行它打印的那一步。`check` 一次跑完 15 道确定性门禁并写入候选运行目录的 `gate-report.json`（句段实测（配了 `prose_bands` 时含本书文风带 advisory）、细纲字数门（正文须落在 `字数目标` 的 90%–110%，否则拦截）、细纲照搬、声音画像双向 advisory、近六章结构证据包都在其中）；主 Agent 仍须回答结构五问并把具体证据纳入候选报告，相似度本身不阻断接纳，也不授权自动改文。门禁全过、去味与一致性两份审查回执齐全后，`review` 模式向用户报告候选标题、字数、关键变化、门禁提示和候选路径后停止；用户明确接纳后，或本次任务已有有效 `auto` 授权时，才依次执行 `approve --confirm ACCEPT` 与 `promote --confirm PROMOTE`。正式正文写入后，按 workflow-daily 构造本章唯一追踪事务（`delta.appeared_characters` 必填，`delta.recap` 建议填）并执行 `scripts/tracking_commit.py commit`；成功复检后依次运行 `chapter_candidate.py close`、`voice_profile.py update --project`（未配置画像时安全跳过）和 `story_doctor.py --project`。任一步失败都保留候选/事务现场，不手改派生文件、不写下一章。不能先把候选吸收进画像再检查自己；黄金集合也不得自动吸收新章。本章首次引入会复用的具名角色/势力时，仍按 `references/workflow-setup.md` Phase 3 规则补建静态 `设定/` 档案。
+12. **接纳前流水线、接纳与追踪**：候选稿写完后不再手工逐个跑脚本，按下方 Phase 5「全部在接纳前完成」循环运行 `scripts/chapter_candidate.py next --project {项目目录}`，只执行它打印的那一步。`check` 一次跑完 15 道确定性门禁并写入候选运行目录的 `gate-report.json`（句段实测（配了 `prose_bands` 时含本书文风带 advisory）、细纲字数门（正文须落在 `字数目标` 的 90%–110%，否则拦截）、细纲照搬、声音画像双向 advisory、近六章结构证据包都在其中）；主 Agent 仍须回答结构五问并把具体证据纳入候选报告，相似度本身不阻断接纳，也不授权自动改文。门禁全过、去味与一致性两份审查回执齐全后，`review` 模式按上方「面向作者的汇报」用白话报告候选标题、字数、关键变化、需要作者看的门禁提示和候选路径后停止；用户明确接纳后，或本次任务已有有效 `auto` 授权时，才依次执行 `approve --confirm ACCEPT` 与 `promote --confirm PROMOTE`。正式正文写入后，按 workflow-daily 构造本章唯一追踪事务（`delta.appeared_characters` 必填，`delta.recap` 建议填）并执行 `scripts/tracking_commit.py commit`；成功复检后依次运行 `chapter_candidate.py close`、`voice_profile.py update --project`（未配置画像时安全跳过）和 `story_doctor.py --project`。任一步失败都保留候选/事务现场，不手改派生文件、不写下一章。不能先把候选吸收进画像再检查自己；黄金集合也不得自动吸收新章。本章首次引入会复用的具名角色/势力时，仍按 `references/workflow-setup.md` Phase 3 规则补建静态 `设定/` 档案。
 13. **中途快照**（长篇写作安全网）：每连续写完 3 章，在继续前执行以下快照操作：
    - 执行 `scripts/tracking_commit.py check`，确认 `_tracking-state.json` 有效、逐章记录连续且未超限、所有派生视图一致、续写状态卡恰好 7 栏且 ≤12288 字节
    - 用 `ls -la 正文/` 确认最近 3 个章节文件已成功写入磁盘且大小正常（>100 bytes）
@@ -406,7 +416,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 钩子强度 | `check-hook-strength.js` | 黄金三章拦截，其余 advisory；启发式 |
 | 错别字 | `check-typos.js` | 只记录 |
 
-- **情绪落地下限**：压力档自动取本章细纲「章节定位」（高压→high；低压/信息整理/过场→low；其余与留空→normal）。它和 AI 句式检查方向相反，查「必须有却缺席的东西」：blocking 回到本章压力最高的 2-3 个节点补落点再复扫，advisory 按 [references/emotion-landing.md](references/emotion-landing.md) 的转译表处理，不靠堆「心口一沉」刷密度。细纲定位写错时用 `pressure --level … --note …` 覆盖并留痕；auto 模式只能调高。
+- **情绪落地下限**：压力档自动取本章细纲「章节定位」（高压→high；低压/信息整理/过场→low；其余与留空→normal）。它和 AI 句式检查方向相反，查「必须有却缺席的东西」：blocking 回到本章压力最高的 2-3 个节点补落点再复扫，advisory 按 [references/emotion-landing.md](references/emotion-landing.md) 的落点参考表与闸口口径处理（情绪已靠台词、选择或后果落地的可不动），不靠堆「心口一沉」刷密度。细纲定位写错时用 `pressure --level … --note …` 覆盖并留痕；auto 模式只能调高。
 - **启发式门禁误报**（对白漂移、情绪下限、钩子强度）：review 模式先问作者，作者确认后 `waive --gate … --reason "{作者原话}" --confirm WAIVE`；auto 模式不允许豁免，只能改稿。整本书的题材确实不适用时，由作者在 `设定/门禁配置.json` 把该门降为 advisory（见 [章节候选协议](references/chapter-acceptance-and-doctor.md)）。
 - **错别字**：词典只收高置信度固定搭配误写，每条都是 advisory；先判断是不是项目有意的风格化用词，确认是真错字才改。
 - **退化/语言泄漏**：未授权外语、HTML 标记、复读、截断、拒绝语、tier1 工程词泄漏只重写受影响句/段或章节，最多 2 次；仍失败就报告证据让用户定夺。URL、邮箱、代码、路径和文件名只机械保护明确非叙事结构；其他外语只有在用户单独确认并精确登记时才可保留。语言与标记门的 blocking 不得因去味跳过而降级。
@@ -484,7 +494,7 @@ S1/S2 或 REJECT 阻止 `approve`；改稿会让一致性回执失效（`fix` �
 | 题材写作公式 | `references/genre-writing-formulas.md` |
 | 黄金三章 | `references/opening-design.md` |
 | 情绪弧线 | `references/emotional-arc-design.md` |
-| 情绪落地转译 | `references/emotion-landing.md` |
+| 情绪落地参考与闸口口径 | `references/emotion-landing.md` |
 | 契约/终局储备/剧情单元安全审查 | `references/reader-contract-and-progression.md` |
 | 反转设计 | `references/reversal-toolkit.md` |
 

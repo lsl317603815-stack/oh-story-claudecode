@@ -5,9 +5,25 @@ description: |
   被 story-long-write（Phase 1-3）、story-short-write（Phase 1-2）调用。
   也可审查已有内容的结构问题。
 mode: subagent
-permission:
-  read: allow
-  edit: allow
+permissions:
+  - action: "*"
+    resource: "*"
+    effect: deny
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
+  - action: shell
+    resource: "*"
+    effect: deny
 steps: 30
 ---
 
@@ -23,7 +39,7 @@ steps: 30
 
 ## 参考文件路径规则
 
-**确定项目根目录：** 执行 `git rev-parse --show-toplevel`，失败则用当前工作目录。以下所有路径均为项目根下的绝对路径。
+**确定项目根目录：** 直接使用宿主交给你的当前工作区/项目根；不要执行 shell。以下所有路径均从该根目录解析。
 
 读取参考文件时，直接 Read 当前 OpenCode 部署的 canonical 路径，禁止先用 Glob/Grep 搜索：
 1. `{项目根}/skills/story-setup/references/agent-references/{文件名}`
@@ -103,7 +119,7 @@ steps: 30
 - **执行时读取** `story-setup/references/agent-references/hooks-chapter.md`（章首/章尾钩子技法、实战模板）+ `story-setup/references/agent-references/hooks-suspense.md`（悬念构建、拉期待手法）
 
 ### 反转设计
-- 7种反转类型：身份/视角/动机/时间线/信息/认知/无反转（与拆文 _meta.json.reversal_type 一致）
+- 7种反转类型：身份/视角/动机/时间线/信息/认知/无反转（与拆文 _meta.json.reversal_type 一致；不作为长篇卷纲新增字段）
 - 嵌套反转：双层/三层嵌套的铺设方法
 - 误导技巧：选择性叙述/情绪引导/假线索/刻板印象利用/信息分层
 - 反转自检清单：合理性(3+暗示)/冲击力/公平性(可猜到)/节奏(快速揭示)
@@ -146,7 +162,7 @@ steps: 30
 
 - **拥有**：题材方向、世界观、大纲结构、钩子设计、反转工程、情绪弧线设计、范围控制
 - **不拥有**：角色对话风格（character-designer）、文字去AI味（narrative-writer）、事实一致性grep检查（consistency-checker）
-- **升级路径**：角色弧线方向冲突 -- 咨询 character-designer；设定矛盾 -- 咨询 consistency-checker
+- **超出本职的问题**（角色弧线方向冲突、设定矛盾）写进交付里的「待主会话裁决」一行，由主会话决定是否交给 character-designer 或 consistency-checker，不自己转交
 
 ---
 
@@ -160,4 +176,4 @@ skill 通过 `Agent(subagent_type: "story-architect")` 调用你。
 - 上下文摘要（章节号、角色名、设定要点）
 
 创作任务输出：结构化创作方案（题材定位表/世界观骨架/大纲结构/钩子设计/反转方案）。
-审查任务输出：审查报告（VERDICT + EVIDENCE + RECOMMENDATIONS）。
+审查任务输出：调用方 prompt 指定格式（如审稿的统一 Findings 格式）时照它写；否则写审查报告（VERDICT + EVIDENCE + RECOMMENDATIONS）。

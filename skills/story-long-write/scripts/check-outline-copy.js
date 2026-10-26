@@ -90,6 +90,39 @@ function extractAnchors(outlineText) {
   return [...unique.entries()].map(([normalized, raw]) => ({ raw, normalized }));
 }
 
+// 写完正文后回填的「实际完成情况」可能引用正文原句，它不是誊抄来源（上游 #404）。
+// 标题块连同下级标题一起排除，到同级或上级标题为止；字段块（含加粗字段）到下一个顶格列表项或标题为止。
+// 只把这些行清空、不删行，行号与原细纲保持一致。
+function blankCompletionRecord(outline) {
+  let headingLevel = 0;
+  let inField = false;
+  return outline.split('\n').map((line) => {
+    const heading = line.match(/^ {0,3}(#{1,6})[\t ]+(.*)$/);
+    if (headingLevel) {
+      if (!heading || heading[1].length > headingLevel) return '';
+      headingLevel = 0;
+    }
+    if (inField) {
+      if (!heading && !/^[-*+][\t ]+/.test(line)) return '';
+      inField = false;
+    }
+    if (heading && heading[2].includes('实际完成情况')) {
+      headingLevel = heading[1].length;
+      return '';
+    }
+    if (/^[-*+][\t ]+(?:\*\*|__)?实际完成情况[^：:]*[：:]/.test(line)) {
+      inField = true;
+      return '';
+    }
+    return line;
+  }).join('\n');
+}
+
+function readText(file) {
+  // 记事本等编辑器存出的 UTF-8 带 BOM；去掉它，摘录与首行匹配不受影响。
+  return fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+}
+
 function lineNumberAt(text, offset) {
   let line = 1;
   for (let i = 0; i < offset; i++) if (text.charCodeAt(i) === 10) line += 1;
@@ -219,23 +252,24 @@ function main(argv) {
 
   let outlineText;
   try {
-    outlineText = fs.readFileSync(options.outline, 'utf8');
+    outlineText = readText(options.outline);
   } catch (error) {
     process.stderr.write(`无法读取细纲: ${error.message}\n`);
     return 2;
   }
   const anchors = extractAnchors(outlineText);
+  const comparableOutline = blankCompletionRecord(outlineText);
   const results = [];
   let readError = false;
   for (const file of options.files) {
     try {
-      const prose = fs.readFileSync(file, 'utf8');
+      const prose = readText(file);
       results.push({
         file,
         outline: options.outline,
         threshold: options.threshold,
         anchors: anchors.map((anchor) => anchor.raw),
-        findings: findMatches(prose, outlineText, options.threshold, anchors),
+        findings: findMatches(prose, comparableOutline, options.threshold, anchors),
       });
     } catch (error) {
       readError = true;

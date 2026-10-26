@@ -22,6 +22,8 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 番茄看的是流量和完读率，起点看的是订阅和追读，晋江看的是收藏和积分。不同平台的成功标准不同，扫榜方法也不同。
 
+采集脚本拿到的是榜单上的公开数字：番茄在读、起点付费榜与总推荐、晋江收藏/营养液/积分、七猫热度。完读率、追读、订阅转化是作者后台的数据，脚本拿不到；作者没提供就不对它们下结论。
+
 ### 原则 3：扫榜的目的是找到你能写的爆款题材
 
 不按热度直接给结论。每个方向都要做项目可行性判断：素材储备、题材边界、篇幅承载、目标平台样本是否足够。
@@ -78,6 +80,15 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 阅读指数榜 | qidian.com/rank/readindex/ | 阅读量综合指标 |
 | 收藏榜 | qidian.com/rank/collect/ | 读者关注热度 |
 | 原创推荐榜 | qidian.com/rank/recom/ | |
+| 书库人气新书 | qidian.com/all/action0-size1-update1/ | 男生·连载·30万字以下·三日内更新，按人气排；作者要看「新书」「最近冒头」时再加 |
+
+**起点书库人气新书**（`--type library`）：只走 Chrome（先 `/browser-cdp`，开之前告诉作者），不进 `--type all`，`--mode mobile` 会直接报错。
+
+```bash
+node scripts/qidian-rank-scraper.js --type library --pages 3 --outdir {输出目录}   # 默认 3 页，最多 10
+```
+
+所有页写进一份 `起点男频书库人气新书_{YYYYMMDD}.md`，名次接着排，就是人气排名；脚本核对页面实际选中的筛选、排序与页码，对不上就不写。字数从反爬字体解出，签约、收费、总推荐逐本从移动端作品页补，补不到写 `[待补]`。新书的总推荐单列为 `新书总推荐`（只有几千到几万），不和月票、畅销榜老书的总推荐混算热度；只收 30 万字以下，会拉低字数中位。某页失败时保留前面的页、退出码 2。
 
 **番茄采集目标**：
 
@@ -96,6 +107,15 @@ node scripts/fanqie-rank-scraper.js --channel all --top 50 --outdir {输出目�
 node scripts/fanqie-rank-scraper.js --channel 0 --type 1 --mode cdp --outdir {输出目录}  # 只走 CDP（需 /browser-cdp）
 ```
 
+**番茄书库「最热」**（`--source library`）：`fanqienovel.com/library/{筛选}/page_{n}?sort=hottes`，每页 18 本、按热度排。默认 `--stat 1`（连载中）+ `--count 0`（30 万字以下），即起量中的新书；作者要看「新书」「最近冒头」时再加。只走 Chrome（先 `/browser-cdp`，首次启动会关闭常规 Chrome，须先征得同意）；列表页书名与数字被字体反爬，脚本只按页序取 bookId，其余字段逐本由详情页解码。
+
+```bash
+node scripts/fanqie-rank-scraper.js --source library --channel all --outdir {输出目录}            # 男、女各一份，前 3 页
+node scripts/fanqie-rank-scraper.js --source library --channel mix --pages 5 --outdir {输出目录}  # 不分男女，取 5 页（最多 10）
+```
+
+文件名 `番茄{男频|女频|全站}书库最热新书_{筛选段}_{YYYYMMDD}.md`；`--stat 0|any`、`--count 1-4|any` 可改筛选（不再是新书时列表名不带「新书」）。`--type`、`--top` 不适用于书库。
+
 > **番茄采集后必查文件头 `数据质量` 与 `抓取方式`**；退出码 2 表示有榜单降级或失败。详情页可能被限流，大范围、深 `--top` 的采集先缩小范围试跑。异常排查步骤见 [references/scan-output-format.md](references/scan-output-format.md)。
 
 **七猫采集目标**：
@@ -105,6 +125,14 @@ node scripts/fanqie-rank-scraper.js --channel 0 --type 1 --mode cdp --outdir {�
 | 排行榜总入口 | qimao.com/paihang | 大热榜/新书榜/完结榜，热度为核心指标 |
 
 榜单类型：大热榜（日榜/月榜）、新书榜、完结榜、收藏榜、更新榜，支持男生榜/女生榜切换。
+
+**七猫书库新书**（`--source library`）：书库筛选页 `qimao.com/shuku/a-a-a-1-1-a-0-click-{页码}/`，全部频道·30万字以下·3天内更新·连载中，按点击量排，每页 15 本。服务端渲染，直接走 HTTPS，**不需要 Chrome**；作者要看「新书」「最近冒头」时再加，Chrome 起不来时也可以只采这份。
+
+```bash
+node scripts/qimao-rank-scraper.js --source library --pages 3 --outdir {输出目录}   # 默认 3 页，最多 10；不能配 --channel/--type/--period
+```
+
+所有页写进一份 `七猫全站书库点击新书_{YYYYMMDD}.md`，名次接着排，就是点击排名。书库页只给子分类，脚本另查分类页补出主类，和排行榜的题材对得上；页面没有热度数字，这份缺热度属正常，不用重采。页面标题里的筛选项、排序或页码对不上时整页不收；第 1 页之后某页失败，保留已采到的页、退出码 2。
 
 大热榜用 `--period day|month|all` 显式选择日榜、月榜或两者（默认 `day`）；周期会进入文件头与文件名。非大热榜不区分周期，`--period` 不会重复采集。
 
@@ -230,6 +258,7 @@ node scripts/jjwxc-rank-scraper.js --type 12 --list-only                 # 只�
 5. **书名模式**：上榜作品的命名规律
 6. **开头卖点**：简介/标签中反复出现的关键词
 7. **新元素对比**：与上期/同类榜单对比，标注新出现的人物设定、开篇切入点、桥段套路
+8. **头部老书 vs 新书**：月票、畅销、阅读榜上字数几百万、连载多年的书代表这个题材的存量读者，不代表现在开新书能起来；判断新方向以新书榜、书库新书样本为主
 
 ---
 
@@ -330,9 +359,9 @@ node scripts/jjwxc-rank-scraper.js --type 12 --list-only                 # 只�
 | [references/publishing-guide.md](references/publishing-guide.md) | 平台适配+推荐机制校验+数据指标+简介设计 |
 | [references/scan-output-format.md](references/scan-output-format.md) | 脚本/CDP 采集字段定义+输出模板 |
 | [scripts/cdp-utils.js](scripts/cdp-utils.js) | CDP 公共工具函数（ab/sleep/evalJSON/safeStr/scrollLoad/getArg），各采集脚本共用 |
-| [scripts/fanqie-rank-scraper.js](scripts/fanqie-rank-scraper.js) | 番茄榜单采集：默认纯 HTTPS（榜单页 SSR + 分页 API，`--top` 最多 100，全程固定 rankVersion 并记录漂移）+ 详情页 SSR 解码书名/作者/题材/标签/简介绕过字体反爬，失败时回退 CDP；标签跳过宣传括号，详情页连续失败即熔断，带标题解析率质量标注 |
-| [scripts/qidian-rank-scraper.js](scripts/qidian-rank-scraper.js) | 起点榜单采集（畅销/月票/新书等），默认移动端 SSR 提取，PC/CDP 回退 |
-| [scripts/qimao-rank-scraper.js](scripts/qimao-rank-scraper.js) | 七猫榜单采集（大热/新书/完结等），tab 切换（失败重试）+滚动加载，按 bookId 取书名回填作品页链接，带连通性自检+链接/热度命中率标注 |
+| [scripts/fanqie-rank-scraper.js](scripts/fanqie-rank-scraper.js) | 番茄榜单采集：默认纯 HTTPS（榜单页 SSR + 分页 API，`--top` 最多 100，全程固定 rankVersion 并记录漂移）+ 详情页 SSR 解码书名/作者/题材/标签/简介绕过字体反爬，失败时回退 CDP；标签跳过宣传括号，详情页连续失败即熔断，带标题解析率质量标注；`--source library` 用 CDP 翻页采书库「最热」新书 |
+| [scripts/qidian-rank-scraper.js](scripts/qidian-rank-scraper.js) | 起点榜单采集（畅销/月票/新书等），默认移动端 SSR 提取，PC/CDP 回退；`--type library` 翻页采书库人气新书（只走 CDP，解反爬字体字数，移动端作品页补签约/收费/新书总推荐，核对页面实际筛选） |
+| [scripts/qimao-rank-scraper.js](scripts/qimao-rank-scraper.js) | 七猫榜单采集（大热/新书/完结等），tab 切换（失败重试）+滚动加载，按 bookId 取书名回填作品页链接，带连通性自检+链接/热度命中率标注；`--source library` 走 HTTPS 翻页采书库点击新书（不需要 Chrome，按分类页补主类） |
 | [scripts/jjwxc-rank-scraper.js](scripts/jjwxc-rank-scraper.js) | 晋江榜单采集（收入金榜/月榜等），按频道分组；列表取书名/作者/novelid，再进 onebook.php 详情页（gb18030 解码 itemprop）补采收藏/营养液/积分/字数/状态，受 --top/--detail-limit 约束，--list-only 可跳过 |
 | [scripts/ciweimao-rank-scraper.js](scripts/ciweimao-rank-scraper.js) | 刺猬猫榜单采集（点击/收藏/月票等），单页 9 榜提取，按 bookId 归一书名回填作品页链接，带连通性自检+空结果重试+链接命中率标注 |
 

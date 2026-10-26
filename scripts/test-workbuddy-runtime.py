@@ -285,8 +285,8 @@ def test_versions(project: Path) -> None:
     cases = (
         ("target_cli: workbuddy\n", "缺失或无效"),
         ("agents_version: invalid\ntarget_cli: workbuddy\n", "缺失或无效"),
-        ("agents_version: 46\ntarget_cli: workbuddy\n", "低于当前要求的 47"),
-        ("agents_version: 48\ntarget_cli: workbuddy\n", "高于当前适配器支持的 47"),
+        ("agents_version: 47\ntarget_cli: workbuddy\n", "低于当前要求的 48"),
+        ("agents_version: 49\ntarget_cli: workbuddy\n", "高于当前适配器支持的 48"),
     )
     for payload, expected in cases:
         sentinel.write_text(payload, encoding="utf-8")
@@ -302,7 +302,7 @@ def test_versions(project: Path) -> None:
     # setup_skill_version has an independent lifecycle. It must not be compared
     # to the agent bundle number or turn a current agents_version into a stale warning.
     sentinel.write_text(
-        "agents_version: 47\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
+        "agents_version: 48\nsetup_skill_version: 0.0.1\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     output, _ = run_hook(
@@ -311,7 +311,7 @@ def test_versions(project: Path) -> None:
         {"hook_event_name": "SessionStart", "source": "startup"},
         runner=runner,
     )
-    require(output == "", f"agents=47 with old setup_skill_version must not warn: {output}")
+    require(output == "", f"agents=48 with old setup_skill_version must not warn: {output}")
 
 
 def test_plugin_runner_ignores_project_sentinel(project: Path) -> None:
@@ -352,7 +352,7 @@ def test_project_hook_commands_cross_shell(temp: Path) -> None:
     shutil.copy2(RUNNER, hook_dir / RUNNER.name)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 47\ntarget_cli: workbuddy\n",
+        "agents_version: 48\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
     config = json.loads((WB / "hooks/project-hooks.json").read_text(encoding="utf-8"))
@@ -407,7 +407,7 @@ def test_guarded_outer_fail_closed(temp: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 47\ntarget_cli: workbuddy\n",
+        "agents_version: 48\ntarget_cli: workbuddy\n",
         encoding="utf-8",
     )
 
@@ -474,7 +474,7 @@ def test_historical_copy_discovery(project: Path) -> None:
         (old / "正文").mkdir(parents=True)
         (old / "正文/第1章.md").write_text("历史副本。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 47\nsetup_skill_version: 1.7.0\n"
+        "agents_version: 48\nsetup_skill_version: 1.8.0\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -500,7 +500,7 @@ def test_tracking_advisories(project: Path) -> None:
     (book / "正文").mkdir(parents=True)
     (book / "正文/第1章.md").write_text("正文。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 47\nsetup_skill_version: 1.7.0\n"
+        "agents_version: 48\nsetup_skill_version: 1.8.0\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -509,7 +509,8 @@ def test_tracking_advisories(project: Path) -> None:
     tracking.mkdir(parents=True)
     # 首建下一章（第7章）：已提交章的改写会先被 revision 门拦下，测不到追踪检查点。
     (book / "大纲").mkdir(parents=True)
-    (book / "大纲/细纲_第7章.md").write_text("细纲。\n", encoding="utf-8")
+    # 写正文守卫要求细纲有实际内容（去掉 # 号与空白后 ≥30 字）。
+    (book / "大纲/细纲_第7章.md").write_text("# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。\n", encoding="utf-8")
 
     def write_state(document: dict[str, object], context_revision: int) -> None:
         (tracking / "_tracking-state.json").write_text(json.dumps(document, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -564,7 +565,7 @@ def test_removed_target_runner_gate(project: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 47\nsetup_skill_version: 1.7.0\n"
+        "agents_version: 48\nsetup_skill_version: 1.8.0\n"
         "target_cli: generic\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -622,7 +623,7 @@ def test_powershell(project: Path) -> None:
     reason = denied(output, "PowerShell prose without outline")
     require("细纲" in reason, f"PowerShell denial lacks outline diagnosis: {reason}")
     (book / "大纲").mkdir()
-    (book / "大纲/细纲_第1章.md").write_text("# 细纲\n", encoding="utf-8")
+    (book / "大纲/细纲_第1章.md").write_text("# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。\n", encoding="utf-8")
     write_clean_state(book)
     output, _ = run_hook(
         project,
@@ -823,7 +824,7 @@ def main() -> int:
         version_project = temp / "versions"
         version_project.mkdir()
         test_versions(version_project)
-        print("  OK SessionStart agents_version invalid/<47/=47/>47 cases")
+        print("  OK SessionStart agents_version invalid/<48/=48/>48 cases")
         test_plugin_runner_ignores_project_sentinel(temp / "plugin-sentinel")
         print("  OK plugin-only runner ignores non-WorkBuddy/stale project sentinel diagnostics")
         test_project_hook_commands_cross_shell(temp / "cross-shell")

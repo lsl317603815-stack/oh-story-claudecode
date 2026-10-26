@@ -2,6 +2,10 @@
 # test-codex-hooks.sh — synthetic Codex hook contract tests.
 set -euo pipefail
 
+# 写正文守卫要求细纲写了内容（去掉 BOM、# 号与空白后 ≥30 字），空文件会被当成空细纲拦下；
+# 需要「细纲已就位」的夹具统一写这段。
+OUTLINE_FIXTURE="$(printf '# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。')"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
@@ -64,7 +68,11 @@ echo "Fixture: $ROOT"
 mkdir -p "$ROOT/book/正文" "$ROOT/book/大纲" "$ROOT/book/设定"
 out="$(run_hook pre-tool-prose-guard '{"tool_name":"Bash","tool_input":{"command":"cat > book/正文/第001章_开端.md <<EOF\n正文\nEOF"}}')"
 assert_denied "$out" "long prose without outline"
-: > "$ROOT/book/大纲/细纲_第1章.md"
+printf '# 细纲\n## 目标情绪\n' > "$ROOT/book/大纲/细纲_第1章.md"
+out="$(run_hook pre-tool-prose-guard '{"tool_name":"Bash","tool_input":{"command":"cat > book/正文/第001章_开端.md <<EOF\n正文\nEOF"}}')"
+assert_denied "$out" "long prose with an empty outline"
+printf '%s' "$out" | grep -q '是空的' || fail "empty-outline denial did not say the outline is empty: $out"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/book/大纲/细纲_第1章.md"
 out="$(run_hook pre-tool-prose-guard '{"tool_name":"Bash","tool_input":{"command":"cat > book/正文/第001章_开端.md <<EOF\n正文\nEOF"}}')"
 assert_denied "$out" "long prose without tracking metadata"
 printf '%s' "$out" | grep -q '_tracking-state.json 缺失' || fail "missing tracking denial did not explain re-import/init: $out"
@@ -85,7 +93,7 @@ PY
 out="$(run_hook pre-tool-prose-guard "$relative_payload")"
 assert_denied "$out" "relative prose target from hook cwd"
 printf '%s' "$out" | grep -q 'cwd-book/大纲' || fail "relative target was not resolved from hook cwd: $out"
-: > "$ROOT/cwd-book/大纲/细纲_第8章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/cwd-book/大纲/细纲_第8章.md"
 out="$(run_hook pre-tool-prose-guard "$relative_payload")"
 assert_denied "$out" "relative prose target without tracking metadata"
 write_clean_state "$ROOT/cwd-book" 7
@@ -128,7 +136,7 @@ mkdir -p "$ROOT/impbook/正文" "$ROOT/拆文库/impbook"
 out="$(run_hook pre-tool-prose-guard '{"tool_name":"Write","tool_input":{"file_path":"impbook/正文/第1章_导入.md","content":"正文"}}')"
 assert_empty "$out" "story-import long migration"
 mkdir -p "$ROOT/impbook/大纲" "$ROOT/impbook/追踪"
-: > "$ROOT/impbook/大纲/细纲_第2章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/impbook/大纲/细纲_第2章.md"
 printf '%s\n' '{"schema_version":5,"state_revision":1,"last_committed_chapter":1}' > "$ROOT/impbook/追踪/_tracking-state.json"
 printf '%s\n' '> 状态修订：0' > "$ROOT/impbook/追踪/上下文.md"
 out="$(run_hook pre-tool-prose-guard '{"tool_name":"Write","tool_input":{"file_path":"impbook/正文/第2章_导入后续.md","content":"正文"}}')"
@@ -223,7 +231,7 @@ assert_additional_context "$out" "pre-write outline length advisory"
 printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); h=o["hookSpecificOutput"]; assert "permissionDecision" not in h; c=h["additionalContext"]; assert "细纲超长" in c and "超过目标 60%" in c and "4800元×3" in c, c' || fail "pre-write outline advisory content/decision wrong: $out"
 out="$(run_hook stop '{"hook_event_name":"Stop"}')"
 printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); m=o.get("systemMessage",""); assert o.get("continue") is True and "细纲长度提醒" in m and "细纲_第1章.md" in m, o' || fail "stop did not remind about a git-changed long outline: $out"
-: > "$ROOT/book/大纲/细纲_第1章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/book/大纲/细纲_第1章.md"
 out="$(run_hook stop '{"hook_event_name":"Stop"}')"
 printf '%s' "$out" | python3 -c 'import json,sys; o=json.loads(sys.stdin.buffer.read().decode("utf-8")); assert "细纲长度提醒" not in o.get("systemMessage","")' || fail "stop re-flagged an outline outside the change set: $out"
 echo "  OK outline length advisory (pre-write + stop)"
@@ -350,7 +358,7 @@ echo "  OK cwd-based root resolution"
 # CODEX_PROJECT_DIR (env skipped) and an unrelated cwd, the hook must resolve root from its own
 # .codex/hooks/ location. Discriminating: 细纲 exists at the true root, so a wrong root → deny;
 # only __file__-derived root → allow. (The valid-env tests above let env win and never hit this.)
-: > "$ROOT/book/大纲/细纲_第8章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/book/大纲/细纲_第8章.md"
 write_clean_state "$ROOT/book" 7
 out="$(cd "$TMP_DIR" && CODEX_PROJECT_DIR="$TMP_DIR/does-not-exist" python3 "$HOOK" pre-tool-prose-guard <<'JSON'
 {"tool_name":"Write","tool_input":{"file_path":"book/正文/第8章_x.md","content":"x"}}
@@ -388,7 +396,7 @@ echo "  OK non-git deployment launcher root search"
 # (via CODEX_PROJECT_DIR and/or the hook self-locating from __file__) instead of Python falling
 # back to the nested cwd and wrongly denying. This case also exercises Windows (Git Bash MSYS
 # path passed to native Python), which is exactly where naive env/cwd propagation breaks.
-: > "$NON_GIT/book/大纲/细纲_第4章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$NON_GIT/book/大纲/细纲_第4章.md"
 write_clean_state "$NON_GIT/book" 3
 out="$(cd "$NON_GIT/nested/a/b"; unset CODEX_PROJECT_DIR CLAUDE_PROJECT_DIR; printf '{"tool_name":"Write","tool_input":{"file_path":"book/正文/第004章_非Git.md","content":"正文"}}' | eval "$launcher_cmd")"
 assert_empty "$out" "non-git nested cwd + outline present allows (root reaches Python hook)"

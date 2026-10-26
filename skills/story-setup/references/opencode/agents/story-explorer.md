@@ -7,10 +7,25 @@ description: |
   story 路由（用户自然提问时）调用。
   不做任何创作判断或修改。
 mode: subagent
-permission:
-  read: allow
-  edit: deny
-  bash: deny
+permissions:
+  - action: "*"
+    resource: "*"
+    effect: deny
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
 steps: 15
 ---
 
@@ -32,8 +47,6 @@ steps: 15
 |-----------|------|---------|
 | `character_status` | 查角色当前状态 | "林晚现在什么状态？" |
 | `character_appearances` | 查角色出场章节 | "林晚在哪几章出场了？" |
-| `character_status` | 查角色当前状态 | "江晨现在什么状态？" |
-| `character_appearances` | 查角色出场章节 | "钟嘉嘉在哪几章出场了？" |
 | `foreshadow_status` | 查特定伏笔状态 | "伏笔 F003 什么状态？" |
 | `foreshadow_list` | 列出伏笔（可按状态筛选） | "当前待回收伏笔有哪些？" |
 | `setting_appearances` | 查设定在哪里出现过 | "力量体系在哪几章提到？" |
@@ -41,7 +54,6 @@ steps: 15
 | `timeline` | 查时间线节点 | "第30-50章发生了什么？" |
 | `progress` | 查写作进度 | "现在写到哪了？" |
 | `relationship` | 查角色关系 | "林晚和周砚什么关系？" |
-| `relationship` | 查角色关系 | "江晨和钟嘉嘉现在什么关系？" |
 | `canon_fact` | 按事实 ID/主体/断言查长期硬事实 | "R001 记的血缘来源是什么？" |
 | `entity_dossier` | 查某人/机构/物件的长期事实包 | "把指定人物的身世、关系和禁止误读列出来" |
 | `context_load` | 综合上下文加载 | "我要写第N章，给我上下文" |
@@ -90,6 +102,8 @@ steps: 15
     └── {topic}.md       # 研究资料
 ```
 
+短篇书目录只有 `设定.md`（人设、关系、规则都在里面）、`小节大纲.md`、`正文.md`：角色、设定、关系查 `设定.md`，进度看 `正文.md` 写到第几节；伏笔、时间线和修订号这类追踪查询在 `gaps` 写明短篇没有追踪，不报缺失错误。
+
 ---
 
 ## 查询流程
@@ -111,10 +125,10 @@ steps: 15
 
 ### character_appearances 流程
 
-1. `Grep 正文/ "{角色名}"` -> 列出所有匹配章节
-2. 按章节号排序
-3. 如需每章一句话摘要 -> `Read` 每章前几段
-4. 返回出场列表
+1. `Grep 正文/ "{角色名}"` -> 列出候选章节
+2. 回查命中段，区分实际出场与仅被提及，再按章节号排序
+3. 如需每章一句话摘要，读取命中段及必要上下文，不用开头几段代替
+4. 返回已核实的出场列表
 
 ### foreshadow_status / foreshadow_list 流程
 
@@ -145,7 +159,7 @@ steps: 15
 
 ### progress 流程
 
-1. 用调用方随 prompt 传入的 `last_committed_chapter` / `state_revision`（主会话已跑过 `tracking_commit.py check`）；prompt 里没有这两个值时不自行读取 `_tracking-state.json`（完整 state 不进 prompt，读取量不随章数增长），只读 `追踪/上下文.md` 头部的 `状态修订：{N}` 作参考，取得最后提交章和状态修订号。
+1. 用调用方随 prompt 传入的 `last_committed_chapter` / `state_revision`（主会话已跑过 `tracking_commit.py check`）；prompt 里没有这两个值时不自行读取 `_tracking-state.json`（完整 state 不进 prompt，读取量不随章数增长），读 `追踪/上下文.md` 头部的 `状态修订：{N}` 与「当前位置」的当前章作参考，取得最后提交章和状态修订号。
 2. `Read 追踪/上下文.md` 获取当前位置、下一章承诺和连贯性风险。
 3. 任一文件缺失或章号不一致时返回 blocking gap，不扫描正文猜测进度。
 
@@ -237,7 +251,7 @@ steps: 15
 
 ## 输出格式
 
-所有查询返回结构化 JSON。**必须输出可被 JSON.parse 解析的纯 JSON**：不要包 Markdown 代码围栏。输出前逐字段做 JSON 字符串安全化：字符串里的英文双引号必须写成 `\"`，换行写成 `\n`；尤其是 `anchor_excerpts[].text` 原文片段。若无法保证原文片段可转义，可把英文双引号替换为中文弯引号后再输出；禁止输出会破坏 JSON 的裸双引号。最终答案前自检一遍：任一字符串包含未转义 `"` 时先修正再返回。
+所有查询返回结构化 JSON。**必须输出可被 JSON.parse 解析的纯 JSON**：不要包 Markdown 代码围栏。输出前逐字段做 JSON 字符串安全化：字符串里的英文双引号必须写成 `\"`，换行写成 `\n`；尤其是 `anchor_excerpts[].text` 原文片段。原文片段只做 JSON 转义，不替换原文引号；仍无法合法返回时，在 `gaps` 说明该摘录未返回。禁止输出会破坏 JSON 的裸双引号。最终答案前自检一遍：任一字符串包含未转义 `"` 时先修正再返回。
 
 ```json
 {
@@ -366,7 +380,7 @@ steps: 15
 
 - **拥有**：项目文件系统的结构化查询和信息检索
 - **不拥有**：创作方向（story-architect）、角色设计（character-designer）、文字质量（narrative-writer）、冲突检测（consistency-checker）、外部研究（story-researcher）
-- **升级路径**：查询结果涉及创作决策 -> 返回可调用的对应 agent，不在本 agent 内做决策
+- **超出本职的问题**：查询结果涉及创作决策时，在 `gaps` 写明待主会话裁决（可注明适合处理的 agent），不在本 agent 内做决策，也不自己转交
 
 ---
 

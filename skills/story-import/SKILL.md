@@ -14,7 +14,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 并提示重新运行 `/story-setup` 后新开会话；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 ## 核心原则
 
@@ -522,7 +522,7 @@ name: {角色名}
 
 #### Step 1：正文迁移
 
-将 `拆文库/{导入书名}/原文/` 的全文迁移为单文件 `{标题}/正文.md`，按 [format-and-structure.md](references/format-and-structure.md) 规范化格式（小节标记 `###1.`、段间仅单换行、对话引号按项目/平台约定统一）。**原文已是成稿，不重写内容，只规范格式。**
+将 `拆文库/{导入书名}/原文/` 的全文迁移为单文件 `{标题}/正文.md`，只整理外壳格式（小节标记统一为 [format-and-structure.md](references/format-and-structure.md) 认可的一种、段间仅单换行、去段首缩进与正文 Markdown 标记），细则见 [structure-mapping-short.md](references/structure-mapping-short.md)「正文.md 格式规范」。**原文已是成稿：分段、引号、标点和措辞原样保留，不重写内容。**
 
 #### Step 2：设定生成
 
@@ -533,7 +533,7 @@ name: {角色名}
 
 #### Step 3：小节大纲生成
 
-从 `情节节点.md` 的功能分段反推 `{标题}/小节大纲.md`，按开头段/铺垫段/升级段/反转段/结尾段映射；短篇只做轻量蓝图：每节写 `结构段/五段功能`、主事件、3-5 个子事件、目标情绪、人物/关系变化、因果/逻辑链、结尾承接/小钩子。钩子或关系无法判断时标 `[待补充]`，不套用长篇完整章节蓝图。
+从 `情节节点.md` 的功能分段反推 `{标题}/小节大纲.md`，按开头段/铺垫段/升级段/反转段/结尾段映射；短篇只做轻量蓝图：每节写 `结构段/五段功能`、主问题、按需列出的情节点（不设固定个数）、目标情绪、人物/关系变化、因果/逻辑链、结尾承接/小钩子。钩子或关系无法判断时标 `[待补充]`，不套用长篇完整章节蓝图。
 
 #### Step 4：外部对标引用视图（可选）
 

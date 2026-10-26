@@ -81,6 +81,8 @@ function projectRoot() {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      // Windows: without this, git flashes a console window every time the hook runs.
+      windowsHide: true,
     })
     if (result.status === 0 && result.stdout.trim()) return path.resolve(result.stdout.trim())
   } catch {}

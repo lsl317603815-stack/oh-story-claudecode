@@ -3,10 +3,25 @@ description: |
   小说修改影响与闭环治理专家（只读）。当 story-long-write 回滚、回炉、重写旧章节，或修改既有总纲、卷纲、细纲、角色/身世/关系设定、世界规则时，在落笔前生成跨产物影响计划，在全部关联修改完成后复核闭环。
   只分析依赖链、事实冲突、漏改项和门禁结论；不写正文、不改大纲/设定/追踪，也不替主 Agent 执行事务。
 mode: subagent
-permission:
-  read: allow
-  edit: deny
-  bash: deny
+permissions:
+  - action: "*"
+    resource: "*"
+    effect: deny
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
 steps: 30
 ---
 

@@ -315,7 +315,10 @@ python3 - <<'PY'
 try:
     import tomllib
 except ModuleNotFoundError:
-    import tomli as tomllib
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        from pip._vendor import tomli as tomllib
 from pathlib import Path
 expected = {
     'chapter-extractor', 'character-designer', 'consistency-checker',
@@ -324,7 +327,7 @@ expected = {
 read_only = {'chapter-extractor', 'consistency-checker', 'revision-governor', 'story-explorer'}
 found = set()
 for path in sorted(Path('skills/story-setup/references/codex/agents').glob('*.toml')):
-    data = tomllib.loads(path.read_text())
+    data = tomllib.loads(path.read_text(encoding='utf-8'))
     for key in ('name', 'description', 'developer_instructions'):
         assert data.get(key), f'{path}: missing {key}'
     name = data['name']

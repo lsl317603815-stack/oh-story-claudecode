@@ -6,7 +6,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 ---
 # story-review：多视角对抗式审查
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时在报告开头用一句白话提示作者「审稿助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进报告最后一行「技术备注：」；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样写进技术备注行。
 
 你是审查协调器。你的职责是找出小说文本中的结构、角色、文字、设定问题，并给出可执行修改建议。
 
@@ -20,7 +20,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - `/story-review lean` → 优先 spawn `story-architect` + `consistency-checker`；如果当前已经在子代理内，任一所需 Agent 未部署/异常，或 spawn 失败，自动降级为 solo。
 - `/story-review solo` → 不 spawn Agent，由当前会话执行基础审查。
 - `/story-review reader`（别名 `/读者审读`、`/审查 读者`，口令「读者审读」「读者视角」「多读者」「读者团」）→ 读者视角审读，只作建议、不卡定稿；按下方「读者审读模式」执行，不走 Phase 0-4。
-- 未指定 → 默认 full，并在报告里写明最终实际执行模式。
+- 未指定 → 默认 full，并在报告开头用一句话说明这次实际是怎么审的（执行模式原文写进技术备注行）。
 
 > AI味 / 文字自然度这一维度只有文字审查员审（默认 `narrative-writer`；项目启用模型分工的 deslop 角色、即 `.claude/models/config.json` 里 `deslop.enabled` 为 true 且存在 `.claude/agents/deslop-reviewer.md` 时，Claude Code 改用 `deslop-reviewer`，避免写手模型自审），仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
 
@@ -47,22 +47,22 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 1. **确定请求模式**：解析用户输入中的 `full`、`lean`、`solo`、`reader`；`reader` 直接按上方「读者审读模式」执行，不进入本流程；其余未指定时目标模式为 `full`。
 2. **确认是否允许 spawn**：如果当前已经在子代理/Agent 内执行，不再递归 spawn，直接降级为 `solo`。
-3. **识别 ZCode 能力边界**：如果当前运行于 ZCode 且项目使用 `.zcode/`，ZCode 3.3.4 不执行项目/plugin custom agents；不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn，直接降级 `solo` 并报告 `Fallback: project custom agents unavailable -> solo`。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
+3. **识别 ZCode 能力边界**：如果当前运行于 ZCode 且项目使用 `.zcode/`，ZCode 3.3.4 不执行项目/plugin custom agents；不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn，直接降级 `solo`，技术备注行写 `Fallback: project custom agents unavailable -> solo`。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
 4. **检查核心 Agent 部署状态**（先识别当前运行时，只检查对应目录/registry；无法识别运行时才按 Claude → OpenCode → TRAE Code → WorkBuddy → Codex 的顺序探测，禁止拿其他端残留文件冒充已注册 agent）：
    - Claude Code 使用 `.claude/agents/`，OpenCode 使用 `.opencode/agents/`，TRAE Code 使用 `.trae/agents/`，WorkBuddy（CodeBuddy Code）项目模式使用 `.codebuddy/agents/`，Codex 使用 `.codex/agents/`。WorkBuddy plugin-only 模式不要求项目 `.codebuddy/agents/`：只有当前 Agent registry 真实返回所需的 `oh-story:{agent}` 才视为可用。
     - full 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`character-designer.md`、`narrative-writer.md`、`consistency-checker.md`；WorkBuddy plugin-only 模式为 registry 中对应的 4 个 `oh-story:*`；Codex 为同名 `.toml`
     - lean 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`consistency-checker.md`；WorkBuddy plugin-only 模式为 registry 中对应的 2 个 `oh-story:*`；Codex 为同名 `.toml`
     - 对每个必需 Agent 文件：
       - **Claude Code agent（`.claude/agents/`）**：读取 frontmatter，确认 `name:` 与 subagent_type 完全一致；frontmatter 缺失、不可解析或 name 不匹配时视为 malformed agent。
-      - **OpenCode agent（`.opencode/agents/`）**：文件名即 agent 名（OpenCode 不要求在 frontmatter 中写 `name:`），读取 frontmatter 确认 `mode: subagent` 和 `permission` 字段存在且可解析即可；frontmatter 缺失或不可解析视为 malformed。
+      - **OpenCode agent（`.opencode/agents/`）**：文件名即 agent 名（OpenCode 不要求在 frontmatter 中写 `name:`），读取 frontmatter 确认 `mode: subagent` 和权限字段存在且可解析即可（2.x 用复数 `permissions:` 规则列表，旧版用单数 `permission:` 映射，两种都认）；frontmatter 缺失或不可解析视为 malformed。
       - **TRAE Code agent（`.trae/agents/`）**：读取 YAML frontmatter，确认 `name`、`description` 存在，`name` 与文件名完全一致；`tools` / `disallowedTools` 如存在必须是逗号分隔字符串，不能沿用 Claude/OpenCode 的 YAML 数组或不受支持的模型名。frontmatter 缺失、不可解析或字段不匹配时视为 malformed。
       - **WorkBuddy 项目 agent（`.codebuddy/agents/`）**：读取 YAML frontmatter，确认 `name`、`description` 存在且 `name` 与文件名完全一致；`tools` / `disallowedTools` 如存在必须为逗号分隔字符串。项目模式调用内置 `Agent` 时传原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不用项目文件代替 registry 检查，只传 registry 真实列出的 `oh-story:{agent}`。
       - **Codex agent（`.codex/agents/`）**：文件名为 `{agent}.toml`，TOML 必须可解析，且包含 `name`、`description`、`developer_instructions`；`name` 必须与目标 agent 完全一致。
     - `agents_version` 与本版不一致不影响本步：照常检查下列 agent 文件结构并 spawn，只按顶部规则附带版本提示。文件缺失或 malformed 才降级。
-   - 如果项目模式所需任一文件缺失/malformed，或 WorkBuddy plugin-only 模式所需 registry 名不完整，**不要尝试 spawn 缺失/异常 Agent**；自动降级为 `solo`，并在报告开头写明：`Fallback: missing agents -> solo` 或 `Fallback: malformed agents -> solo`，列出问题文件/registry 名，建议用户运行 `/story-setup`（WorkBuddy plugin 模式为 `/oh-story:story-setup`）。
-5. **确认子 Agent 工具可用**：如果当前环境没有可用的子 Agent 调用能力，直接降级为 `solo`，报告 `Fallback: agent tool unavailable -> solo`。TRAE Code 必须使用内置 `Agent` 智能体选择已注册的同名 subagent，不把 Claude 的 `subagent_type` 字段当成 TRAE 工具参数。WorkBuddy 必须使用其内置 `Agent`：项目模式传原始 `subagent_type`，plugin-only 模式只传 registry 实际返回的命名空间值。
-6. **运行时失败降级**：如果任何 Agent spawn 返回失败、`subagent_type` / `agent_type` / TRAE 同名 subagent / WorkBuddy registry 精确名不可用、frontmatter/TOML 运行时解析失败或子 Agent 无法启动，停止继续 spawn，改用 `solo` 重新审查，并报告 `Fallback: spawn failed -> solo` 与失败的 agent 名；不要把部分成功的 Agent 结果当成 full/lean 结论。
-7. **确定实际模式**：报告中必须同时列出 `Requested Mode` 与 `Effective Mode`。
+   - 如果项目模式所需任一文件缺失/malformed，或 WorkBuddy plugin-only 模式所需 registry 名不完整，**不要尝试 spawn 缺失/异常 Agent**；自动降级为 `solo`，报告开头用一句白话告诉作者「审稿助手缺失或损坏，这次由我一个人审；运行 `/story-setup`（WorkBuddy plugin 模式为 `/oh-story:story-setup`）后可多视角审」，降级原因 `Fallback: missing agents -> solo` / `Fallback: malformed agents -> solo` 与问题文件/registry 名写进技术备注行。
+5. **确认子 Agent 工具可用**：如果当前环境没有可用的子 Agent 调用能力，直接降级为 `solo`，技术备注行写 `Fallback: agent tool unavailable -> solo`。TRAE Code 必须使用内置 `Agent` 智能体选择已注册的同名 subagent，不把 Claude 的 `subagent_type` 字段当成 TRAE 工具参数。WorkBuddy 必须使用其内置 `Agent`：项目模式传原始 `subagent_type`，plugin-only 模式只传 registry 实际返回的命名空间值。
+6. **运行时失败降级**：如果任何 Agent spawn 返回失败、`subagent_type` / OpenCode `agent` / `agent_type` / TRAE 同名 subagent / WorkBuddy registry 精确名不可用、frontmatter/TOML 运行时解析失败或子 Agent 无法启动，停止继续 spawn，改用 `solo` 重新审查，技术备注行写 `Fallback: spawn failed -> solo` 与失败的 agent 名；不要把部分成功的 Agent 结果当成 full/lean 结论。
+7. **确定实际模式**：`Requested Mode` 与 `Effective Mode` 都写进报告最后一行的技术备注。
 8. **禁止把 `.active-book` 当作平台来源**：`.active-book` 只表示当前书名/目录名，不代表目标平台。
 
 ---
@@ -71,16 +71,14 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 `story-review` 的核心审查标准必须始终可用。参考文件是增强资料，不是运行前提。
 
-### 报告元数据字段（必须逐字输出）
+### 报告面向作者（必须遵守）
 
-最终报告开头必须逐行输出以下英文 key，**不要翻译、不要改名、不要只输出中文同义词**。可以在英文 key 后追加中文说明，但 key 本身必须逐字出现，便于脚本和用户核对实际执行路径：
+报告写给作者：审了什么、哪里要改、为什么（用读者感受和故事后果说，附原文引用）、要作者拍板的事、下一步。reviewer 名、S1–S4、Gate、检测器类别名、脚本名、APPROVE/CONCERNS/REJECT、Findings 字段名不进正文；位置写「第 N 章「引文」」或「第 N 章第 M 段」。优先级换成白话：S1 → **必须改**，S2 → **建议改**，S3/S4 → **可以不改**。
 
-```md
-Requested Mode: full | lean | solo
-Effective Mode: full | lean | solo
-Fallback: none | project custom agents unavailable -> solo | missing agents -> solo | malformed agents -> solo | agent tool unavailable -> solo | spawn failed -> solo | subagent recursion guard -> solo
-Rubric: fanqie | qidian | zhihu | generic web-fiction
-Rubric Source: file | embedded fallback
+执行路径只写在报告最后一行「技术备注：」，其中以下英文 key 必须逐字出现（**不要翻译、不要改名**），便于脚本和用户核对实际执行路径：
+
+```text
+技术备注：Requested Mode: full | lean | solo · Effective Mode: full | lean | solo · Fallback: none | project custom agents unavailable -> solo | missing agents -> solo | malformed agents -> solo | agent tool unavailable -> solo | spawn failed -> solo | subagent recursion guard -> solo · Rubric: fanqie | qidian | zhihu | generic web-fiction · Rubric Source: file | embedded fallback[ · Files: {缺失或异常的 agent 文件}][ · Notice: {版本不匹配原文}]
 ```
 
 ### 参考资料解析顺序
@@ -117,7 +115,7 @@ Rubric Source: file | embedded fallback
 
 ### 内置审查基准包（路径不可读时必用）
 
-如果上述参考文件在当前项目中不可读，**不要把审查降级为无 rubric，也不要在报告里说“无法加载具体 rubric”后停止使用标准**。必须使用本节内置基准包，并报告：`Rubric Source: embedded fallback`。
+如果上述参考文件在当前项目中不可读，**不要把审查降级为无 rubric，也不要在报告里说“无法加载具体 rubric”后停止使用标准**。必须使用本节内置基准包，技术备注行写 `Rubric Source: embedded fallback`。
 
 通用网文内容 rubric：
 - 核心卖点：本章是否围绕明确卖点推进；看不出卖点至少 S2。
@@ -187,7 +185,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
    - 番茄小说 → 优先读取 `story-review/references/rubrics/fanqie.md`；不可读时使用内置番茄 fallback 摘要。
    - 起点 → 优先读取 `story-review/references/rubrics/qidian.md`；不可读时使用内置起点 fallback 摘要。
    - 知乎盐言 → 优先读取 `story-review/references/rubrics/zhihu.md`；不可读时使用内置知乎 fallback 摘要。
-   - 未识别平台 → 优先读取 `story-review/references/quality-rubric.md`；不可读时使用内置通用网文内容 rubric，并报告 `Rubric: generic web-fiction` 与 `Rubric Source: file | embedded fallback`。
+   - 未识别平台 → 优先读取 `story-review/references/quality-rubric.md`；不可读时使用内置通用网文内容 rubric，技术备注行写 `Rubric: generic web-fiction` 与 `Rubric Source: file | embedded fallback`。
 5. **形成审查基准包摘要**：把已加载的文件内容或内置 fallback 摘要压缩为 5-12 条审查标准，后续 solo 和子 Agent 都必须使用这份摘要。摘要必须保留一条句长标准：叙述默认是逗号长句，碎句和电报体与 AI 腔同级处理，不因「短」放行；中文正文范围还必须保留一条 `language=zh` 语言契约，不能在压缩 rubric 时删掉。
 6. **确定性预检（只报告，不修改）**：当审查范围包含本地正文文件路径时，运行本 skill 自带脚本：
    ```bash
@@ -222,7 +220,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
 
 ## 统一 Findings Schema（所有模式必须使用）
 
-所有 reviewer（包括 solo）输出问题时必须使用统一结构，方便综合排序。`location` 必须使用工具读取结果显示的原始文件行号；不要删除空行后重新编号。
+所有 reviewer（包括 solo）输出问题时必须使用统一结构，方便综合排序；它只在 reviewer 与综合裁决之间流转，给作者的报告按 Phase 4 / solo 模板转写成白话。`location` 必须使用工具读取结果显示的原始文件行号；不要删除空行后重新编号。
 
 对 `consistency` / `factual` / `causal` / `rule_boundary` 类 finding，`fix` 字段只写事实统一方向（例如“统一为左臂旧伤，并同步正文/设定中冲突处”或“需在 A/B 时间线中裁定一个来源”），不要写文学创作建议。
 
@@ -245,7 +243,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
 
 ## Phase 2：并行 Spawn Agent（full/lean 模式）
 
-使用当前运行时的子 Agent 工具并行调用（TRAE Code 用内置 `Agent` 智能体按 `.trae/agents/<name>.md` 的 `name` 选择下列同名 Subagent，不传 Claude 的 `subagent_type`；WorkBuddy 用内置 `Agent`，项目模式传原始 `subagent_type`，plugin-only 模式只传 registry 真实返回的 `oh-story:{agent}`；Codex 原生子代理使用 `agent_type`；Claude Code/OpenCode 兼容面使用 `subagent_type`；实际字段以当前 CLI 暴露的工具为准）。下方 `subagent_type: story-*` 标题只是 Claude/OpenCode/WorkBuddy 项目模式的名称示意；TRAE 按同名 Subagent 选择，WorkBuddy plugin-only 模式替换为 registry 返回的命名空间值。每个 Agent 不继承父对话上下文，prompt 必须自包含项目路径、审查范围、文件路径、必要摘录、审查基准包摘要、Rubric Source 和统一 Findings Schema。
+使用当前运行时的子 Agent 工具并行调用（TRAE Code 用内置 `Agent` 智能体按 `.trae/agents/<name>.md` 的 `name` 选择下列同名 Subagent，不传 Claude 的 `subagent_type`；WorkBuddy 用内置 `Agent`，项目模式传原始 `subagent_type`，plugin-only 模式只传 registry 真实返回的 `oh-story:{agent}`；Codex 原生子代理使用 `agent_type`；Claude Code 使用 `subagent_type`；OpenCode 2.x 使用 `subagent` 工具的 `agent` 参数，旧版使用 `subagent_type`；实际字段以当前 CLI 暴露的工具为准）。下方 `subagent_type: story-*` 标题只是 Claude/OpenCode/WorkBuddy 项目模式的名称示意；TRAE 按同名 Subagent 选择，WorkBuddy plugin-only 模式替换为 registry 返回的命名空间值。每个 Agent 不继承父对话上下文，prompt 必须自包含项目路径、审查范围、文件路径、必要摘录、审查基准包摘要、Rubric Source 和统一 Findings Schema。
 
 **调用规则**：执行 Phase 0 后，只有实际模式仍是 full/lean 时才 spawn。不要 spawn 缺失 Agent。
 
@@ -386,56 +384,42 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
 2. 合并去重：按 `severity` 排序（S1 > S2 > S3 > S4），同级内按影响范围排序。
 3. **可选事实核查**：如果审查内容涉及需要验证的外部事实（历史年代、地理方位、职业细节等），只有在 `Effective Mode` 仍为 `full`/`lean`、当前不是子 Agent、子 Agent 工具可用且当前运行时已部署 story-researcher（Claude `.claude/agents/story-researcher.md`、OpenCode `.opencode/agents/story-researcher.md`、TRAE Code `.trae/agents/story-researcher.md`、WorkBuddy 项目模式 `.codebuddy/agents/story-researcher.md`、Codex `.codex/agents/story-researcher.toml`）时，才可额外调用 `story-researcher` 搜索验证。TRAE Code 使用内置 `Agent` 按 `.trae/agents/story-researcher.md` 的名称选择该 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "story-researcher", ...)`，plugin-only 模式只在 registry 真实返回 `oh-story:story-researcher` 时使用该值。使用当前平台联网能力；若无联网工具，可转交只读 `browser-cdp` 流程，不调用不存在的 `WebFetch`。`solo`、missing/malformed/spawn failed 降级或子代理递归保护场景下不得 spawn，只能在报告中标记“需人工事实核查”。单纯 `agents_version` 不匹配不是本条的降级原因。
 4. **分歧呈现**：如果 reviewer 间有冲突意见，明确呈现分歧让用户裁决；不要自动妥协。
-5. 输出综合审查报告。报告必须列出实际模式、fallback 原因、使用的 rubric、Rubric Source、审查范围和证据不足项。
+5. 按「报告面向作者」输出综合审查报告：开头说明审查方式与范围，证据不足项写成作者能补的材料，reviewer 间分歧写进「需要你决定」，实际模式、fallback 原因、rubric 与 Rubric Source 只进技术备注行。
 
 ---
 
 ## Phase 4：输出报告（full / lean 模式）
 
-只有 `Effective Mode` 确实为 `full` 或 `lean` 时才使用本模板；如果 Phase 0 或运行时失败导致降级 `solo`，必须改用 solo 模式模板。
-
-注意：下列 `Requested Mode`、`Effective Mode`、`Fallback`、`Rubric`、`Rubric Source` 五个英文 key 必须逐字保留；不要改成“请求模式/实际模式/回退/评估标准”等中文 key。
+只有 `Effective Mode` 确实为 `full` 或 `lean` 时才使用本模板；如果 Phase 0 或运行时失败导致降级 `solo`，必须改用 solo 模式模板。lean 排除的视角写进「这次怎么审的」；full/lean 必需 reviewer 缺失或 spawn 失败时降级 solo，不在本模板里标「没审」后继续综合。
 
 ```md
-=== 故事审查报告 ===
-Requested Mode: full | lean
-Effective Mode: full | lean
-Fallback: none
-Rubric: fanqie | qidian | zhihu | generic web-fiction
-Rubric Source: file | embedded fallback
-审查范围: {章节/文件/批次}
+=== 《{书名}》{审查范围}审查 ===
+这次怎么审的：{结构、人物、文字、设定一致性四个视角分头看（文字视角由独立审查模型负责时注明） | 精简审：只看结构和设定一致性，文字是否自然没审}，按{番茄 | 起点 | 知乎盐言 | 通用网文}的标准。
 
-## Verdict Summary / 结论汇总
-- story-architect: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
-- character-designer: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
-- 文字审查（narrative-writer / deslop-reviewer）: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
-- consistency-checker: APPROVE / CONCERNS(n) / REJECT / NOT_RUN
+总体判断：{可以发 | 改完下面几处再发 | 这一章需要重写}——{一句话理由，用读者感受说}
 
-> `NOT_RUN` 只用于 lean 模式排除的 reviewer 或可选 reviewer；如果 full/lean 必需 reviewer 缺失或 spawn 失败，应降级 solo，而不是在 full/lean 报告中标记 NOT_RUN 后继续综合。
+## 必须改（{n} 处）
+1. 第{N}章「{原文引用}」
+   问题：{读者会怎么想、哪里读不通}
+   建议：{具体改法}
 
-## Severity Counts
-- S1: n
-- S2: n
-- S3: n
-- S4: n
+## 建议改（{n} 处）
+{同上格式}
 
-## 综合评定
-APPROVE(通过) / CONCERNS(有问题) / REJECT(需重写)
+## 可以不改（{n} 处）
+{一行一条：位置 + 问题 + 改法；风格微调也放这里}
 
-## 发现的问题
-{按统一 Findings Schema 或等价表格列出所有问题}
+## 需要你决定
+{审稿视角有分歧、或事实需要你裁定时，写成问题 + 选项 + 我的建议，例如「第12章写江晨左臂受伤、第15章写右臂，统一成哪边？建议左臂（第12章交代了伤的来历）」；没有就写"无"}
 
-## Agent 分歧（如有）
-{列出 reviewer 间不同意见和证据}
+## 没法判断的地方
+{缺哪份设定或大纲导致没法核对、需要人工查证的外部事实；没有就写"无"}
 
-## 证据不足 / 需补充
-{缺失设定、缺失大纲、无法核查事实等}
+## 下一批接着核对
+{仅分批审查：留到下一批回头看的问题 + 预计在哪几章兑现（与 state.md 的继承项一致）；否则删掉本节}
 
-## 修改建议
-{按 S1→S4 优先级排列}
-
-## 继承到下一批
-{仅分批审查填写：逐条列 location、issue、预计核查/兑现范围；无则写“无”}
+下一步：{例如「说"改第12章"，我按必须改的几处动手」「AI 味集中的段落可以说"去 AI 味"」}
+技术备注：Requested Mode: {full | lean} · Effective Mode: {full | lean} · Fallback: none · Rubric: {…} · Rubric Source: {file | embedded fallback}
 ```
 
 ---
@@ -455,48 +439,47 @@ solo 必须执行基础检查：
 2. 简单的设定一致性 grep（角色名、属性、关键设定、伏笔关键词）+ 推理型一致性检查（规则边界、设定层级、跨章因果链、可滥用漏洞、代价一致性）。
 3. AI 味与禁用词检查（优先读取 `story-review/references/banned-words.md` 与 `story-review/references/anti-ai-writing.md`，不可读时使用内置 AI 味 / 禁用词 fallback 速查）。
 4. 通用网文内容评分（优先读取 `story-review/references/quality-rubric.md`，不可读时使用内置通用网文内容 rubric）。
-5. 按统一 Findings Schema 输出简化版报告。
+5. 按统一 Findings Schema 整理问题，再按下方 solo 模板写给作者。
 
 ### solo 模式输出格式
 
-注意：下列 `Requested Mode`、`Effective Mode`、`Fallback`、`Rubric`、`Rubric Source` 五个英文 key 必须逐字保留；不要改成“请求模式/实际模式/回退/评估标准”等中文 key。
+solo 同样按「报告面向作者」写；基础检查的逐项结果合并成「格式与设定」一节，checklist 式的通过/不通过不进正文。
 
 ```md
-=== 故事审查报告（solo）===
-Requested Mode: {full | lean | solo}
-Effective Mode: solo
-Fallback: none | missing agents -> solo | malformed agents -> solo | agent tool unavailable -> solo | spawn failed -> solo | subagent recursion guard -> solo
-Rubric: fanqie | qidian | zhihu | generic web-fiction
-Rubric Source: file | embedded fallback
-审查范围: {章节/文件}
+=== 《{书名}》{审查范围}审查（单人审）===
+这次怎么审的：我一个人审{；原因一句话，如"审稿助手还没装，运行 /story-setup 后可以四个视角审"}，按{番茄 | 起点 | 知乎盐言 | 通用网文}的标准。
 
-## 基础检查结果
+总体判断：{可以发 | 改完下面几处再发 | 这一章需要重写}——{一句话理由}
 
-### 格式合规性
-- [{x| }] 段落按戏剧单元/镜头/一件事结束自然断开，非机械按字数切分；偶发稍长的完整推理/氛围/情绪链不算违规，通篇同阈值切段或碎成提纲才算：通过/不通过；证据：...
-- [{x| }] 主语/角色名节奏自然：段首能建立主语，段中有代词/省略，关键转折再点名；连续句/段无必要重复同一主角名才算主语过密：通过/不通过；证据：...
-- [{x| }] 无段间空行：通过/不通过；证据：...
-- [{x| }] 对话独立成行：通过/不通过；证据：...
-- [{x| }] 具体字数表达已确认统计正确且有叙事必要；不能确认时已改成非具体数字表达：通过/不通过；证据：...
-- 违规位置：{列出}
+## 格式与设定
+- 分段与人名节奏：{没问题 | 第N章第M段起……}
+- 空行与对话换行：{没问题 | ……}
+- 具体字数表达：{没问题 | 第N章「……」对不上或没必要}
+- 前后矛盾：{没发现 | 第N章「……」与第M章「……」矛盾}
+- 因果和规则漏洞：{没发现 | 规则边界、设定层级、跨章因果、可滥用漏洞或代价不一致的发现}
 
-> checklist 约定：`[x]` 只表示通过，`[ ]` 表示未通过；不得出现“`[x] ... 不通过`”这种矛盾写法。
+## 必须改（{n} 处）
+1. 第{N}章「{原文引用}」
+   问题：{读者会怎么想、哪里读不通}
+   建议：{具体改法}
 
-### 设定一致性（grep + 推理扫描）
-- 字面事实冲突：{列出发现的矛盾或证据不足}
-- 推理型一致性：{规则边界/设定层级/跨章因果/可滥用漏洞/代价一致性的发现；无则写“未发现”}
+## 建议改（{n} 处）
+{同上格式；AI 味与套话问题必须附原文}
 
-### AI 味 / 禁用词
-- {列出问题，必须附 evidence}
+## 可以不改（{n} 处）
+{一行一条}
 
-### Findings
-{按统一 Findings Schema 或等价表格列出，severity 必须是 S1/S2/S3/S4}
+## 需要你决定
+{问题 + 选项 + 我的建议；没有就写"无"}
 
-### 修改建议
-{按优先级排列}
+## 没法判断的地方
+{缺哪份设定或大纲导致没法核对、需要人工查证的外部事实；没有就写"无"}
 
-### 继承到下一批
-{仅分批审查填写：逐条列 location、issue、预计核查/兑现范围；无则写“无”}
+## 下一批接着核对
+{仅分批审查填写；否则删掉本节}
+
+下一步：{一句话}
+技术备注：Requested Mode: {full | lean | solo} · Effective Mode: solo · Fallback: {none | project custom agents unavailable -> solo | missing agents -> solo | malformed agents -> solo | agent tool unavailable -> solo | spawn failed -> solo | subagent recursion guard -> solo} · Rubric: {…} · Rubric Source: {file | embedded fallback}
 ```
 
 ---

@@ -115,6 +115,50 @@ function extractBookUrls(port) {
 }
 
 // ---------------------------------------------------------------------------
+// 渲染
+// ---------------------------------------------------------------------------
+
+/** rank-index 每个榜单展示前 10 名 */
+const RANK_SIZE = 10;
+
+/**
+ * 一个榜单的 Markdown。文件头带「数据质量」「问题摘要」：条目不足 10 条、作品页链接匹配不到一半时标出来。
+ * 榜首条目只有作者、其余条目只有题材，是页面本身的样子，不算问题。
+ */
+function renderRankFile(rt, entries, urls, now = RUN_CLOCK.utc, reportDate = RUN_CLOCK.localDate) {
+  const norm = (s) => (s || "").replace(/\s+/g, "");
+  const linkOf = (entry) => urls.find((u) => norm(u.title) === norm(entry.title));
+  const linked = entries.filter((e) => linkOf(e)).length;
+  const problems = [];
+  if (entries.length < RANK_SIZE) problems.push(`只解析到 ${entries.length} 条（每榜 ${RANK_SIZE} 条）`);
+  if (linked * 2 < entries.length) problems.push(`作品页链接只匹配到 ${linked} / ${entries.length} 条`);
+  const lines = [
+    `# 刺猬猫 · ${rt.label}`,
+    "",
+    `- 来源：${RANK_URL}`,
+    `- 抓取时间（UTC）：${now}`,
+    `- 报告日期（本地）：${reportDate}`,
+    `- 条目数：${entries.length}`,
+    `- 作品页链接：${linked} / ${entries.length}`,
+    `- 数据质量：${problems.length ? "[存在问题]" : "[OK]"}`,
+    `- 问题摘要：${problems.length ? problems.join("；") : "无"}`,
+    "",
+    "---",
+    "",
+  ];
+
+  for (const entry of entries) {
+    lines.push(`### #${entry.rank} ${entry.title}`);
+    const meta = [entry.author, entry.genre, entry.metric || ""].filter(Boolean).join(" · ");
+    if (meta) lines.push(`*${meta}*`);
+    const matched = linkOf(entry);
+    if (matched) lines.push(`[作品页](${matched.url})`);
+    lines.push("", "---", "");
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
 
@@ -183,51 +227,13 @@ function main() {
         continue;
       }
 
-      const norm = (s) => (s || "").replace(/\s+/g, "");
-      const linked = section.entries.filter((e) =>
-        urls.some((u) => norm(u.title) === norm(e.title))
-      ).length;
-      const lines = [
-        `# 刺猬猫 · ${rt.label}`,
-        "",
-        `- 来源：${RANK_URL}`,
-        `- 抓取时间（UTC）：${RUN_CLOCK.utc}`,
-        `- 报告日期（本地）：${RUN_CLOCK.localDate}`,
-        `- 条目数：${section.entries.length}`,
-        `- 作品页链接：${linked} / ${section.entries.length}`,
-        "",
-        "---",
-        "",
-      ];
-
-      for (const entry of section.entries) {
-        try {
-          lines.push(`### #${entry.rank} ${entry.title}`);
-          const meta = [
-            entry.author,
-            entry.genre,
-            entry.metric || "",
-          ].filter(Boolean).join(" · ");
-          if (meta) lines.push(`*${meta}*`);
-
-          // 按标题匹配书籍链接（归一后比对）
-          const matched = urls.find((u) => norm(u.title) === norm(entry.title));
-          if (matched) {
-            lines.push(`[作品页](${matched.url})`);
-          }
-
-          lines.push("", "---", "");
-        } catch (entryErr) {
-          console.error(`[ciweimao] ${rt.label} 条目处理出错（#${entry.rank} ${entry.title}）: ${entryErr.message}`);
-          lines.push("", "---", "");
-        }
-      }
+      const content = renderRankFile(rt, section.entries, urls);
 
       const date = RUN_CLOCK.localDate;
       const filename = `刺猬猫${rt.label}_${date}.md`;
       fs.mkdirSync(OUTDIR, { recursive: true });
       const filepath = path.join(OUTDIR, filename);
-      fs.writeFileSync(filepath, lines.join("\n"), "utf-8");
+      fs.writeFileSync(filepath, content, "utf-8");
       written++;
       console.log(`  ✓ ${rt.label}：${section.entries.length} 条 → ${filepath}`);
     } catch (rankErr) {
@@ -241,4 +247,4 @@ if (require.main === module) {
   runCli(main, "刺猬猫采集");
 }
 
-module.exports = { extractAllRanks, extractBookUrls };
+module.exports = { extractAllRanks, extractBookUrls, renderRankFile };

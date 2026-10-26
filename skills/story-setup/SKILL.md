@@ -1,6 +1,6 @@
 ---
 name: story-setup
-version: 1.7.0
+version: 1.8.0
 description: "网文写作工具集基础设施部署。为 Claude Code / OpenCode / Codex / ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix 提供内置适配；Web AI / 通用 Agent 可走 skills + AGENTS.md 文件模式。触发方式：/story-setup、$story-setup、「准备写书」「帮我搭一下环境」「配置写作项目」。"
 metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
@@ -21,9 +21,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 > 判据是「有没有 `SKILL.md`」：只看正在执行的 `SKILL.md` 同级的 `references/`。项目内 `.claude/skills/story-setup/`、`.codex/skills/story-setup/` 和 OpenCode 的 `skills/story-setup/` 只有 `references/agent-references/`、不含 `SKILL.md`，不会是执行目录，也不要拿它们核对。ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix / generic 的项目副本是整份 skill 拷贝、自带 `SKILL.md`，10 个子目录本就齐全，照常核对即可。
 
 1. 检查当前目录是否已部署过（存在 `.story-deployed`）
-   - `agents_version` 缺失、非整数或小于 `47` → 标记为待更新，继续执行当前部署
-   - `agents_version: 47` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
-   - `agents_version` 大于 `47` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
+   - `agents_version` 缺失、非整数或小于 `48` → 标记为待更新，继续执行当前部署
+   - `agents_version: 48` → 使用 AskUserQuestion 确认是否重新部署；提示里写明重新部署只用**当前本地 skill 包**刷新项目文件，要拿 skill 本身的新版本得先用固定 GitHub Release 资产重跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`，再回来重跑
+   - `agents_version` 大于 `48` → 当前 story-setup 比项目部署旧；停止以避免降级覆盖，提示先更新 oh-story-claudecode，不写任何部署文件
    - 同时读 `target_cli` 字段。**已部署项目以 sentinel 里的值为准**：非空时（逗号分隔的多端组合原样保留）跳过下面第 5-14 步的环境探测与选择，直接按这些端重新部署。只有字段缺失或为空，才回落到探测。用户明确要求增删目标端时，用 AskUserQuestion 在现有值基础上改，改完的值写回 sentinel。
 2. 检查是否有书名目录（包含 `追踪/` 子目录的目录，或用户自定义结构）
    - 有 → 识别为长篇项目，显示当前项目信息
@@ -34,7 +34,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 4. 检查 `.active-book` 文件是否存在
    - 存在 → 显示当前活跃书目
    - 不存在 → 跳过
-5. 检查 `opencode.json` 或 `.opencode/` 是否存在
+5. 检查 `opencode.json`、`opencode.jsonc` 或 `.opencode/` 是否存在
    - 存在 → 识别为 opencode 项目，`target_cli = opencode`
    - 不存在 → 跳过
 6. 检查 `.codex/`、`.codex/config.toml`、`.codex/agents/`、`.codex/hooks.json`、`AGENTS.md` 中的 Codex 段
@@ -63,7 +63,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 13. 如 `.claude/` 或 `CLAUDE.md`、OpenCode、Codex、ZCode、TRAE Code、WorkBuddy / CodeBuddy Code、OpenClaw、Reasonix、generic 标记同时存在 → 使用 AskUserQuestion 让用户选择目标环境（选项：Claude Code / OpenCode / Codex / ZCode / TRAE Code / WorkBuddy / CodeBuddy Code / OpenClaw / Reasonix / 通用 Web AI 或其他 Agent / 任意组合）
 14. 如九类标记都不存在（全新项目）→ 使用 AskUserQuestion 让用户选择目标环境
-   - 用户选择 opencode → `target_cli = opencode`，部署时创建 `opencode.json` 和 `.opencode/`
+   - 用户选择 opencode → `target_cli = opencode`，部署时创建 `.opencode/`
    - 用户选择 claude-code → 按现有逻辑处理
    - 用户选择 codex → `target_cli = codex`，部署时创建 `.codex/`
    - 用户选择 zcode → `target_cli = zcode`，部署时创建 `.zcode/`、合并根 `AGENTS.md`，不创建项目 custom agents
@@ -120,7 +120,6 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/references/opencode/plugin.ts` | `.opencode/plugins/story-hooks.ts` | story-setup managed | replace | TypeScript plugin file exists | target_cli 含 opencode |
 | `skills/story-setup/references/opencode/story_hook_core.js` | `.opencode/plugins/lib/story_hook_core.js` | story-setup managed | replace | Node syntax valid；与 ZCode 副本字节一致；被 story-hooks.ts import | target_cli 含 opencode |
 | `skills/story-setup/references/opencode/commands/` | `.opencode/commands/` | story-setup managed | replace | command 数量与当前 OpenCode 模板清单一致 | target_cli 含 opencode |
-| `skills/story-setup/references/opencode/opencode.json.patch` | merge into `opencode.json` | user+managed | merge by plugin/permission key | plugin entry registered | target_cli 含 opencode |
 | `skills/story-setup/references/agent-references/` | `skills/story-setup/references/agent-references/` | story-setup managed | replace | every reference resolves | target_cli 含 opencode |
 | `skills/story-setup/references/opencode/pre-commit.sh` | `.git/hooks/pre-commit` | user+managed | append or create | file exists and is executable；含 marker 块则替换块内容，不含则检测 exit 0 位置智能插入 | target_cli 含 opencode |
 | `skills/story-setup/references/codex/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains Codex story skill routing sections | target_cli 含 codex |
@@ -161,14 +160,16 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | canonical repository `skills/{browser-cdp,story*}/` | `skills/{browser-cdp,story*}/` | story-setup managed for 21 known skill names | replace known skill dirs only | `SKILL.md` 名字集与中文主包 21 Skill 清单一致；OpenClaw 分支校验兼容 frontmatter | target_cli 含 openclaw 或 generic 或 reasonix |
 | `skills/story-setup/references/agent-references/` | `skills/story-setup/references/agent-references/` | story-setup managed | replace via full skill copy | every reference resolves | target_cli 含 openclaw 或 generic 或 reasonix |
 
-### opencode.json 合并算法
+### OpenCode 部署前置（先于上表任何 OpenCode 行执行）
 
-部署 `opencode.json.patch` 时按以下规则合并：
+只适配 OpenCode 2.x：插件按 2.x 插件 API（default export `{ id, setup }`）编写，1.x 的插件 loader 读不了 `story-hooks.ts`，只记一行日志后照常运行，写正文守卫整场缺席；1.x 也不认 agents 的 `permissions:` 规则，只读 agent（`chapter-extractor`、`consistency-checker`、`revision-governor`、`story-explorer`）会拿到写文件与 shell 权限。版本门 fail-closed。
 
-1. 读取现有 `opencode.json`（如存在），解析 JSON
-2. 合并 `plugin` 数组：将 `./.opencode/plugins/story-hooks.ts` 加入数组，去重
-3. 保留用户已有的其他配置字段（`permission`、`model`、`provider` 等），不覆盖
-4. 写入合并后的 `opencode.json`
+1. 运行 `opencode --version`，取第一个 `主.次.修` 版本号：
+   - 主版本 ≥ 2 → 继续
+   - 主版本 < 2 → 停止 OpenCode 部署（其它 target 照常），告诉用户先升级到 2.x（先 `npm rm -g opencode-ai`，再 `npm i -g @opencode/cli` 或 `curl -fsSL https://opencode.ai/v2/install | bash`），装好后重跑 story-setup
+   - 命令不可用或解析不出版本 → 同样停止 OpenCode 部署，请用户在自己的终端运行 `opencode --version`：用户在对话里确认显示 2.x 后才继续；是 1.x 按上一条处理
+   - 停止 OpenCode 部署时：target 只有 opencode 则不写、不更新 `.story-deployed`（已有的原样保留，不抬 `agents_version`），也不写任何 OpenCode 文件；多 target 时其它端照常部署，写入的 `target_cli` 不含 opencode；安装报告用白话说明 OpenCode 这次没装上及原因（如版本太旧），升级后重新部署时把它加回来
+2. 插件由 OpenCode 自动发现 `.opencode/plugins/*.ts` 加载，不写 `opencode.json`。项目根已有 `opencode.json` / `opencode.jsonc` 时，从其 `plugin`、`plugins` 数组删掉指向 `.opencode/plugins/story-hooks.ts` 的项（旧版部署留下；2.x 丢弃单文件路径并告警），数组删空就删掉该键，其余内容（`permission`、`model`、`provider` 等）原样保留。
 
 ### Step 2：部署 CLAUDE.md
 
@@ -245,7 +246,7 @@ OpenCode agents 部署是 `replace`，会覆盖上次写入的 `model:`。所以
 
 ##### Step 2：获取模型列表
 
-优先执行 `opencode models --verbose`，它输出含 cost（input/output/cache 单价）、context、capabilities 的 metadata；不可用或解析失败时回退到 `opencode models` 纯文本（每行 `provider/model`）。两者都用 60000ms（60 秒）超时，因为首次运行需加载 models.dev 缓存。
+优先在项目根执行 `opencode api model.list -H "x-opencode-directory:<项目根绝对路径>"`，输出 JSON：`data[]` 每项的 `providerID/id` 即模型 ID，`cost[]` 为每百万 token 的 input/output 单价（空数组即无成本数据），`limit.context` 为上下文长度；不可用或解析失败时回退到 `opencode models` 纯文本（每行 `provider/model`）。两者都用 60000ms（60 秒）超时，因为首次运行需加载 models.dev 缓存。
 
 - 成功 → 进入「模型分级」
 - 超时 → 重试一次（缓存可能未预热）；仍然超时则按「保留已有模型配置」缓存回填已有 `model:`、跳过自动配置，在安装报告中输出手动配置指南
@@ -253,9 +254,9 @@ OpenCode agents 部署是 `replace`，会覆盖上次写入的 `model:`。所以
 
 ##### Step 3：模型分级
 
-**优先按成本分级（有 `--verbose` 时）**：按每模型实际 cost 从低到高分档——低端取最便宜/免费档、中端取中价档、高端取最贵或上下文/能力最强档。免费模型按真实 cost=0 归低端，**不按名字里的营销词**（如 `nemotron-3-ultra-free` 名含 `ultra` 但 cost=0，应归低端）。无 cost 数据的模型也据此进入候选，不被丢弃。
+**优先按成本分级（有 `model.list` 成本数据时）**：按每模型实际 cost 从低到高分档——低端取最便宜/免费档、中端取中价档、高端取最贵或上下文/能力最强档。免费模型按真实 cost=0 归低端，**不按名字里的营销词**（如 `nemotron-3-ultra-free` 名含 `ultra` 但 cost=0，应归低端）。无 cost 数据的模型也据此进入候选，不被丢弃。
 
-**回退按关键词分级（无 `--verbose` 或无 cost 时）**：按模型 ID 中最后一个 `/` 之后的模型名按 `-`、`.`、`_` 分割为段，逐段精确匹配关键词（不区分大小写）。例如 `minimax-m3` 拆为 `[minimax, m3]`，不匹配 `mini` 也不匹配 `max`；`claude-haiku-4.5` 拆为 `[claude, haiku, 4, 5]`，匹配 `haiku`。关键词分级是启发式，安装报告中标注 `分级依据：关键词（heuristic）`。
+**回退按关键词分级（只有 `opencode models` 或无 cost 时）**：按模型 ID 中最后一个 `/` 之后的模型名按 `-`、`.`、`_` 分割为段，逐段精确匹配关键词（不区分大小写）。例如 `minimax-m3` 拆为 `[minimax, m3]`，不匹配 `mini` 也不匹配 `max`；`claude-haiku-4.5` 拆为 `[claude, haiku, 4, 5]`，匹配 `haiku`。关键词分级是启发式，安装报告中标注 `分级依据：关键词（heuristic）`。
 
 | 等级 | 匹配关键词 | 对应 Agent |
 |------|-----------|-----------|
@@ -316,7 +317,7 @@ OpenCode agents 部署是 `replace`，会覆盖上次写入的 `model:`。所以
 
 ##### Step 5：写入 model 字段
 
-对应用户选择的 agent 文件（`.opencode/agents/*.md`，由部署清单中 OpenCode agents 部署步骤在此步骤之前已部署），在 frontmatter 末尾、closing `---` 之前，以**零缩进的顶层字段**插入 `model:`（不要插进 `permission:` 等多行 map 的缩进块内部）。值含 YAML 特殊字符时加引号，确保不破坏 frontmatter：
+对应用户选择的 agent 文件（`.opencode/agents/*.md`，由部署清单中 OpenCode agents 部署步骤在此步骤之前已部署），在 frontmatter 末尾、closing `---` 之前，以**零缩进的顶层字段**插入 `model:`（不要插进 `permission:` 映射或 `permissions:` 规则列表等多行块的缩进内部）。值含 YAML 特殊字符时加引号，确保不破坏 frontmatter：
 
 ```yaml
 ---
@@ -511,15 +512,15 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 - 写入以下字段（YAML `key: value` 格式，hook 用 `references/templates/hooks/lib/sentinel.sh` 读取）：
   ```
   deployed_at: <date -u +"%Y-%m-%dT%H:%M:%SZ">
-  agents_version: 47
-  setup_skill_version: 1.7.0
+  agents_version: 48
+  setup_skill_version: 1.8.0
   target_cli: claude-code（或 opencode、codex、zcode、trae、workbuddy、openclaw、reasonix、generic，或其任意组合）
   resolver_strategy: project-local-skill-reference
   references_dir: .claude/skills/story-setup/references/agent-references（Codex 写 .codex/skills/...；ZCode 写 .zcode/skills/...；TRAE 写 .trae/skills/...；WorkBuddy 写 .codebuddy/skills/...；OpenClaw / Reasonix / generic 写 skills/...；多端用逗号分隔）
   ```
 - 此文件供 session-start.sh 和写作 skill 检测部署状态，避免重复提示
 - target_cli 含 claude-code 时，同时创建一次性标记文件 `.claude/.agents-pending-restart`（空文件即可）。session-start.sh 在下一个会话启动时据此确认 agents 已随新会话注册，并自动删除该标记——用来向用户确认「重启已生效」。ZCode 不创建该标记，因为它不部署项目 agents。
-- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `47`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `47` 时已在 Phase 1 停止，不得降级覆盖
+- 如果 `.story-deployed` 已存在但 `agents_version` 缺失、非整数或小于 `48`，按本次流程更新 hooks/agents/rules/reference bundle（具体变更见 `UPGRADING.md`）；大于 `48` 时已在 Phase 1 停止，不得降级覆盖
 
 ## Phase 3：验证安装
 
@@ -536,11 +537,11 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
    - 检查 `.claude/skills/story-setup/references/agent-references/` 下 reference 文件完整
    - 检查所有 `story-setup/references/agent-references/<file>.md` 都能解析到 deployed bundle
 5. 验证部署标记：
-   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 47`、`setup_skill_version: 1.7.0`、`target_cli`、`resolver_strategy`、`references_dir`
+   - 检查 `.story-deployed` 是否存在且包含时间戳、`agents_version: 48`、`setup_skill_version: 1.8.0`、`target_cli`、`resolver_strategy`、`references_dir`
 6. 输出安装报告：
    - 列出所有已部署的文件
    - 列出需要注意的事项（如已有配置已合并）
-    - **⚠️ 重启提示（必须醒目输出）**：本次部署写入了 `.claude/agents/`，但这些 custom agent 只在「会话启动」时才会被 Claude Code 注册成 `subagent_type`。**请新开一个 Claude Code 会话再开始写作**，否则当前会话里 story-review / story-long-write 等想 spawn `story-architect`、`narrative-writer` 等时会拿到「subagent_type 不可用」并降级 solo（单视角，失去多 agent 协作）。判断是否生效：新会话里跑 `/story-review`，报告头若是 `Effective Mode: full/lean` 即注册成功；若是 `Fallback: ... -> solo` 说明还在旧会话或未注册。
+    - **⚠️ 重启提示（必须醒目输出）**：本次部署写入了 `.claude/agents/`，但这些 custom agent 只在「会话启动」时才会被 Claude Code 注册成 `subagent_type`。**请新开一个 Claude Code 会话再开始写作**，否则当前会话里 story-review / story-long-write 等想 spawn `story-architect`、`narrative-writer` 等时会拿到「subagent_type 不可用」并降级 solo（单视角，失去多 agent 协作）。判断是否生效：新会话里跑 `/story-review`，报告末行「技术备注」里若是 `Effective Mode: full/lean` 即注册成功；若是 `Fallback: ... -> solo` 说明还在旧会话或未注册。
     - 重启后即可使用 `/story-long-write` 或 `/story-short-write`
     - 如果执行了「配置 OpenCode Agent 模型」，输出 Agent 模型配置摘要：
       ```
@@ -564,16 +565,17 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
       手动配置方法：编辑 .opencode/agents/{agent名}.md，在 frontmatter 中添加：
         model: provider/model-id
 
-      可用模型列表与成本可通过 opencode models --verbose 查看（输出含每模型 cost/context）。
+      可用模型列表可通过 opencode models 查看；成本与上下文长度见 opencode api model.list 的 cost/limit 字段。
       模型库与定价见 OpenCode 官方模型源 https://models.dev/。
       ```
 7. 验证 opencode 部署（仅当 target_cli 含 opencode 时）：
-    - 检查 `.opencode/agents/` 下的 8 个 agent 定义文件是否存在，且 frontmatter 包含 `mode: subagent` 和 `permission` 字段
+    - 检查 `.opencode/agents/` 下的 8 个 agent 定义文件是否存在，且 frontmatter 包含 `mode: subagent` 和权限声明（2.x 原生 `permissions:` 规则列表，或由 2.x legacy 迁移读取的 `permission:` 映射）
     - 检查 `.opencode/plugins/story-hooks.ts` 是否存在
-    - 检查 `.opencode/plugins/lib/story_hook_core.js` 存在且 `node --check` 通过（story-hooks.ts import 之，与 `.zcode` 副本字节一致的共享写正文守卫核；置于 `lib/` 子目录以避开 OpenCode 单层 `.opencode/plugins/*.js` 插件自动发现）
+    - 检查 `.opencode/plugins/lib/story_hook_core.js` 存在且 `node --check` 通过（story-hooks.ts import 之，与 `.zcode` 副本字节一致的共享写正文守卫核；置于 `lib/` 子目录以避开 OpenCode 对 `.opencode/plugins/*.js` 的插件自动发现，`lib/` 里不得放 `index.*` / `server.*` / `tui.*` / `rpc.*`）
     - 检查 `.opencode/commands/` 下的 command 名字集与当前 OpenCode 模板清单一致
     - 检查 `skills/story-setup/references/agent-references/` 下 reference 文件完整且数量与源目录一致
-    - 检查 `opencode.json` 的 `plugin` 数组是否包含 story-hooks 条目
+    - 检查 `opencode.json` / `opencode.jsonc`（如有）的 `plugin`、`plugins` 数组不再含指向 story-hooks.ts 的项
+    - `opencode` 可用时在项目根执行 `opencode api plugin.list -H "x-opencode-directory:<项目根绝对路径>"`，确认 `id` 为 `oh-story.story-hooks` 的条目 `state.status` 为 `active`（首次请求可能返回空列表，隔几秒重试）
     - 检查 `.git/hooks/pre-commit` 是否存在且有执行权限（Windows 上跳过执行权限检查）
     - 检查 `.opencode/agents/` 下 agent 文件 frontmatter 可被 YAML 解析、`model:`（如有配置）是合法顶层标量，而非仅 grep 到 `model:` 子串
 8. 验证 Codex 部署（仅当 target_cli 含 codex 时）：
@@ -605,7 +607,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
     - 检查 `.codebuddy/agents/` 的受管名字集精确等于「TRAE / WorkBuddy 固定 Agent 名册」列出的通用 8 名 + WorkBuddy 数据物理 2 名（共 10 张），总数不超过 19，名称唯一，frontmatter 只使用 CodeBuddy 支持字段；pooled runner 的每个逻辑角色都必须唯一映射到 Skill 内真实卡。新会话中分别实调基础 Agent、`story-data-fetcher` 和 pooled runner 的一个逻辑角色，成功后才允许报告多 Agent 模式生效；设置页“全部开启”不能代替 Task registry 证据
     - 检查 `.codebuddy/rules/` 和唯一生效 memory 文件的管理块；项目原有 `AGENTS.md` 内容必须仍被直接读取或通过 `@AGENTS.md` / `@../AGENTS.md` 导入，模板条件占位不得残留；根与 `.codebuddy/` 两份 CODEBUDDY 同时存在时必须报告冲突而不是猜优先级
     - 检查 `.codebuddy/settings.json` 保留用户字段，且按互斥分支验证：project-local 模式当前 4 个 oh-story Hook 注册各恰好一次，事件只有 `SessionStart` / `PreToolUse` / `PostToolUse`；plugin 模式项目注册为零。运行 helper 两次必须字节幂等
-    - 用 fixture 调用 SessionStart（含 agents_version 46/47/48）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
+    - 用 fixture 调用 SessionStart（含 agents_version 47/48/49）、PreToolUse deny/allow/commit、PostToolUse；确认 healthy no-op stdout 为空、所有输出都有 `continue: true`，拒绝与提醒字段符合 CodeBuddy schema，路径逃逸不能绕过项目根
     - 检查 plugin manifest 不含与 Skills 同名的 `commands` 字段，所有自定义路径以 `./` 开头；可用时运行真实 `codebuddy plugin validate .`。安装报告明确 project `/story-*` 与 plugin `/oh-story:story-*` 的差异、唯一 Hook 来源、PowerShell 硬门边界，并提示新开会话
 12. 验证 OpenClaw 部署（仅当 target_cli 含 openclaw 时）：
     - 检查 `AGENTS.md` 含 OpenClaw story skill routing sections
@@ -669,9 +671,9 @@ CodeBuddy 把根 `CODEBUDDY.md` 与 `.codebuddy/CODEBUDDY.md` 作为项目 memor
 ## 重新部署
 
 - `.story-deployed` 不存在 → 全新安装，Phase 2 全部执行
-- `.story-deployed` 存在且 `agents_version: 47` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
-- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `47` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
-- `.story-deployed` 存在且 `agents_version` 大于 `47` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
+- `.story-deployed` 存在且 `agents_version: 48` → 提示已部署，AskUserQuestion 确认是否重新部署；提示里写明重新部署只用当前本地 skill 包刷新项目文件，skill 本身的正式更新走固定 GitHub Release 资产：`npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`
+- `.story-deployed` 存在但 `agents_version` 缺失、非整数或小于 `48` → 提示需要更新，重新执行 Phase 2 刷新 story-setup 管理的 agents/hooks/rules/reference bundle，CLAUDE.md / AGENTS.md / CODEBUDDY.md / settings.local.json / .codex/hooks.json / .zcode/config.json / .trae/hooks.json / .codebuddy/settings.json 走合并策略，TRAE 管理资产先备份，WorkBuddy hooks 重判 plugin/project 互斥
+- `.story-deployed` 存在且 `agents_version` 大于 `48` → 当前 skill 版本过旧，停止并提示先更新 oh-story-claudecode；不覆盖项目中的更新部署
 
 ---
 

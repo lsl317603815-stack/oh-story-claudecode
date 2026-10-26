@@ -14,13 +14,13 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 用户意图 | 关键词示例 | 路由到 |
 |---|---|---|
 | 英文/海外写作 | 英文小说、英文短故事、英语连载、中文小说改英文、中文改英文、native 化、海外平台、海外发行 | **优先** `/story-globalize`；缺失时按下方语言门停止 |
-| 写长篇 | 开书、写大纲、长篇、连载 | `/story-long-write` |
+| 写长篇 | 讨论长篇结构、规划剧情、开书、写大纲、补细纲、长篇、连载 | `/story-long-write` |
 | 作者/货架文风蒸馏 | 作者文风蒸馏、货架文风蒸馏、切换写作方法、A分支、B分支 | `/story-long-write` 的文风蒸馏流程；默认只处理方法产物，不写正文 |
 | 写短篇 | 短篇、盐言、一万字 | `/story-short-write` |
 | 长篇拆文 | 拆文、分析这本书、黄金三章 | `/story-long-analyze` |
 | 短篇拆文 | 拆短篇、分析这个故事 | `/story-short-analyze` |
-| 长篇扫榜 | 长篇排行、什么火、起点/番茄/晋江 | `/story-long-scan` |
-| 选题决策 | 写什么能爆、帮我选题、选题方向 | `/story-long-scan` |
+| 长篇扫榜 | 长篇排行、什么火、新书在冒什么、起点/番茄/晋江/七猫长篇 | `/story-long-scan` |
+| 选题决策 | 写什么能爆、帮我选题、选题方向 | 长篇 `/story-long-scan`，短篇 `/story-short-scan`；没说篇幅先问一句 |
 | 短篇扫榜 | 短篇排行、知乎盐言排行 | `/story-short-scan` |
 | 去 AI 味 | 去 AI 味、太 AI、去味 | `/story-deslop` |
 | 审查稿件 | 审查、审稿、帮我审一下、一致性检查、看看有没有问题 | `/story-review` |
@@ -40,9 +40,13 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 查故事资料 | 查角色、查伏笔、查进度、查设定、什么状态、写到哪了 | spawn `story-explorer` agent（结构化 prompt：`项目目录：{dir}\n查询类型：{根据意图选择}\n查询参数：{用户查询}`）；agent 不可用时见下方「查询降级」 |
 | 查资料 | 查资料、帮我查资料、调研、搜索一下、搜一下 | spawn `story-researcher` agent；agent 不可用时见下方「查询降级」 |
 
+### 裸调用与新手
+
+只说 `/story`、看不出意图时，不贴路由表，给四个白话选项：「开一本长篇或接着写」→ `/story-long-write`；「写一篇短篇」→ `/story-short-write`；「把一章改得不那么 AI」→ `/story-deslop`；「更多（拆书、扫榜、导入旧稿、审稿、封面、剧本、有声书）」→ 再列进阶项。还没部署过（项目根没有 `.story-deployed`）时先建议 `/story-setup`，并说明部署完要新开一个会话再开始，写作助手才会生效。
+
 ### 导入续写顺序
 
-用户问"导入续写先 setup 还是 import"时，直接回答：**推荐先 `/story-setup`，新开/刷新会话后 `/story-import`，最后 `/story-long-write 日更` 或 `/story-long-write 写第N章`**。如果用户已经直接触发 `/story-import`，按 story-import 自带环境检测继续：未 setup 时让用户选择先去 setup 或继续串行导入。
+用户问"导入续写先 setup 还是 import"时，直接回答：**推荐先 `/story-setup`，新开/刷新会话后 `/story-import`，最后 `/story-long-write 日更` 或 `/story-long-write 写第N章`（N 是导入后的下一章）；短篇导入后用 `/story-short-write` 先补完构思**。如果用户已经直接触发 `/story-import`，按 story-import 自带环境检测继续：未 setup 时让用户选择先去 setup 或继续串行导入。
 
 ## Dashboard 工作台
 
@@ -68,9 +72,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - 长篇目录结构：目录内含 `正文/`、`大纲/`、`设定/` 或 `追踪/` 任一普通子目录。
 - 短篇单文件结构：目录内含普通文件 `正文.md`，并同时含 `小节大纲.md` 或 `设定.md`。
 
-符号链接不作为项目标记，只有单个 `正文.md` 的普通资料目录也不会被误认。浏览器可编辑
-`.md`、`.txt`、`.json`、`.yaml`、`.yml`、`.toml`，保存或确认删除前用修改时间防止
-误操作外部更新。
+工作台的识别规则只管浏览，与下方「书目录判定」不同。符号链接不作为项目标记，只有单个 `正文.md` 的普通资料目录也不会被误认。浏览器可编辑
+`.md`、`.txt`、`.json`、`.yaml`、`.yml`、`.toml`，保存或确认删除时核对文件内容版本，
+避免覆盖外部修改。
 
 停止服务时终止对应的 Node 长运行进程即可。若用户只问用法，不要替他启动；给出
 `/story dashboard` / `$story dashboard` 两种平台对应入口。
@@ -85,29 +89,59 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 6. 如果无法匹配，询问用户想做什么（从上表中选择）。
 7. 如果用户说"我想写小说"但未指定长篇/短篇，询问篇幅类型后再路由。
 
+## 查询类型
+
+「查故事资料」交 `story-explorer` 时，`查询类型` 按下表选；查询参数写用户问到的角色名、伏笔、设定关键词或章节范围，`项目目录` 用书目录（见「书目录判定」）的绝对路径：
+
+| 用户在问 | 查询类型 |
+|---|---|
+| 某角色现在什么状态 | `character_status` |
+| 某角色在哪几章出场 | `character_appearances` |
+| 某条伏笔的情况 | `foreshadow_status` |
+| 还有哪些伏笔、哪些没收 | `foreshadow_list` |
+| 某个设定怎么定的 | `setting_detail` |
+| 某个设定在哪些章出现过 | `setting_appearances` |
+| 第 X 到 Y 章发生了什么 | `timeline`（查询参数默认带 `perspective: reader`；作者明确问幕后真相时用 `author`） |
+| 写到哪了 | `progress` |
+| 两个角色现在什么关系 | `relationship` |
+
+一句话含多类查询时，分次调用或只选最主要的一类；问的是创作建议而不是查已有内容时，不交给它，主会话直接答。
+
 ## 查询降级
 
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 并提示重新运行 `/story-setup` 后新开会话；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
 
 「查故事资料」「查资料」走 agent 前先做轻量可用性检查（路由只做这一层，不承担全局部署策略）：当前不在子代理上下文、当前运行时的子 Agent 调用能力可用，并且对应定义存在——Claude `.claude/agents/{story-explorer|story-researcher}.md`、OpenCode `.opencode/agents/{story-explorer|story-researcher}.md`、TRAE Code `.trae/agents/{story-explorer|story-researcher}.md`、WorkBuddy 项目模式 `.codebuddy/agents/{story-explorer|story-researcher}.md`、Codex `.codex/agents/{story-explorer|story-researcher}.toml`——才可尝试调用。TRAE Code 使用内置 `Agent` 智能体按 `.trae/agents/<name>.md` 的名称选择同名 Subagent 并传入路由表中的结构化 prompt，不把 `subagent_type` 当成 TRAE 参数；Claude/OpenCode 使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用内置 `Agent` 与原始 `subagent_type`；plugin-only 模式只有当前 Agent registry 真实返回 `oh-story:story-explorer` / `oh-story:story-researcher` 时才使用对应精确值，不由 plugin manifest 或磁盘文件推测已注册。任一条件不满足、TRAE/WorkBuddy/Codex 未暴露对应 registry，或 Codex 返回 `unknown agent_type`，则降级，不硬失败：
 
 - `story-explorer` 不可用 → 主线程直接用 Read/Grep 从项目文件检索（角色状态/伏笔/进度/设定），回答前标注 `Fallback: agent unavailable -> direct lookup`；项目尚未部署时提示先 `/story-setup`（Codex 中用 `$story-setup`，WorkBuddy plugin-only 模式用 `/oh-story:story-setup`）。
 - `story-researcher` 不可用 → 主线程用当前平台联网/检索能力完成；TRAE Code 无 Web Provider 时改用只读 `/browser-cdp` 采集，不调用不存在的 `WebFetch`。同样标注 `Fallback: agent unavailable -> direct lookup`。
 
+## 书目录判定
+
+本文件的"书目录""当前书"均按此查找：
+
+1. 项目根有 `.active-book` 且指向项目内一个存在的目录 → 就是它。
+2. 否则在项目根往下最多 4 层找，跳过以 `.` 开头的目录、`node_modules`、`拆文库/`、`对标/`：
+   - 含 `追踪/`、`正文/` 子目录或 `正文.md` 文件的目录（与写作 hook 同一口径）；
+   - 刚定完方向、还没有正文的长篇：含 `设定/题材定位.md` 的目录；
+   - 构思中、还没有正文的短篇：同时有 `设定.md` 与 `小节大纲.md` 的目录。
+   找到多本又没有 `.active-book` 时，需要"当前书"就问作者是哪本（做法同「多书切换」）。
+3. 篇幅：有 `正文/` 或 `设定/` 子目录的是长篇，有 `正文.md` 或 `设定.md` 文件的是短篇。
+
 ## 项目状态感知
 
 路由前先检查当前项目状态：
 
-- **无项目目录**（没有包含 `追踪/` 或 `设定/` 的书名目录）：
+- **无项目目录**（按「书目录判定」找不到任何书目录）：
   - 如果用户要写作，下一步是先运行 `/story-setup` 初始化环境（Codex 中用 `$story-setup`）
-  - 如果用户要扫榜/拆文，直接路由
+  - 如果用户只讨论结构、选题，或要扫榜/拆文，直接路由
 - **已有项目**：检查 `.story-deployed` 标记，如未部署则先运行 `/story-setup`（Codex 中用 `$story-setup`）
 
 ## 多书切换
 
 用户想切换或查看在写的书时（一个项目可同时有多本）：
 
-1. 在项目根查找所有书目录：包含 `追踪/` 或 `设定/` 子目录的目录（含 `长篇/`、`短篇/` 下的子目录）。
+1. 按「书目录判定」第 2 条列出所有书目录（含 `长篇/`、`短篇/` 下的子目录）。
 2. 列出书名，并标出当前 `.active-book` 指向的那本。
 3. 让用户选择，把所选书的相对路径写入项目根 `.active-book`（覆盖原内容）。
 4. 只发现一本时直接确认为活跃书，无需询问。
@@ -116,12 +150,12 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 用户问"有没有新版本""检查更新""升级"时执行。**只通知，更不更新由用户定，不自动安装。**
 
-1. **当前版本**：读本 skill 同目录的 `VERSION` 文件；缺失则视为未知。
+1. **当前版本**：读本 skill 同目录的 `VERSION` 文件；缺失则视为未知。本 skill 在写作项目里（如项目下的 `skills/`、`.agents/skills/`）时，读到的是项目副本的版本。
 2. **最新版本**：优先 `gh release view --json tagName,name,url -R lsl317603815-stack/oh-story-claudecode` 取 `tagName`；无 gh 用 `curl -fsSL --max-time 5 https://api.github.com/repos/lsl317603815-stack/oh-story-claudecode/releases/latest` 取 `.tag_name`（jq 或 grep）。查不到 → 告知"暂时拉不到最新版本，可手动看 [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)"，不报错。
-3. **比较**：去掉 `v` 前缀按语义版本比（major.minor.patch）。`gh release` 默认取 latest 稳定版，不含 pre-release。
+3. **比较**：当前版本已知时，去掉 `v` 前缀按语义版本比（major.minor.patch）；未知时只展示最新稳定版，不判定是否已最新。`gh release` 默认取 latest 稳定版，不含 pre-release。
 4. **告知**：
    - 已最新 → 「已是最新版 vX.Y.Z」。
-   - 有新版 → 列出 当前 vA → 最新 vB + [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)/[CHANGELOG](https://github.com/lsl317603815-stack/oh-story-claudecode/blob/main/CHANGELOG.md)（能拿到 release notes 就附本次要点），再用当前平台交互能力问「现在更新吗？」（Claude 可用 `AskUserQuestion`；TRAE Code 直接在主会话提问并等待回复）：
+   - 有新版或当前版本未知 → 列出 当前 vA（未知则写「未知」）→ 最新 vB + [Releases](https://github.com/lsl317603815-stack/oh-story-claudecode/releases)/[CHANGELOG](https://github.com/lsl317603815-stack/oh-story-claudecode/blob/main/CHANGELOG.md)（能拿到 release notes 就附本次要点），再用当前平台交互能力问「现在更新吗？」（Claude 可用 `AskUserQuestion`；TRAE Code 直接在主会话提问并等待回复）：
      - 选更新 → 跑 `npx skills add https://github.com/lsl317603815-stack/oh-story-claudecode/releases/latest/download/oh-story-release.zip -y -g`（`-g` 全局，去掉则只更当前目录）。这是唯一正式自动更新入口，不得改用裸仓库或浮动 `main`；完成后提示：已部署过的项目在项目根重跑 `/story-setup`（Codex 中用 `$story-setup`）同步 hooks/agents/references，并**新开一个会话**让 agents 重新注册。
      - 选先不 → 不动，告知随时可再来。
 

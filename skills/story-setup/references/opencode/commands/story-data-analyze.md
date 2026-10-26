@@ -3,3 +3,5 @@ description: 平台后台数据归因分析。用「分发→回访→章内」�
 ---
 
 请使用 story-data-analyze skill，帮我分析平台后台数据、定位读者流失位置。
+
+用户参数：$ARGUMENTS

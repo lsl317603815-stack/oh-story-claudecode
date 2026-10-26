@@ -56,7 +56,10 @@ import sys
 try:
     import tomllib
 except ModuleNotFoundError:
-    import tomli as tomllib
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        from pip._vendor import tomli as tomllib
 from pathlib import Path
 
 output_path = Path(sys.argv[1])

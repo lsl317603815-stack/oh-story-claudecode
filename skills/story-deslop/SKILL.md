@@ -16,9 +16,9 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。
+> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：白话告诉作者「这次由我直接改」，`Fallback: project custom agents unavailable -> solo` 原文只进报告最后一行「技术备注：」。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进技术备注行；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
 ## 核心哲学
 
@@ -73,7 +73,7 @@ AI味不按语法错误处理，也不需要"修正"。它属于风格问题：�
 ### 自然文本特征（与AI味对比）
 | 维度 | 自然文本 | AI味文本 | 证据 |
 |------|----------|--------|------|
-| 情绪表达 | 动作展示（"手在抖"） | 直接告诉（"很紧张"） | 表层待定；语义候选 |
+| 情绪表达 | 直写有上下文支撑，反应带后果 | 空转的情绪总结句，或给每个情绪词配一个微动作 | 表层待定；语义候选 |
 | 语气与省略 | 符合人物身份，有说不尽、答非所问和留白 | 每个人都说得完整、正确、会总结 | 语义候选（声线趋同） |
 | 结尾 | 动作/对话收尾 | 总结/升华/感慨收尾 | 表层待定（样本少）；语义候选 |
 | 比喻 | 少而具体，服务画面 | claude／豆包写手成片用「像/仿佛」比喻 | 只对这两族作族别提示 |
@@ -145,29 +145,29 @@ for PYBIN in python3 python py; do "$PYBIN" -c "" 2>/dev/null && break; done
 
 ### Phase 1：AI味扫描
 
-对用户提交的文本做快速扫描，标记AI味浓重的位置：
+对用户提交的文本做快速扫描，标记AI味浓重的位置。报告写给作者：问题用白话说并附原文；脚本名、检测器类别名（如 `rule-threshold`、`deficit-floor`）、Gate 字母和三轴字段名不进报告正文，三轴取值换成白话（如「轻改，只动原句」「标准改，允许删句并句」），机器值需要留档时只写进最后一行「技术备注：」：
 
 ```
 ## AI味检测报告
 
 ### 整体评估
 - 问题分布：{轻度/集中/结构性}
-- 改写力度：{minimal/standard/aggressive}
-- 修改范围：{in-place/bounded/structural}
-- 主要问题：{1-3 个关键词}
+- 改多深：{轻改/标准改/大改}
+- 改多大范围：{只动原句/允许删句并句/允许重排场景}
+- 主要问题：{1-3 个白话描述}
 
 ### 问题标记
-| 位置 | 类型 | Gate | 原文 | 问题 |
-|------|------|------|------|------|
-| 第X段 | 候选词 | A | "猛地回头"（本章超题材池 P90） | 新模型高频词，看是否成片 |
-| 第Y段 | 句式 | B | "...，带着..." | 待定句式，看语境 |
-| ... | 心理描写 | C | "他感到..." | 告诉而非展示 |
-| 全章 | 赤字 | D | 感叹号 0.3/千字，低于题材池 P10 | 写作提示可能压过头；只提示，不加字 |
-| 第N段 | 重复描写 | C/D | 同一动作连续拆写 | 相邻段重复同一瞬间 |
-| 第P段 | 解释腔/上帝感 | G | "她不知道的是…" / "演得真好" / "之所以…是因为" | 叙述者跳出角色当下解释/剧透/定性/升华（模式 8） |
-| 第Q段 | 动作清单 | D/E | "伸手拿起…取过…放下…转身…" | 监控摄像头式步骤表，缺少视角温度/心理缓冲（模式 10） |
+| 位置 | 类型 | 原文 | 问题 |
+|------|------|------|------|
+| 第X段 | 高频词 | "猛地回头"（本章用得比同题材真人稿多） | 新模型爱用的词，看是否成片 |
+| 第Y段 | 句式 | "...，带着..." | 可能是套路句式，要看语境 |
+| ... | 情绪空转 | "一丝悲伤涌上心头" | 只总结情绪，没有落点 |
+| 全章 | 标点偏少 | 感叹号每千字 0.3 个，比同题材真人稿少很多 | 写作要求可能压过头；只提示，不加字 |
+| 第N段 | 重复描写 | 同一动作连续拆写 | 相邻段重复同一瞬间 |
+| 第P段 | 解释腔 | "她不知道的是…" / "演得真好" / "之所以…是因为" | 叙述者跳出角色解释、剧透或下结论 |
+| 第Q段 | 动作清单 | "伸手拿起…取过…放下…转身…" | 像监控录像的步骤表，缺人物的感受 |
 
-> 类型 → Gate 速查：候选词 = A，句式套路 = B，心理告知 = C，标点与赤字 = D，对话腔调 = E，结尾升华 = F，解释腔/上帝感/安排感 = G，重复描写 = C/D。Gate 列只帮助定位，不再用“命中几个 Gate”自动决定全文改写力度。
+> 类型 → Gate 速查（内部选 Gate 用，不写进表）：高频词 = A，句式 = B，情绪空转 = C，标点与赤字 = D，对话腔调 = E，结尾升华 = F，解释腔/上帝感/安排感 = G，重复描写 = C/D，动作清单 = D/E。不再用“命中几个 Gate”自动决定全文改写力度。
 ```
 
 > 评价只输出三轴决策与问题标记；不做「上乘 / 新人投稿属上乘 / 性价比高」这类横向市场判断——skill 没有平台投稿分布数据，这类措辞是无依据的越权担保。
@@ -217,7 +217,9 @@ node scripts/check-degeneration.js --check --language=zh --fail-on=blocking <正
 
 禁用词密度、句段分布、对白比例、标点和重复计数只负责定位。不得把跨题材固定阈值写成“客观 AI 分数”，不得因一个统计项偏高就启动完整七 Gate 或重点段重写。
 
-加载 [references/anti-ai-writing.md](references/anti-ai-writing.md) 的「系统性去AI三遍法」获取完整流程。三遍法按已授权改写力度选择，不再由统计最高档自动触发：
+**Gate 范围先定下来**：用户明确指定 Gate（如「只过 A 和 B」「只查解释腔」）时，直接用该范围；未指定时，按下方改写力度对应的 Pass 和本轮问题标记实际命中的 Gate 确定范围。范围一经选定，下面的三遍法、Pass F/Pass R 和委派给 narrative-writer 的任务都只在这个范围内执行，不扩大改写范围。
+
+加载 [references/anti-ai-writing.md](references/anti-ai-writing.md) 的「系统性去AI三遍法」获取完整流程。三遍法只安排所选 Gate 的执行顺序，按已授权改写力度选择，不再由统计最高档自动触发：
 - **Pass 1（去泛化）** 覆盖 Gate A 的候选词、Gate C 的抽象情绪、Gate E 的同语气对话粗扫、Gate G 的解释腔/上帝视角剧透/软评判
 - **Pass 2（去书面化）** 覆盖 Gate A 中的书面腔词、Gate B 的句式套路深化
 - **Pass 3（回自然感）** 覆盖 Gate D 的标点赤字与破折号、Gate E 的对话差异化、Gate F 的结尾去升华、补具体感官细节
@@ -240,9 +242,11 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 
 「证据分层与处置决策」完成后，按以下顺序选择执行路径：
 
-1. **已在 narrative-writer 子代理内**：直接 inline 执行 Gate A-G，不再 spawn（嵌套 spawn 会被静默降级）。
-2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
-3. **agent 不存在或 spawn 失败**：主线程 inline 执行。
+1. **已在 narrative-writer 子代理内**：按选定的 Gate 范围 inline 执行，不再 spawn（嵌套 spawn 会被静默降级）。
+2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
+3. **agent 不存在或 spawn 失败**：主线程按同一 Gate 范围 inline 执行。
+
+无论哪条路径，主会话最后都对最终落盘文件跑「确定性收尾」的复扫，不因执行者已自检而跳过。
 
 #### 删除优先判断（先于各 Gate）
 
@@ -253,7 +257,7 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 3. 删除服从既有"过度去AI味保护"与本轮 `rewrite_intensity` 比例上限：不整段删、不删剧情功能；若删后跌破字数下限，改为降AI重写，不删完再用新废话凑字。
 4. 删完通读：若整段只剩最短句、结构虚词被扫光、每个动作都带「了一下」式尾巴，就是删过头的电报体（见 anti-ai-writing.md 模式 9）——把非峰值叙述句恢复成自然白话，不是接着删。删的是废话，不是中文的自然冗余；这条只调删减的度，候选词与待定句式仍按规则表逐处判断。
 
-以下为各 Gate 的详细规则（删不掉的标记项按此润色；无论 agent 还是主线程执行，均须遵循）：
+以下为各 Gate 的详细规则（删不掉的标记项按此润色；只执行选定范围内的 Gate；无论 agent 还是主线程执行，均须遵循）：
 
 #### 门禁 A：候选词复核
 
@@ -328,16 +332,18 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 
 形容词原则：一次只用一个形容词修饰或不修饰，不连用、不堆砌。
 
-#### 门禁 C：心理描写外化
+#### 门禁 C：情绪落地
 
-AI写的心理描写特征：直接陈述情绪。
+直接写情绪本身不是 AI 味（规则表里「情绪表达」仍是待定项，不能凭直写判 AI）。本门处理的是**空转**：只总结情绪、上下文里没有选择、台词、物件或后果撑着的句子，以及给每个情绪词都配一个微动作的写法。
 
-替换策略：
-- "他很紧张" → "他的手在抖"
-- "她很愤怒" → "她一把掀翻了桌子"
-- "他很害怕" → "他扶住门框，半天没迈进去"
-- "她很伤心" → "她背过身，把袖口攥皱了"
-- "他感到一丝失落" → "他愣了一下，把手机放回口袋"
+处理方法：
+- 上下文已经让情绪成立：保留准确的直写，删掉重复说明。
+- 情绪确实没落地、需要补信息：沿用原文已有的选择、台词、物件和后果把它接住，不为情绪词另配动作，也不新增原文没有的事件。
+- 身体细节按功能取舍：伤势、动作失败、人物习惯或情节后果可以保留；只是重复标注情绪的微动作（心口一沉、眼皮一跳、指节发白一类）删掉，不换成别的部位或同义动作。
+
+示例：
+- ❌ "一丝悲伤涌上心头，她的眼眶红了，指尖微微发颤" → ✅ "她很难过，把那张单子折好放回了抽屉"（直写 + 原文已有的动作）
+- ❌ "他感到一丝失落" 后接三句心理复述 → ✅ 只留一句"他有点失落"，删掉复述
 
 **重复描写去重**：当相邻段反复表达同一信息、同一动作或同一情绪时，按 Gate C/D 处理，不另开专项流程。
 
@@ -444,6 +450,8 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 
 ### Phase 5：输出润色结果
 
+报告写给作者，同 Phase 1 的白话要求：讲改了什么、为什么改、哪里要作者看一眼、下一步；脚本名、Gate 字母、检测器类别名和三轴字段名不进正文，确需留档的机器信息只写最后一行「技术备注：」。
+
 ```
 ## 去AI味润色报告
 
@@ -451,14 +459,14 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 - 原文字符数：{N0}
 - 修订后字符数：{N1}
 - 净变化：{N1 - N0}（{百分比}）
-- 是否在 tier 上限内：{是 / 否（超限 X%，已分段并标注 [需复核]）}
+- 是否在本档删减上限内：{是 / 否（超出 X%，已分段处理并标注 [需复核]）}
 
 ### 修改统计
 - 总修改数：{N} 处
 - 候选词改写：{N} 处
 - 句式调整：{N} 处（含否定翻转句式 {N}、"，带着..." {N}、声音描写 {N}）
 - 修饰词清扫：{N} 处
-- 心理外化：{N} 处
+- 情绪落地与重复说明清理：{N} 处
 - 重复描写合并：{N} 处
 - 监控动作清单合并：{N} 处
 - 重复语义去重：{N} 处（形容词重复 {N}、近义词重复 {N}、含义重复 {N}、主语重复 {N}）
@@ -469,10 +477,16 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 - 结尾修正：{N} 处
 
 ### 修改前后对比
-{逐段展示修改，标注改动类型；超过 30 处时仅展示前 10 处 + 末 5 处 + 其余按 Gate 分桶计数}
+{逐段展示修改，每处一句白话说明为什么改；超过 30 处时仅展示前 10 处 + 末 5 处，其余按问题类型计数}
+
+### 需要你看一眼
+{标 [需复核] 的地方：原文 + 为什么没动或拿不准；没有就写"无"}
 
 ### 润色后全文
-{**文件模式（默认；章节/正文文件、批量与长篇去AI）**：通过 Edit/Write 直接改写落盘，本节只回 ≤200 字代表性片段，不向父会话返回全文。**文本模式（仅限交互式贴入、无文件路径的零散片段）**：完整输出润色后的文本。}
+{**文件模式（默认；章节/正文文件、批量与长篇去AI）**：通过 Edit/Write 直接改写落盘，写明改了哪个文件，本节只回 ≤200 字代表性片段，不向父会话返回全文。**文本模式（仅限交互式贴入、无文件路径的零散片段）**：完整输出润色后的文本。}
+
+下一步：{一句话，如「要我接着处理下一章吗？」}
+技术备注：{可选；Fallback/Notice 原文、三轴取值、候选运行目录等，没有就省略本行}
 ```
 
 **字数硬约束**：删除比例不得超过本轮授权改写力度上限（`minimal ≤15%`、`standard ≤25%`、`aggressive ≤35%`）。超限时分段输出并在报告里标记，不得整段删除正文。
@@ -491,7 +505,7 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 | 用户贴一段文字说"太AI了" | 执行完整检测 + 润色流程 |
 | 用户说"帮我润色" | 先检测AI味，再润色 |
 | 用户说"检查下有没有AI味" | 只做检测，不做修改 |
-| 用户写作中要求 `仅标注 / 只检测 / 不要改` | 嵌入式提醒模式：执行「AI味扫描」和「证据分层与处置决策」，跳过「逐项清除」「确定性收尾」「输出润色结果」；输出问题标记表（含 Gate 列），不修改原文，不写文件 |
+| 用户写作中要求 `仅标注 / 只检测 / 不要改` | 嵌入式提醒模式：执行「AI味扫描」和「证据分层与处置决策」，跳过「逐项清除」「确定性收尾」「输出润色结果」；输出问题标记表（白话类型与原文，不列 Gate 字母），不修改原文，不写文件 |
 
 ---
 

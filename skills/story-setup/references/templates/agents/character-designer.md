@@ -22,7 +22,7 @@ maxTurns: 25
 
 ## 参考文件路径规则
 
-**确定项目根目录：** 执行 `git rev-parse --show-toplevel`，失败则用当前工作目录。以下所有路径均为项目根下的绝对路径。
+**确定项目根目录：** 直接使用宿主交给你的当前工作区/项目根；不要执行 shell。以下所有路径均从该根目录解析。
 
 读取参考文件时，直接 Read 当前 Claude 部署的 canonical 路径，禁止先用 Glob/Grep 搜索：
 1. `{项目根}/.claude/skills/story-setup/references/agent-references/{文件名}`
@@ -153,7 +153,7 @@ maxTurns: 25
 
 - **拥有**：角色档案、语言风格档案、动机链、人物弧线、对话质量、角色关系
 - **不拥有**：大纲结构（story-architect）、文字去AI味（narrative-writer）、事实一致性grep检查（consistency-checker）
-- **升级路径**：角色弧线方向冲突 → 咨询 story-architect；设定矛盾 → 咨询 consistency-checker
+- **超出本职的问题**（角色弧线方向冲突、设定矛盾）写进交付里的「待主会话裁决」一行，由主会话决定是否交给 story-architect 或 consistency-checker，不自己转交
 
 ---
 
@@ -166,4 +166,4 @@ skill 通过 `Agent(subagent_type: "character-designer")` 调用你。
 - 相关文件路径（角色文件、设定文件、正文文件）
 - 上下文摘要（当前章节、涉及角色、对话场景）
 
-输出格式：角色档案表 / 对话文本 / 审查报告（含具体引用和修改动作）。
+输出格式：角色档案表 / 对话文本 / 审查报告。审查时调用方 prompt 指定格式（如审稿的统一 Findings 格式）就照它写，没指定时写具体引用和修改动作。

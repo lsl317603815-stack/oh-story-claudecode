@@ -12,9 +12,11 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude/OpenCode 兼容面保留 `subagent_type`。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct，并报告 `Fallback: project custom agents unavailable -> solo`。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 而误判。下文 `Agent(subagent_type: "{agent}", ...)` 示例在 WorkBuddy plugin-only 模式中必须把 `{agent}` 替换为 registry 实际返回的 `oh-story:{agent}`。
+> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：主会话自己写正文、去味是短篇常态，不必报；只有作者明确要交给写作助手而对应角色或工具不可用时，一句白话告诉作者「这次由我直接写/改」，`Fallback: project custom agents unavailable -> solo` 原文只进汇报最后一行「技术备注：」。只有当前运行时确实是 ZCode 时才强制该降级；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。下文 `Agent(subagent_type: "{agent}", ...)` 示例在 WorkBuddy plugin-only 模式中必须把 `{agent}` 替换为 registry 实际返回的 `oh-story:{agent}`。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 47` 不一致时（标记缺失、字段缺失/非整数、小于或大于 47）**照常按文件存在性检查并 spawn**，同时报告 `Notice: agents bundle 版本不匹配（项目 {N}，本版 47）` 并提示重新运行 `/story-setup` 后新开会话；大于 47 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，报告 `Fallback: ... -> solo`。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进技术备注行；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
+
+**面向作者的汇报**：构思汇报、交付说明和停下提问只讲故事本身（写了什么、发生了什么、字数）、要作者拍板的事（一句白话问题＋选项＋推荐默认）和下一步怎么说。脚本名、参数名、检测器类别名和内部清单名不进汇报；自查结果一句白话带过，如「语言和格式都过了，字数在你要的范围里」。机器行只放最后一行「技术备注：」。
 
 **中文正文范围**：本 skill 只交付中文短篇正文。用户要求英文短故事、中文改英文、native 化或海外发行时，改走 `story-globalize`；当前环境没有该 skill 时报告缺失并停止，不得用本中文写作流交付英文正稿。
 
@@ -143,7 +145,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ### 基本信息
 - 标题（暂定）：{}
-- 目标字数：{} 字（短篇通常 8000-20000 字）
+- 目标字数：{下限}-{上限} 字（作者给的范围原样记下；作者没给时短篇通常 8000-20000 字）
 - 目标平台：{}
 - 情绪目标：{读者读完的感受}
 
@@ -193,6 +195,16 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 **导入项目续写基线**：`设定.md` 存在「本书续写基线」时先读取，作为已写内容的内部连续性与既有写法约束；它不是对标摘要，不参与主/副对标排序，也不复制到 `对标/`。
 
+**交付参数锁定与写前预检（动笔前必须完成）**：先从当前请求和 `设定.md` 锁定三项交付参数：总字数范围（当前请求里作者给的范围优先；其次是 `设定.md`「目标字数」记下的范围；都没有才用 8000-20000）、节数（等于 `小节大纲.md` 规划节数）、逐节最低字数（只有作者明确提出时才设，默认不设）。然后在短篇目录运行参数预检：
+
+```bash
+node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] --check-contract "{短篇目录}"
+```
+
+- 返回 0：参数可以同时满足，进入写作；这只是参数验收，不算交付。
+- 返回 2：参数缺失或互相矛盾（如节数 × 逐节下限，加上小节标记本身，已超过总字数上限）。停在写前，用白话告诉作者字数范围与节数哪里冲突，请作者选择调整哪一项；不替作者改要求，也不先写正文再说。
+- 字数口径以该脚本的非空白字符数为准；写作途中的逐批统计用下方 Python 命令，只作进度参考。
+
 **拆文结果自动使用规则**：执行写作前必须按「对标上下文加载」（Phase 2）顺序扫描。找到拆文报告时，把“结构/情绪/反转/写作手法”作为技法参考；找到结构化子目录时，按当前小节目标检索最相关模块。
 
 > 术语说明：Phase 3 按「段」划分叙事结构（开头段/铺垫段/升级段/反转段/结尾段），每段包含若干「小节」（数字编号的 beat）。「场景」指写作时的具体画面。
@@ -204,7 +216,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 **生成前中文锁（主会话 / narrative-writer / solo/direct 同一契约）**：开始每一批正文前都锁定 `language=zh`。叙述、对话、心理和场景必须用中文；外国人对话默认译成中文并在场内标明语种。英文、缩写、型号和剧情代号不得由模型自行豁免；URL、邮箱、文件路径/扩展名和行内/围栏代码只有在明确属于非叙事结构时才由检测器机械保护。用户明确要求逐字保留的其他外语，必须单独确认后在 `.deslop-whitelist` 精确登记；HTML 标签、注释和实体不得进入交付正文。
 
-**写作指令：按三维度揉进逐场景写作，不照搬大纲腔。**
+**写作指令：按场景信息揉进逐场景写作，不照搬大纲腔。**
 
 - 每个场景让读者和主角一起经历；发生、感知、反应揉在同一段连续正文里，不按维度分三段。
 - 段落按戏剧单元/画面自然断开：新动作、新线索、新对话、视线切换另起；完整推理、氛围或情绪链可稍长。
@@ -212,7 +224,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - 主语节奏：段首或主语重置时可点名；同一动作链内优先代词/省略；关键转折再点名。
 - 标点跟语气走：质问用问号，爆发处少量感叹；犹豫、未尽、打断优先用动作停顿、短句或换行处理，有功能的 `……` / `——` 按人物声线和平台约定保留；无功能复现、随机堆砌或平台明确禁用时再改。
 - 短篇默认第一人称在场：受虐段可直白宣泄，反击段可冷静审判；只删中立无情绪的作者讲解，不删带主角偏色的审判/预告。
-- 情绪可以直写，但后面要接场景里特有的动作或物件；没有具体承接的情绪总结句才删。
+- 情绪可以直写：上下文里的选择、台词、动作或后果已经让它成立，就不再逐句补动作或物件；只删没有任何承接、只在总结情绪的句子（见 short-craft.md 第 2 节）。身体细节只在带来后果（伤势、动作失败、人物习惯）时留，不为情绪词另配微动作。
 - 任务卡点也可以承接情绪，但必须直接加重羞辱、误会、背叛、证据、反击或心死节点；删掉后情绪/证据/关系无损就压缩。
 - 情绪宁烈不温，冲突前置、爽点具体、台词带刺；心死/余韵等以克制为爽感的桥段按题材包收敛。
 
@@ -223,38 +235,24 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - 每批写完后更新“已写小节摘要”（3-5 条：已揭示信息、情绪位置、未回收伏笔、下一批衔接句）。
 - 下一批先读该摘要和 `正文.md` 尾部 300-500 字再续写。
 - 只有用户明确要求子代理、主会话上下文不足，或需要隔离试写时，才检查 narrative-writer agent（查找顺序见顶部）。
-- 如可用，TRAE Code 只用内置 `Agent` 按 `.trae/agents/narrative-writer.md` 的名称选择同名 Subagent，把 prompt 作为任务正文，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式验证 `.codebuddy/agents/narrative-writer.md` 后 spawn `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` 时用该精确值。只传项目目录、输出文件、情绪目标、题材风格包、小节大纲、角色、主/副对标召回摘要、格式硬约束、写作硬约束和 `language=zh` 中文正文契约。
+- 如可用，TRAE Code 只用内置 `Agent` 按 `.trae/agents/narrative-writer.md` 的名称选择同名 Subagent，把 prompt 作为任务正文，不传 Claude 的 `subagent_type`；WorkBuddy 项目模式验证 `.codebuddy/agents/narrative-writer.md` 后 spawn `Agent(subagent_type: "narrative-writer", prompt: ...)`，plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` 时用该精确值。只传项目目录、输出文件、情绪目标、题材风格包、小节大纲、角色、主/副对标召回摘要、格式硬约束、写作硬约束、已锁定的交付参数和 `language=zh` 中文正文契约，并写明检查分工：本批只做内容覆盖与格式自检，完整语义去味由 Phase 4 负责，最终文件扫描与交付验收由主会话负责。
 - 不把本 skill 整段规则塞进 prompt；细节以已加载的 `short-format.md`、题材包和 `short-craft.md` 为准。
 - 无论谁写，写入 `正文.md` 前都按同一格式规范重排，保证主会话与子代理输出一致。
 
-⚠️ **硬约束：每节 ≥ 800 字 / 50-65 行**。
-题材例外：爽文、打脸、系统流等高信息密度题材可降至 ≥ 500 字/节（见 genre-writing-formulas.md 各题材速查表），但不得低于 500 字。
-写完每节后必须统计字数和行数。不足 800 字（高信息密度题材不足 500 字）的节不得跳过，必须补充更多子事件/对话来补足后再写下一节。整篇完成后总字数必须 ≥ 8000 字。
-**字数统计必须跨平台可执行：优先使用 Python 字符统计**：`for PYBIN in python3 python py; do "$PYBIN" -c "" 2>/dev/null && break; done; "$PYBIN" -c "from pathlib import Path; print(len(Path('文件路径').read_text(encoding='utf-8')))"`。**不要直接调 `python3`**，Windows 上 `python3` 会落到 Microsoft Store 占位程序、以 exit 49 静默失败；上面的探测会按 `python3→python→py` 选出真正可用的解释器。Windows / DeepSeek / Claude Code 组合下不要让模型自行估算字数；`wc -m` 仅作为 macOS/Linux 备选，禁止使用 `wc -c`（字节数）。如果当前 agent/工具环境没有 Bash/Python 权限，必须明确声明“未完成机器字数验证”，并按行数速算作为临时估计，不得声称已通过字数硬验证。
-**⚠️ 字数不足 = 章节未完成。禁止在字数未达标时结束章节。必须继续展开场景直到达标。**
+⚠️ **硬约束只作用于整篇交付范围，不设统一逐节最低字数或行数**（作者明确要求逐节下限时，按锁定参数执行）。
+写完每批后统计整篇累计字数与各节分布。某节明显短于相邻节时，先核对批准情节点、可见动作和后果是否完整：完整就保留，缺失才补回原计划内容。不得为拉齐节长新增冲突、对话、回忆、配角反应或独立事件。整篇以锁定的交付范围为准；未给范围时才使用 8000-20000 字默认值。
+**字数统计必须跨平台可执行：优先使用 Python 字符统计**：`for PYBIN in python3 python py; do "$PYBIN" -c "" 2>/dev/null && break; done; "$PYBIN" -c "from pathlib import Path; print(len(''.join(Path('文件路径').read_text(encoding='utf-8').split())))"`（统计非空白字符，与 `check-delivery-contract.js` 同口径）。**不要直接调 `python3`**，Windows 上 `python3` 会落到 Microsoft Store 占位程序、以 exit 49 静默失败；上面的探测会按 `python3→python→py` 选出真正可用的解释器。Windows / DeepSeek / Claude Code 组合下不要让模型自行估算字数；`wc -m` 仅作为 macOS/Linux 备选，禁止使用 `wc -c`（字节数）。如果当前 agent/工具环境没有 Bash/Python 权限，必须明确声明“未完成机器字数验证”，并按行数粗估（约每行 15 字）作为临时估计，不得声称已通过字数硬验证。
+**⚠️ 整篇字数没进锁定范围 = 未完成，不得交付。** 不足时只扩写既有情节点的行动、后果或对话，不新增支线；超出时只压缩重复解释、复述和无功能过场，不删关键证据或结算。
 
 **节数守恒**：正文节数必须等于小节大纲规划节数。不得合并多节为一节。如果写作中发现某节不需要独立存在，应回到大纲阶段调整，而非在写作时偷减。
 
-**节长达标流程**：
-1. **写作时**：按三维度揉进写每个子事件——发生、感知、反应揉进同一段连续正文，不按维度分段写
-2. **字数不足时**（逐节统计后）：用以下方法补足（优先级从高到低）：
-	   - 补充更多子事件（回到小节大纲补充）
-	   - 补有用的任务卡点（只在角色本来有要办的事时使用；必须卡出情绪、证据、关系或反转变化，并通过“删掉试试”）
-	   - 加一轮对话（参考 short-craft.md 第6节 / dialogue-mastery.md 对话权力模式）
-	   - 加回忆闪回（1-2 句关联记忆）
-	   - 加环境物件（通过动作带出，不独立成句）
-   - **禁止凑字**：每个添加必须推动情绪/铺垫/代入感，不得灌水。禁止用"加感知层""加反应层"的方式在已有动作上叠加描写
+**小节完整性流程**（分批写作，每次 2-3 节，每批写完后执行）：
+1. **写作时**：每节围绕一个主问题推进；让风险、信息、关系、资源、决定、行动或读者理解至少发生一项可见变化。相关情节点可以由同一动作链或对话同时兑现，不为拆成多个子事件重复铺陈。
+2. **写完后**：对照 `小节大纲.md` 检查批准内容是否落地、因果与下一步是否读得懂、感知/反应是否提供新信息、伏笔/物件是否按计划出现、新增任务卡点是否卡出了情绪、证据或关系变化（删掉无损则压缩）。
+3. **发现缺口时**：只补回原计划中漏掉的动作、证据、选择或后果；若本节已经完成职责，即使很短也不加任务卡点、对话、回忆或环境来凑长度。
+4. **发现冗余时**：删除不改变风险、信息、关系、资源、决定、行动或可信度的阻碍、复述与旁人反应；不把“有冲突”本身当成保留理由。
 
-**节长验证（分批写作，每批写完后执行）**：
-分批写作：每次输出 2-3 节，写完后统一检查本批所有节的字数。
-如果任何一节 < 800 字（高信息密度题材 < 500 字）→ 补充更多子事件/对话来补足后再写下一批。
-禁止跳过未达标的小节。
-
-> **节长速算**：平均每行 15 字 × 55 行 ≈ 825 字。写到第 30 行时如果还不到 500 字，说明子事件数量不够，需要补充更多子事件或对话。
-
-每个小节按「三维度揉进」写作（详见 short-craft.md 第 10 节）：每个子事件将发生、感知、反应三个维度揉进同一段连续正文，子事件合计 ≥150 字。维度揉进不等于按维度分段——禁止"先写发生再补感知再补反应"的堆叠写法；也不等于一段到底，按新动作/新物件/新信息/新对话断段。长度只是诊断，先判断是否完整戏剧单元；混入多个动作/信息才拆，完整推理、氛围或情绪链可以保留稍长段。
-
-**写完后对照 小节大纲.md 检查**：每个子事件三个维度都揉进了？本节情绪到位？伏笔/物件已植入？新增任务卡点是否卡出了情绪、证据或关系变化（删掉无损则压缩）？节长 <800 字 → 补充更多子事件/对话后再写下一节。
+每个小节按「场景信息揉进」写作（详见 short-craft.md 第 10 节）：发生是主干，感知和反应只在提供新信息时加入；用到的维度揉进同一镜头。揉进不等于按维度分段——禁止"先写发生再补感知再补反应"的堆叠写法，也不要求三项齐全；同样不等于一段到底，按新动作、新物件、新信息或新对话断段。完整推理、氛围、手艺、等待或情绪链可以连续展开，不按固定字数切断。
 
 按以下结构分段写：
 
@@ -291,7 +289,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 - 用物件/数字/习惯建立羁绊（详见 emotional-methods.md「羁绊铺设」）
 - 埋入至少 3 个反转线索，分散在不同小节
-- 每 2-3 个小节至少有一次明显期待升级（可用钩子、揭示、选择、关系变化或行动升级；不强制都用反转）
+- 在会改变读者预期、行动方向或关系判断的位置安排期待升级（钩子、揭示、选择、关系变化或行动升级任选，不强制都用反转）；连续多个小节只有提问没有局部兑现时再调整，不按固定节数填格
 - 小节用数字分割，每小节推进一个情节点
 - 情绪强度逐节递增，不允许连续 2 节无情绪变化
 - **贯穿道具第 1 次出现必须在此段完成**
@@ -301,10 +299,10 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 - 冲突必须比上一段升级（强度/范围/代价至少一个维度上升）
 - 插入倒计时钩子或代价钩子制造紧迫感
-- 期待升级密度可提高到每 2 节一次（按题材分级见 genre-writing-formulas.md；钩子、揭示、选择、关系或行动升级任选，不机械重复）
+- 随风险和选择升级提高牵引强度：用新证据、代价、误判修正或局部反击推动，不按固定节数另塞钩子（按题材见 genre-writing-formulas.md）
 - 埋入误导信息，让读者猜错反转方向
 - **数字/金额递增作为叙事工具**（具体数字替代模糊描述，见各 genre-styles 招式库「数字承重」）
-- **一动一静交替**：每节有动有静，不连续暴力也不连续安静
+- **场景引擎有变化**：行动、对话、证据、任务、等待、空间压力与关系选择按因果需要切换；不为动静交替补无功能小动作
 
 #### 第四段：反转（占全文 10-15%）
 
@@ -342,10 +340,10 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - [ ] `node scripts/language_gate.js 正文.md` 首先返回零，未授权外语与 HTML 标记已清零
 - [ ] `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md` 无 blocking，表情、颜文字、火星文和标点堆砌符合本篇策略
 - [ ] `node scripts/check-typos.js --check --fail-on=all 正文.md` 已过一遍，命中的真错字已改
-- [ ] 总字数 ≥ 8000（优先用 Python 字符统计验证，兼容 Windows 和中文字符计数）
-- [ ] 每节 ≥ 800 字（爽文等高信息密度题材 ≥ 500 字，见 genre-writing-formulas.md）
+- [ ] `node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] "{短篇目录}"` 返回 0：总字数在锁定范围内、节数与小节标记合规、段间无空行（参数与写前预检一致）
+- [ ] 每节完成其批准情节点或状态变化；没有为拉齐长度补冲突、对话、回忆或旁人反应
 - [ ] 节数 = 小节大纲规划节数（不得合并/省略）
-- [ ] 身体部位同一词全文 ≤ 5 次
+- [ ] 身体细节按叙事功能判断，不设次数上限；不对“手、眼、心”等单字计数改稿
 - [ ] 「像/好像/仿佛/如同」不成片堆叠；超过 10 处需逐处复核功能，不机械全删
 - [ ] `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文.md` 无 blocking 命中；其余提示先通读，确属问题再改
 - [ ] `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文.md` 无 blocking 命中（普通英文句段/裸英文词、复读、截断、工程词泄漏）
@@ -367,10 +365,12 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 #### Agent 调用：narrative-writer（去AI味）+ consistency-checker
 
 精修阶段，如果当前运行时已部署对应 agent，可调用它们。TRAE Code 只由内置 `Agent` 智能体分别按 `.trae/agents/narrative-writer.md` 与 `.trae/agents/consistency-checker.md` 的名称选择同名 Subagent，把下列 prompt 作为任务正文，不传 `subagent_type`；WorkBuddy 项目模式先验证 `.codebuddy/agents/narrative-writer.md` 与 `.codebuddy/agents/consistency-checker.md`，再用内置 `Agent` 传原始 `subagent_type`；plugin-only 仅在 Agent registry 真实返回 `oh-story:narrative-writer` / `oh-story:consistency-checker` 时使用对应精确值：
-- **narrative-writer 任务**：prompt 为 `项目目录：{dir}\n任务描述：去AI味+格式检查\n检查范围：{正文文件}\n语言契约：language=zh；未授权外语必须改回中文；只保留机械识别的非叙事结构，或用户单独确认后在 .deslop-whitelist 精确登记的外语；HTML 标记必须清零\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
+- **narrative-writer 任务**：prompt 为 `项目目录：{dir}\n任务描述：去AI味+格式检查\n检查分工：你负责本次语义去味及原定自检；最终文件扫描与交付验收由主会话对落盘文件执行，不在子代理内重复\n检查范围：{正文文件}\n语言契约：language=zh；未授权外语必须改回中文；只保留机械识别的非叙事结构，或用户单独确认后在 .deslop-whitelist 精确登记的外语；HTML 标记必须清零\n删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色（删除受比例上限与字数下限约束，跌破下限改降AI重写）\n必须检查：先否定再肯定的翻转句式，发现后直接改成后项或动作细节；检查像/好像/仿佛/如同等比喻是否成片堆叠，确属堆叠时只留最有功能的少数比喻，其余回到具体画面；检查是否连续使用头皮发紧/眼皮一跳/心口一沉/胃里翻涌等精致戏剧反应，能写普通动作/普通感觉就写普通动作/普通感觉；已有手机/聊天记录/公告/账单/病历/证据截图等信息，保留为角色看到或处理的场内载体，不改成叙述者解释；任务卡点只在角色本来有要办的事且能加重情绪/证据/关系/反转时使用，不为自然感补流程` — 执行去AI味（7 Gate）、中文语言门和格式合规检查
 - **consistency-checker 任务**：prompt 为 `项目目录：{dir}\n检查范围：{正文文件}\n检查类型：事实冲突+伏笔断线+角色属性不一致` — 执行一致性检查
 
 如 agent 不可用，由主线程直接执行。
+
+**检查分工与最终交付验收**：Phase 3 写手只负责内容覆盖与格式自检；Phase 4 的去味 Gate 由一个执行者完成（上方 narrative-writer 或主会话），保留原检查清单；一致性检查职责不变。最终扫描由主会话对最终落盘文件执行：改完正文后重跑语言门与上方各扫描，再用与写前预检相同的参数、去掉 `--check-contract` 运行 `check-delivery-contract.js` 做交付验收；返回 1 时按报告里的 `repair_scope` 只改对应问题（缺字只扩写既有情节点，超字只压缩复述与过场，节标记与空行只改格式），改后只复核改动处并重跑受影响检查，不另开整轮去味。
 
 **正文洁净规则**：
 - 自检（字数统计、禁用词扫描、格式检查）是过程动作，结果直接在对话里说明，不落盘成文件
@@ -404,7 +404,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 |------|----------|
 | [references/short-format.md](references/short-format.md) | 写作前必读（短篇正文格式，两平台模板） |
 | [references/submission-craft.md](references/submission-craft.md) | 投稿前必读（平台基调 知乎/小程序/番茄 · 导语门面 · 付费点断点） |
-| [references/short-craft.md](references/short-craft.md) | 写作全程参考（短篇通用底座：情绪直接写+后接具体反应、在场叙述、超短章节制） |
+| [references/short-craft.md](references/short-craft.md) | 写作全程参考（短篇通用底座：情绪直写与场景支撑、在场叙述、超短章节制） |
 | [references/genre-styles/](references/genre-styles/) | **定方向后必读**：按题材加载对应风格包（追妻火葬场 / 世情打脸 / 复仇打脸 / 总裁豪门 / 宅斗宫斗 / 民俗怪谈 / 悬疑 / 甜宠 / 双男主 / 沙雕脑洞 / 现实共鸣型 / 悬疑脑洞型），正文风格随之切换 |
 | [references/short-deslop.md](references/short-deslop.md) | 去AI味时必读（短篇专属，只杀真·AI腔，不杀情绪烈度） |
 | [references/writing-workflow.md](references/writing-workflow.md) | Phase 2 设计任务 + Phase 4 精修 |
@@ -423,6 +423,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | [scripts/normalize-punctuation.js](scripts/normalize-punctuation.js) | Phase 4 文件模式确定性标点收尾 |
 | [scripts/check-ai-patterns.js](scripts/check-ai-patterns.js) | Phase 3 完成门槛与 Phase 4 复扫；报告高危 AI 句式、破折号、碎句号、长段落、微动作复读、抽象总结、套词/比喻密度、解释链、系统公告腔、提纲感短段、低连接密度 |
 | [scripts/check-degeneration.js](scripts/check-degeneration.js) | Phase 3 完成门槛与 Phase 4 复扫；中文正文显式用 `--language=zh --fail-on=blocking`，报告英文泄漏与模型退化；blocking 需修复后复扫 |
+| [scripts/check-delivery-contract.js](scripts/check-delivery-contract.js) | Phase 3 写前参数预检（`--check-contract`）与 Phase 3/4 交付验收；按锁定参数检查非空白字符数、节数、小节标记与段间空行，只验形状、不评文；参数冲突返回 2 |
 | [scripts/export-for-platform.js](scripts/export-for-platform.js) | 定稿后导出平台可直接粘贴格式（`###N.` 节标题转纯数字行） |
 | [references/dialogue-mastery.md](references/dialogue-mastery.md) | 写对话时 |
 | [references/output-contract.md](references/output-contract.md) | Phase 2 对标上下文加载时（理解 analyze 产出格式与消费规范） |
@@ -433,7 +434,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 | 主题 | 权威文件（先读） | 配套文件（按角度补充） |
 |------|-----------------|----------------------|
-| 情绪外化（怎么写情绪） | **`references/short-craft.md` 第2节**（情绪直接写+后接具体反应、三段对照、改写四步——替代旧机械替换表） | 各 `genre-styles/` 包的「情绪烈度与模式」 |
+| 情绪落地（怎么写情绪） | **`references/short-craft.md` 第2节**（情绪直写、场景支撑与重复说明取舍——替代旧机械替换表） | 各 `genre-styles/` 包的「情绪烈度与模式」 |
 | 情绪设计（情感结构） | **`references/emotional-methods.md`**（情感三板斧 + 拉扯节奏 + 失败模式） | `references/genre-writing-techniques.md`（情绪操控核心法则 / 情绪三层次） |
 | 反转 | **`references/reversal-toolkit.md`**（反转类型 / 铺垫 / 有效性自检） | `references/villain-and-reveal.md`（真相揭露机制 / 反转有效性自检） |
 | 反派揭露 | **`references/villain-and-reveal.md`**（反派模板 / 揭露机制 / 报应设计） | `references/reversal-toolkit.md` |
@@ -442,7 +443,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 女频写作 | **对应 `genre-styles/{题材}.md`**（追妻火葬场 / 总裁豪门 / 宅斗宫斗 / 甜宠 / 世情打脸的题材声线、虐爽比例、招式） | `references/genre-writing-techniques.md`（女频读者心理与写作技法 / 感情线四阶段推进法）· `references/emotional-methods.md`（情绪拉扯） |
 | 题材风格 | **`references/genre-styles/{题材}.md`**（核心 12 题材的腔调/开篇/钩子/情绪烈度/招式/收尾，corpus-grounded） | `references/genre-writing-formulas.md`（冷门题材结构骨架）· `references/genre-writing-techniques.md`（核心梗 / 卖点 / 通用技法） |
 | 开头 | **各 `genre-styles/{题材}.md` 的「开篇范式」**（关系锚 + 全弧剧透导语 + 火葬场预告，真实开篇范例）+ `short-craft.md` 第12节（开头事件密度） | `references/hooks-chapter.md`（开篇钩子类型）· `references/hooks-paragraph.md`（段钩密度） |
-| 格式与节奏 | **`references/short-format.md`**（短篇正文格式，两平台模板） | `references/short-craft.md`（情绪直接写+后接具体反应/三维度揉进/疏密）· `references/writing-workflow.md`（设计/精修工作流） |
+| 格式与节奏 | **`references/short-format.md`**（短篇正文格式，两平台模板） | `references/short-craft.md`（情绪落地/场景信息揉进/疏密）· `references/writing-workflow.md`（设计/精修工作流） |
 | 对话 | **`references/dialogue-mastery.md`**（对话技法主文件：差异化/潜台词/对话节奏） | `references/short-craft.md`（三类台词与对话权力博弈）· 各 `genre-styles/` 包的真实金句库 |
 | 去AI味 | **`references/short-deslop.md`**（短篇专属：只杀真·AI腔，不杀情绪烈度/审判句/火葬场预告） | `references/banned-words.md`（禁用词扫描）· `scripts/check-ai-patterns.js`（AI句式复扫）· `references/quality-checklist.md`（成稿检查） |
 

@@ -4,6 +4,10 @@
 # short-project non-mutation, commit-hook self-gating, and deployed-behavior anchors.
 set -euo pipefail
 
+# 写正文守卫要求细纲写了内容（去掉 BOM、# 号与空白后 ≥30 字），空文件会被当成空细纲拦下；
+# 需要「细纲已就位」的夹具统一写这段。
+OUTLINE_FIXTURE="$(printf '# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。')"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILL_DIR="$REPO_ROOT/skills/story-setup"
@@ -69,8 +73,8 @@ write_sentinel() {
   local root="$1"
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
-setup_skill_version: 1.7.0
+agents_version: 48
+setup_skill_version: 1.8.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -632,8 +636,8 @@ setup_git_repo "$bad_sentinel_root"
 copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
-setup_skill_version: 1.7.0
+agents_version: 48
+setup_skill_version: 1.8.0
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
@@ -657,8 +661,8 @@ printf '# ref
 ' > "$multi_refs_root/skills/story-setup/references/agent-references/ref.md"
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
-setup_skill_version: 1.7.0
+agents_version: 48
+setup_skill_version: 1.8.0
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references,skills/story-setup/references/agent-references
@@ -683,14 +687,14 @@ setup_git_repo "$stale_previous_root"
 copy_hooks "$stale_previous_root"
 cat > "$stale_previous_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 46
+agents_version: 47
 setup_skill_version: 1.2.22
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 stale_previous_out="$(run_from_nested "$stale_previous_root" session-start.sh 2>&1 || true)"
-echo "$stale_previous_out" | grep -q '低于 v47' || fail "session-start did not warn for agents_version 46 stale v47 deployment"
+echo "$stale_previous_out" | grep -q '低于 v48' || fail "session-start did not warn for agents_version 47 stale v48 deployment"
 
 newer_project_root="$TMP_DIR/newer-project"
 mkdir -p "$newer_project_root/.claude/skills/story-setup/references/agent-references"
@@ -698,14 +702,14 @@ setup_git_repo "$newer_project_root"
 copy_hooks "$newer_project_root"
 cat > "$newer_project_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
-setup_skill_version: 1.7.0
+agents_version: 49
+setup_skill_version: 1.8.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 newer_project_out="$(run_from_nested "$newer_project_root" session-start.sh 2>&1 || true)"
-echo "$newer_project_out" | grep -q '高于本 hook 支持的 v47' || fail "session-start did not reject agents_version 48 downgrade"
+echo "$newer_project_out" | grep -q '高于本 hook 支持的 v48' || fail "session-start did not reject agents_version 49 downgrade"
 echo "$newer_project_out" | grep -q '不要降级覆盖' || fail "session-start did not explain future-version safety"
 
 mixed_version_root="$TMP_DIR/mixed-version"
@@ -715,7 +719,7 @@ copy_hooks "$mixed_version_root"
 touch "$mixed_version_root/.claude/skills/story-setup/references/agent-references/dummy.md"
 cat > "$mixed_version_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
+agents_version: 48
 setup_skill_version: 1.2.6
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
@@ -723,11 +727,11 @@ references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 mixed_version_out="$(run_from_nested "$mixed_version_root" session-start.sh 2>&1 || true)"
 # agents_version 是唯一运行时过期权威；setup_skill_version 落后不触发重部署（设计如此）
-if echo "$mixed_version_out" | grep -q '低于 v47'; then
-  fail "session-start incorrectly nagged '低于 v47' for current agents_version=47 just because setup_skill_version lags"
+if echo "$mixed_version_out" | grep -q '低于 v48'; then
+  fail "session-start incorrectly nagged '低于 v48' for current agents_version=48 just because setup_skill_version lags"
 fi
 if echo "$mixed_version_out" | grep -q '高于本 hook'; then
-  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=47 just because setup_skill_version lags"
+  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=48 just because setup_skill_version lags"
 fi
 
 # 多端部署的 references_dir 是逗号分隔多条路径。整串当一条路径查会每次开会话都误报缺失，
@@ -741,8 +745,8 @@ touch "$multi_end_root/.claude/skills/story-setup/references/agent-references/du
 touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dummy.md"
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
-setup_skill_version: 1.7.0
+agents_version: 48
+setup_skill_version: 1.8.0
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references
@@ -855,15 +859,15 @@ echo "  OK TS9 settings JSON"
 # agent 模板要带住关键行为规则。原先还夹着一批「UPGRADING.md/README 必须写到某句话」
 # 的文档完整性断言——那种改一个词就红、测的是措辞不是行为，已随 check-story-long-write-contract.sh
 # 一并去掉，发版是否补 UPGRADING 由发版清单和人把关，不靠 CI 钉死措辞。
-assert_grep 'AGENTS_VERSION.*-lt 47|AGENTS_VERSION" -lt 47' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 46 under v47 deployment"
-assert_grep 'AGENTS_VERSION.*-gt 47|AGENTS_VERSION" -gt 47' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
+assert_grep 'AGENTS_VERSION.*-lt 48|AGENTS_VERSION" -lt 48' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 47 under v48 deployment"
+assert_grep 'AGENTS_VERSION.*-gt 48|AGENTS_VERSION" -gt 48' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/guard-outline-before-prose.sh" "Claude bash tracking gate must activate at agents_version 28"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/story_hook_cli.js" "Claude CLI tracking gate must activate at agents_version 28"
-assert_grep 'agents_version.*小于 `47`|版本 < 47' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 46 as stale"
-assert_grep 'agents_version.*大于 `47`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
+assert_grep 'agents_version.*小于 `48`|版本 < 48' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 47 as stale"
+assert_grep 'agents_version.*大于 `48`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
-assert_grep '大于 47 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
-assert_grep '^version:[[:space:]]*1\.7\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
+assert_grep '大于 48 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
+assert_grep '^version:[[:space:]]*1\.8\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
 # 漏写一个 → 半装的包检不出；名单里多出已删除的目录 → 完好的包被判残缺，fail-closed 卡死所有部署。
@@ -985,7 +989,10 @@ PY
 
 # 长篇授权流：缺细纲拦截 / 有细纲放行 / 章号补零容忍
 [ "$(run_guard 'book/正文/第1章_开端.md')" = "2" ] || fail "guard did not BLOCK long prose when 细纲 missing"
-: > "$guard_root/book/大纲/细纲_第1章.md"
+# 细纲文件在但只有标题（去掉 # 号与空白不到 30 字）：照拦，不当成细纲已就位。
+printf '# 细纲\n## 目标情绪\n' > "$guard_root/book/大纲/细纲_第1章.md"
+[ "$(run_guard 'book/正文/第1章_开端.md')" = "2" ] || fail "guard did not BLOCK long prose when 细纲 is empty"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第1章.md"
 [ "$(run_guard 'book/正文/第1章_开端.md')" = "0" ] || fail "guard wrongly blocked long prose when 细纲 present"
 # 细纲缺「收一个/变一个/开一个」只提醒不拦：必须以 PreToolUse additionalContext 送进模型
 # （旧实现写 stderr + exit 0，Claude Code 只记 debug log）。
@@ -1009,7 +1016,7 @@ outline_long_out="$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":
 [ "$outline_long_ec" = "0" ] || fail "outline length advisory must not block (exit $outline_long_ec)"
 assert_hook_context "$outline_long_out" PreToolUse '细纲超长' "guard outline length advisory"
 assert_hook_context "$outline_long_out" PreToolUse '4800元×3' "guard outline duplicate detail advisory"
-: > "$guard_root/book/大纲/细纲_第1章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第1章.md"
 
 # 追踪顺序校验：OpenCode/ZCode/Codex 三端写正文前都调 core.proseBlockReason，本端早先
 # 只有纯 bash 细纲检查，「首建第 N+1 章前必须先提交第 N 章追踪事务」在 Claude Code 上
@@ -1020,9 +1027,9 @@ printf '%s\n' '{"schema_version":5,"state_revision":0,"last_committed_chapter":1
 # 派生视图必须同在：核会比对 上下文.md 的状态修订与 state 的 state_revision，
 # 只造 state 不造派生视图会被正确判为「派生视图不一致」，那是另一条判据，不是本组要测的。
 printf '# ctx\n\n> 状态修订：0。\n' > "$guard_root/book/追踪/上下文.md"
-: > "$guard_root/book/大纲/细纲_第3章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第3章.md"
 [ "$(run_guard 'book/正文/第3章_跳章.md')" = "2" ] || fail "guard did not BLOCK chapter skip when tracking state is behind"
-: > "$guard_root/book/大纲/细纲_第2章.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第2章.md"
 [ "$(run_guard 'book/正文/第2章_续写.md')" = "0" ] || fail "guard wrongly blocked the next chapter in sequence"
 rm -f "$guard_root/book/追踪/_tracking-state.json"
 [ "$(run_guard 'book/正文/第3章_跳章.md')" = "0" ] || fail "guard must not require tracking state on projects that have not migrated"
@@ -1048,7 +1055,7 @@ printf '%s\n' '{not-json' > "$guard_root/book/追踪/_tracking-state.json"
 rm -f "$guard_root/book/追踪/_tracking-state.json" "$guard_root/.story-deployed"
 
 [ "$(run_guard 'book/正文/第001章_开端.md')" = "0" ] || fail "guard did not tolerate chapter-number zero padding (第001章 vs 细纲_第1章)"
-: > "$guard_root/book/大纲/细纲_第7章_惊变.md"
+printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第7章_惊变.md"
 [ "$(run_guard 'book/正文/第7章_x.md')" = "0" ] || fail "guard did not tolerate title-suffixed 细纲 (细纲_第7章_惊变.md)"
 # 短篇授权流：有 设定.md 信号 + 缺小节大纲 -> 拦截；补小节大纲 -> 放行
 : > "$guard_root/short/设定.md"
@@ -1077,12 +1084,12 @@ if command -v node >/dev/null 2>&1; then
   BASH_IMPORT_ONE='impbook/正文/第1章_x.md'
   BASH_WRITE_EIGHT="cat draft.md > $BASH_PROSE_EIGHT"
   BASH_WRITE_IMPORT="cat draft.md > $BASH_IMPORT_ONE"
-  : > "$guard_root/book/大纲/细纲_第8章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第8章.md"
   printf '%s\n' 'agents_version: 27' > "$guard_root/.story-deployed"
   [ "$(run_bash_guard "$BASH_WRITE_EIGHT")" = "0" ] \
     || fail "Claude Bash guard must suppress only the missing-state reason for a legacy deployment"
   mkdir -p "$guard_root/legacytox/正文" "$guard_root/legacytox/大纲"
-  : > "$guard_root/legacytox/大纲/细纲_第2章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/legacytox/大纲/细纲_第2章.md"
   LEGACY_TOXIC_PREV="$guard_root/legacytox/正文/第1章_旧.md"
   LEGACY_TOXIC_NEXT='legacytox/正文/第2章_新.md'
   LEGACY_TOXIC_WRITE="cat draft.md > $LEGACY_TOXIC_NEXT"
@@ -1097,7 +1104,7 @@ if command -v node >/dev/null 2>&1; then
   rm -f "$guard_root/.story-deployed"
 
   # 相对 Bash 目标必须按 hook cwd 解，不得总按项目根；根 book 有第8章细纲，nested/book 没有。
-  : > "$guard_root/book/大纲/细纲_第8章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第8章.md"
   mkdir -p "$guard_root/nested/book/正文"
   cwd_payload="$(python3 - "$guard_root/nested" <<'PY'
 import json, sys
@@ -1148,7 +1155,7 @@ if ! PATH="$nonode_shim:$PATH" node -e "" >/dev/null 2>&1; then
   # 缺细纲 -> 仍须拦截（bash 兜底解析出目标路径，照常 exit 2）
   [ "$(run_guard_nonode 'book/正文/第123章_无纲.md')" = "2" ] \
     || fail "guard fail-OPEN without node (regression #243): 缺细纲写正文必须仍拦截（bash 兜底）"
-  : > "$guard_root/book/大纲/细纲_第123章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第123章.md"
   # 有细纲 -> 放行（bash 兜底不误伤）
   [ "$(run_guard_nonode 'book/正文/第123章_无纲.md')" = "0" ] \
     || fail "guard(no-node) wrongly blocked long prose when 细纲 present (bash 兜底)"
@@ -1193,7 +1200,7 @@ if [ "$resolved_node" = "$brokennode_shim/node" ]; then
   # node 探测通过但 CLI 抽取抛错 -> 缺细纲仍须拦截（bash 兜底解析目标路径）
   [ "$(run_guard_brokennode 'book/正文/第124章_坏node.md')" = "2" ] \
     || fail "guard fail-OPEN with broken node (regression #243): node 在但抽取失败时必须回落 bash 仍拦截"
-  : > "$guard_root/book/大纲/细纲_第124章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$guard_root/book/大纲/细纲_第124章.md"
   # 有细纲 -> 放行（bash 兜底不误伤）
   [ "$(run_guard_brokennode 'book/正文/第124章_坏node.md')" = "0" ] \
     || fail "guard(broken-node) wrongly blocked long prose when 细纲 present (bash 兜底)"

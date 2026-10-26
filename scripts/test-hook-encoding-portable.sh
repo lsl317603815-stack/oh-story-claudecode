@@ -15,6 +15,10 @@
 # 用法：bash scripts/test-hook-encoding-portable.sh
 set -euo pipefail
 
+# 写正文守卫要求细纲写了内容（去掉 BOM、# 号与空白后 ≥30 字），空文件会被当成空细纲拦下；
+# 需要「细纲已就位」的夹具统一写这段。
+OUTLINE_FIXTURE="$(printf '# 细纲\n江晨在雨夜推开旧书店的门，发现柜台后坐着失踪三年的师父，两人对视良久。')"
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 if [ -z "$REPO_ROOT" ]; then
   echo "Error: not in a git repository"
@@ -58,7 +62,7 @@ run_guard_py() { # $1 mode(default|gbk)  $2 file_path -> exit code
 for MODE in default gbk; do
   rm -f "$P1/book/大纲/细纲_第1章.md"
   [ "$(run_guard_py "$MODE" 'book/正文/第1章_开端.md')" = 2 ] && pass "[$MODE] long blocked, 细纲 missing" || bad "[$MODE] long should block when 细纲 missing"
-  : > "$P1/book/大纲/细纲_第1章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$P1/book/大纲/细纲_第1章.md"
   [ "$(run_guard_py "$MODE" 'book/正文/第1章_开端.md')" = 0 ] && pass "[$MODE] long allowed, 细纲 present" || bad "[$MODE] long should allow when 细纲 present"
   : > "$P1/short/设定.md"; rm -f "$P1/short/小节大纲.md"
   [ "$(run_guard_py "$MODE" 'short/正文.md')" = 2 ] && pass "[$MODE] short blocked, 小节大纲 missing" || bad "[$MODE] short should block when 小节大纲 missing"
@@ -103,7 +107,7 @@ rm -f "$P1/.story-deployed"
 # 以 block(2) 证明盘符路径已按绝对路径处理。（真实 Windows 上同样的绝对处理会命中真盘符下的
 # 真细纲而放行，方向相反，此处只验「是否按绝对路径分类」这一修复点。）
 echo "--- Part 1b: Windows drive-letter absolute path classification (issue #184) ---"
-if mkdir -p "$P1/C:/book184/大纲" 2>/dev/null && : > "$P1/C:/book184/大纲/细纲_第2章.md" 2>/dev/null; then
+if mkdir -p "$P1/C:/book184/大纲" 2>/dev/null && printf '%s\n' "$OUTLINE_FIXTURE" > "$P1/C:/book184/大纲/细纲_第2章.md" 2>/dev/null; then
   run_guard_drive() { # $1 file_path(JSON-escaped) -> exit code
     local ec=0
     printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"}}' "$1" \
@@ -133,7 +137,7 @@ if command -v cygpath >/dev/null 2>&1; then
       mkdir -p "$P1/winbook/正文" "$P1/winbook/大纲"
       run_guard_win() { local ec=0; printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"}}' "$1" \
         | CLAUDE_PROJECT_DIR="$P1" bash "$P1/.claude/hooks/guard-outline-before-prose.sh" >/dev/null 2>&1 || ec=$?; printf '%s' "$ec"; }
-      : > "$P1/winbook/大纲/细纲_第3章.md"
+      printf '%s\n' "$OUTLINE_FIXTURE" > "$P1/winbook/大纲/细纲_第3章.md"
       [ "$(run_guard_win "$WINROOT/winbook/正文/第3章_x.md")" = 0 ] \
         && pass "[win] real drive path allowed when 细纲 present" \
         || bad  "[win] real drive path should allow when 细纲 present"
@@ -180,7 +184,7 @@ else
   rg() { local ec=0; printf '{"tool_name":"Write","tool_input":{"file_path":"%s","content":"x"}}' "$1" \
     | GBK CLAUDE_PROJECT_DIR="$P2" bash "$P2/.claude/hooks/guard-outline-before-prose.sh" >/dev/null 2>&1 || ec=$?; printf '%s' "$ec"; }
   [ "$(rg '中文测试书/正文/第1章_开端.md')" = 2 ] && pass "[GBK] guard blocks missing 细纲" || bad "[GBK] guard should block missing 细纲"
-  : > "$BOOK/大纲/细纲_第1章.md"
+  printf '%s\n' "$OUTLINE_FIXTURE" > "$BOOK/大纲/细纲_第1章.md"
   [ "$(rg '中文测试书/正文/第1章_开端.md')" = 0 ] && pass "[GBK] guard allows present 细纲 (Chinese glob)" || bad "[GBK] guard should allow present 细纲 under GBK"
   [ "$(rg '中文测试书/正文/第001章_开端.md')" = 0 ] && pass "[GBK] guard tolerates zero-pad 第001章" || bad "[GBK] guard should tolerate zero-pad 第001章 under GBK"
 
