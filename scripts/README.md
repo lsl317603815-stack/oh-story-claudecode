@@ -36,6 +36,7 @@
 | `check-codex-adapter.sh` | Codex 适配层：repo skills symlink、agent TOML、hooks 与跨平台 launcher | CI（调 generate-codex-agents.py 验生成确定性） |
 | `check-zcode-adapter.sh` | ZCode plugin/marketplace、Skills/Commands/Hooks 与部署锚点 | CI |
 | `check-workbuddy-adapter.py` | WorkBuddy / CodeBuddy 双模式：规范 plugin manifest、命名空间、中文主包 10 张物理 Agent 卡、project/plugin Hook 互斥、memory 防遮蔽、PowerShell 边界、包边界与生成确定性 | CI（调 `generate-workbuddy-adapter.py --check`） |
+| `check-antigravity-adapter.sh` | Google Antigravity 适配（hooks.json、Always-On Rule、8 个生成 agent、共享核字节一致，并跑 hook 契约 / hooks 合并 / skill 物化三组测试） | CI |
 | `check-reasonix-adapter.sh` | Reasonix plugin manifest（schema、21 Skills、版本与 skills/story/VERSION 同步） | CI |
 
 ## 测试回归（test-*）

@@ -93,6 +93,7 @@ bash scripts/check-trae-runtime-routing.sh
 python3 scripts/check-workbuddy-adapter.py
 python3 scripts/test-trae-core-ownership.py
 bash scripts/check-reasonix-adapter.sh
+bash scripts/check-antigravity-adapter.sh
 bash scripts/test-codex-hooks.sh
 bash scripts/test-zcode-hooks.sh
 bash scripts/test-trae-hooks.sh

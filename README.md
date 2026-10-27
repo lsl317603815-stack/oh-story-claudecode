@@ -2,7 +2,7 @@
 
 # oh-story
 
-网文写作 skill 包，覆盖长篇与短篇网络小说的扫榜、拆文、写作、去AI味、封面图全流程。内置适配 Claude Code、OpenCode、TRAE Code、WorkBuddy / CodeBuddy Code、ZCode、OpenClaw、Codex CLI、Reasonix；能读取项目文件的 Web AI / Agent 环境也可按通用 skills 路径使用。
+网文写作 skill 包，覆盖长篇与短篇网络小说的扫榜、拆文、写作、去AI味、封面图全流程。内置适配 Claude Code、OpenCode、Google Antigravity（IDE 与 `agy`）、TRAE Code、WorkBuddy / CodeBuddy Code、ZCode、OpenClaw、Codex CLI、Reasonix；能读取项目文件的 Web AI / Agent 环境也可按通用 skills 路径使用。
 
 > **独立发行线**：本仓库是 oh-story 的一条独立发行线，自 v0.10.0 起安装、更新与版本号都只认本仓库，也不与其他仓库共用版本号命名空间（0.9.0 已被另一条线占用，本线直接跳到 0.10.0）。另一条线的更新不会自动同步，由本仓库评审后按需合入，例如 v0.11.0 合入了它的 v0.8.0 / v0.9.0。后续功能、版本、Dev/Release 渠道及商业化由本项目独立规划和维护。早期代码基于 MIT 开源版本演进；完整 Git 历史用于持续记录代码来源与贡献归属，具体许可见 [`LICENSE`](LICENSE)。
 >
@@ -176,6 +176,8 @@ npx skills add "$D"/x/oh-story-* -y -g
 >
 > **OpenClaw 用户：** 当前支持 skills-only：OpenClaw 可从 workspace `skills/`、`.agents/skills`、`~/.agents/skills`、`~/.openclaw/skills` 等 skill root 发现本项目 21 个 skill；`SKILL.md` 已按 OpenClaw 要求使用单行 `name` / `description` 与单行 JSON `metadata.openclaw`。`story-setup` 选择 `target_cli=openclaw` 时会把 skills 复制到项目 `skills/` 并写入 OpenClaw 版 `AGENTS.md`；agents/hooks 暂不部署，写正文前大纲守卫在 OpenClaw 下是 skill 内软约束。部署后如未显示新 skills，请新开 OpenClaw session 或等待 skills watcher 刷新。
 >
+> **Google Antigravity 用户（未发布 main）：** 在项目里运行 `/story-setup` 并选 Google Antigravity，会把 21 个 skill、8 个专业 agent、常驻规则和 hooks 部署到项目 `.agents/`；可与 Claude Code 同项目并存。部署后新开 Antigravity 会话或重开 `agy`，用 `/skills`、`/agents`、`/hooks` 确认能看到 oh-story。在 Antigravity 里正文由 Gemini 直接写；`agy -p` 必须带 `--add-dir "$PWD"` 才会加载项目 `.agents/`。
+
 > **Reasonix 用户：** 当前支持 skills + 原生 plugin manifest（Phase 1）：Reasonix 原生扫描 `.agents/skills`（指向 `skills/` 的 symlink）发现 21 个 skill，用 `reasonix doctor capabilities` 校验；也可用根 `reasonix-plugin.json` 走 `reasonix plugin install`。项目级 `story-setup` 部署与 hooks 是后续阶段。Windows 未启用 symlink 时改走原生 plugin。
 >
 > **Web AI / 通用 Agent 用户：** 下载并解压上方 Release 资产后，可让 Agent 读取其中 `skills/*/SKILL.md` 与对应 `references/`；直读浮动 GitHub 仓库仅限 dev-only 测试。需要项目内副本时，`story-setup` 可选 `target_cli=generic`，只写通用 `AGENTS.md` 和 `skills/`。无本项目 hooks/custom agents 的环境按 skill 内软约束或 solo/direct fallback 执行。

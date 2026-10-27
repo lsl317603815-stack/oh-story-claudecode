@@ -73,8 +73,8 @@ write_sentinel() {
   local root="$1"
   cat > "$root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
-setup_skill_version: 1.8.0
+agents_version: 49
+setup_skill_version: 1.9.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
@@ -212,6 +212,11 @@ assert_file "$SKILL_DIR/references/openclaw/AGENTS.md.tmpl"
 assert_file "$SKILL_DIR/references/generic/AGENTS.md.tmpl"
 assert_file "$SKILL_DIR/references/reasonix/AGENTS.md.tmpl"
 assert_file "$SKILL_DIR/references/zcode/AGENTS.md.tmpl"
+assert_file "$SKILL_DIR/references/antigravity/deploy.md"
+assert_file "$SKILL_DIR/references/antigravity/rules/oh-story.md"
+assert_file "$SKILL_DIR/references/antigravity/hooks/hooks.json"
+assert_file "$SKILL_DIR/references/antigravity/hooks/story_antigravity_hook.js"
+assert_file "$SKILL_DIR/references/antigravity/hooks/story_hook_core.js"
 assert_file "$SKILL_DIR/references/zcode/config.json.patch"
 assert_file "$SKILL_DIR/references/zcode/hooks/hooks.json"
 assert_file "$SKILL_DIR/references/zcode/hooks/story_zcode_hook.js"
@@ -247,6 +252,9 @@ assert_grep 'references/generic/AGENTS\.md\.tmpl' "$SKILL_FILE" "deployment mani
 assert_grep 'target_cli 含 generic|通用 Web AI / 其他 Agent' "$SKILL_FILE" "story-setup must document generic Web AI deployment"
 assert_grep 'references/reasonix/AGENTS\.md\.tmpl' "$SKILL_FILE" "deployment manifest missing Reasonix AGENTS template"
 assert_grep 'Reasonix skills-only|target_cli 含 reasonix' "$SKILL_FILE" "story-setup must document Reasonix skills-only deployment"
+assert_grep 'references/antigravity/deploy\.md' "$SKILL_FILE" "story-setup must route antigravity to its deploy file"
+assert_grep 'target_cli 含 antigravity|target_cli = antigravity' "$SKILL_FILE" "story-setup must document Antigravity deployment"
+assert_grep '\.agents/rules/oh-story\.md' "$SKILL_FILE" "story-setup must detect Antigravity by its exclusive rule file"
 assert_grep 'references/zcode/AGENTS\.md\.tmpl' "$SKILL_FILE" "deployment manifest missing ZCode AGENTS template"
 assert_grep 'target_cli 含 zcode|target_cli = zcode' "$SKILL_FILE" "story-setup must document ZCode deployment"
 assert_grep '\.zcode/config\.json' "$SKILL_FILE" "story-setup must document ZCode config merge"
@@ -636,8 +644,8 @@ setup_git_repo "$bad_sentinel_root"
 copy_hooks "$bad_sentinel_root"
 cat > "$bad_sentinel_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
-setup_skill_version: 1.8.0
+agents_version: 49
+setup_skill_version: 1.9.0
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
@@ -661,8 +669,8 @@ printf '# ref
 ' > "$multi_refs_root/skills/story-setup/references/agent-references/ref.md"
 cat > "$multi_refs_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
-setup_skill_version: 1.8.0
+agents_version: 49
+setup_skill_version: 1.9.0
 target_cli: claude-code,codex,generic
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references,skills/story-setup/references/agent-references
@@ -687,14 +695,14 @@ setup_git_repo "$stale_previous_root"
 copy_hooks "$stale_previous_root"
 cat > "$stale_previous_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 47
+agents_version: 48
 setup_skill_version: 1.2.22
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 stale_previous_out="$(run_from_nested "$stale_previous_root" session-start.sh 2>&1 || true)"
-echo "$stale_previous_out" | grep -q '低于 v48' || fail "session-start did not warn for agents_version 47 stale v48 deployment"
+echo "$stale_previous_out" | grep -q '低于 v49' || fail "session-start did not warn for agents_version 48 stale v49 deployment"
 
 newer_project_root="$TMP_DIR/newer-project"
 mkdir -p "$newer_project_root/.claude/skills/story-setup/references/agent-references"
@@ -702,14 +710,14 @@ setup_git_repo "$newer_project_root"
 copy_hooks "$newer_project_root"
 cat > "$newer_project_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 49
-setup_skill_version: 1.8.0
+agents_version: 50
+setup_skill_version: 1.9.0
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 newer_project_out="$(run_from_nested "$newer_project_root" session-start.sh 2>&1 || true)"
-echo "$newer_project_out" | grep -q '高于本 hook 支持的 v48' || fail "session-start did not reject agents_version 49 downgrade"
+echo "$newer_project_out" | grep -q '高于本 hook 支持的 v49' || fail "session-start did not reject agents_version 50 downgrade"
 echo "$newer_project_out" | grep -q '不要降级覆盖' || fail "session-start did not explain future-version safety"
 
 mixed_version_root="$TMP_DIR/mixed-version"
@@ -719,7 +727,7 @@ copy_hooks "$mixed_version_root"
 touch "$mixed_version_root/.claude/skills/story-setup/references/agent-references/dummy.md"
 cat > "$mixed_version_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
+agents_version: 49
 setup_skill_version: 1.2.6
 target_cli: claude-code
 resolver_strategy: project-local-skill-reference
@@ -727,11 +735,11 @@ references_dir: .claude/skills/story-setup/references/agent-references
 SENTINEL
 mixed_version_out="$(run_from_nested "$mixed_version_root" session-start.sh 2>&1 || true)"
 # agents_version 是唯一运行时过期权威；setup_skill_version 落后不触发重部署（设计如此）
-if echo "$mixed_version_out" | grep -q '低于 v48'; then
-  fail "session-start incorrectly nagged '低于 v48' for current agents_version=48 just because setup_skill_version lags"
+if echo "$mixed_version_out" | grep -q '低于 v49'; then
+  fail "session-start incorrectly nagged '低于 v49' for current agents_version=49 just because setup_skill_version lags"
 fi
 if echo "$mixed_version_out" | grep -q '高于本 hook'; then
-  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=48 just because setup_skill_version lags"
+  fail "session-start incorrectly nagged '高于本 hook' for current agents_version=49 just because setup_skill_version lags"
 fi
 
 # 多端部署的 references_dir 是逗号分隔多条路径。整串当一条路径查会每次开会话都误报缺失，
@@ -745,8 +753,8 @@ touch "$multi_end_root/.claude/skills/story-setup/references/agent-references/du
 touch "$multi_end_root/.codex/skills/story-setup/references/agent-references/dummy.md"
 cat > "$multi_end_root/.story-deployed" <<'SENTINEL'
 deployed_at: 2026-05-24T00:00:00Z
-agents_version: 48
-setup_skill_version: 1.8.0
+agents_version: 49
+setup_skill_version: 1.9.0
 target_cli: claude-code,codex
 resolver_strategy: project-local-skill-reference
 references_dir: .claude/skills/story-setup/references/agent-references,.codex/skills/story-setup/references/agent-references
@@ -859,15 +867,15 @@ echo "  OK TS9 settings JSON"
 # agent 模板要带住关键行为规则。原先还夹着一批「UPGRADING.md/README 必须写到某句话」
 # 的文档完整性断言——那种改一个词就红、测的是措辞不是行为，已随 check-story-long-write-contract.sh
 # 一并去掉，发版是否补 UPGRADING 由发版清单和人把关，不靠 CI 钉死措辞。
-assert_grep 'AGENTS_VERSION.*-lt 48|AGENTS_VERSION" -lt 48' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 47 under v48 deployment"
-assert_grep 'AGENTS_VERSION.*-gt 48|AGENTS_VERSION" -gt 48' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
+assert_grep 'AGENTS_VERSION.*-lt 49|AGENTS_VERSION" -lt 49' "$HOOKS_DIR/session-start.sh" "session-start must warn for agents_version 48 under v49 deployment"
+assert_grep 'AGENTS_VERSION.*-gt 49|AGENTS_VERSION" -gt 49' "$HOOKS_DIR/session-start.sh" "session-start must reject a newer agents_version as a downgrade"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/guard-outline-before-prose.sh" "Claude bash tracking gate must activate at agents_version 28"
 assert_grep 'TRACKING_REQUIRED_AGENTS_VERSION[[:space:]]*=[[:space:]]*28' "$HOOKS_DIR/story_hook_cli.js" "Claude CLI tracking gate must activate at agents_version 28"
-assert_grep 'agents_version.*小于 `48`|版本 < 48' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 47 as stale"
-assert_grep 'agents_version.*大于 `48`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
+assert_grep 'agents_version.*小于 `49`|版本 < 49' "$SKILL_DIR/SKILL.md" "story-setup redeploy branch must treat agents_version 48 as stale"
+assert_grep 'agents_version.*大于 `49`' "$SKILL_DIR/SKILL.md" "story-setup must stop before downgrading a newer deployment"
 assert_grep 'Notice: agents bundle 版本不匹配' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must surface an agents_version mismatch"
-assert_grep '大于 48 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
-assert_grep '^version:[[:space:]]*1\.8\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
+assert_grep '大于 49 时额外提示先更新 oh-story-claudecode' "$REPO_ROOT/skills/story-review/SKILL.md" "story-review must tell newer deployments to update the package first"
+assert_grep '^version:[[:space:]]*1\.9\.0$' "$SKILL_FILE" "story-setup frontmatter must match the deployed setup version"
 
 # Phase 1 自检的目录名单是硬编码的，必须与实际 references/ 子目录集合一致。
 # 漏写一个 → 半装的包检不出；名单里多出已删除的目录 → 完好的包被判残缺，fail-closed 卡死所有部署。
@@ -898,7 +906,7 @@ for ref_dir in "$SKILL_DIR"/references/*/; do
   esac
 done
 ref_dir_count="$(find "$SKILL_DIR/references" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')"
-[ "$ref_dir_count" -eq 10 ] || fail "story-setup references/ now has $ref_dir_count subdirs (expected 10); update the Phase 1 self-check list and this assertion"
+[ "$ref_dir_count" -eq 11 ] || fail "story-setup references/ now has $ref_dir_count subdirs (expected 11); update the Phase 1 self-check list and this assertion"
 assert_grep '剧情/情绪模块\.md.*missing_primary_contract|missing_primary_contract.*剧情/情绪模块\.md' "$SKILL_DIR/references/templates/agents/story-explorer.md" "story-explorer must require the current emotion-module artifact"
 assert_grep '剧情/节奏\.md.*missing_primary_contract|missing_primary_contract.*剧情/节奏\.md' "$SKILL_DIR/references/templates/agents/story-explorer.md" "story-explorer must require the current rhythm artifact"
 assert_no_grep 'legacy_deconstruction|contract_version.*legacy|pre-v12' "$SKILL_DIR/references/templates/agents/story-explorer.md" "story-explorer must not keep legacy benchmark branches"

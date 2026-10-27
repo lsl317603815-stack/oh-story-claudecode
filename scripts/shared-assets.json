@@ -249,7 +249,8 @@
         "skills/story-setup/references/opencode/story_hook_core.js",
         "skills/story-setup/references/zcode/hooks/story_hook_core.js",
         "skills/story-setup/references/trae/hooks/story_hook_core.js",
-        "skills/story-setup/references/workbuddy/hooks/story_hook_core.js"
+        "skills/story-setup/references/workbuddy/hooks/story_hook_core.js",
+        "skills/story-setup/references/antigravity/hooks/story_hook_core.js"
       ]
     },
     {

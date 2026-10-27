@@ -2,12 +2,12 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.8.0`
-- `agents_version: 48`
+- `setup_skill_version: 1.9.0`
+- `agents_version: 49`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `48`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `48`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `49`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `49`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
 
 ## v46（新增有声书 Skill）
 
@@ -48,6 +48,15 @@
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。OpenCode 用户先升级到 2.x（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。
 
+
+## v49（新增 Google Antigravity 宿主）
+
+- `agents_version` 48 → 49、`setup_skill_version` 1.8.0 → 1.9.0：story-setup 可选目标端新增 `antigravity`（Google Antigravity IDE 与交互式 `agy`），移植自原仓库 zenstory-ai #377 / #396，按本线改造：部署 21 个 Skill 到 `.agents/skills/`（真实目录）、8 个专业 agent 到 `.agents/agents/<名>/agent.md`（由 Claude agent 卡确定性生成，含 `revision-governor`）、Always-On Rule `.agents/rules/oh-story.md`、hooks `.agents/hooks.json` 与 `.agents/hooks/`。Hook 写前先查修订门禁再查正文前置门，与 Claude / ZCode 同一判据；写后检测经会话 artifact 交给下一次 PreInvocation 注入。部署步骤见 `references/antigravity/deploy.md`。
+- 在 Antigravity 里正文由 Gemini 直接写：生成的是原生 `narrative-writer`，不是 Claude Code 侧把写手转给 agy 的转发器；Rule 也禁止在 Antigravity 里再调用 `agy`。启用了模型分工里“去 AI 味审查”的项目，去味审查任务由 Antigravity 主会话直接运行 `.claude/models/run-deslop-review.py` 交给方舟模型。
+- 可与 Claude Code 并存（`target_cli: claude-code,antigravity`）：两端各用各的目录（`.claude/` 与 `.agents/`），`references_dir` 保持原值。已有 `.agents/skills` 是 symlink（Codex / Reasonix 项目）时，迁移成真实目录前会先征得同意。
+- 不选 Antigravity 的项目行为不变；版本号升级只为让 v48 项目收到重跑提示。
+
+升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在要用 Antigravity 的项目里运行 `/story-setup` 并加选 Antigravity；之后新开 Antigravity 会话（或重开 `agy`），确认 `/skills`、`/agents`、`/hooks` 能看到 oh-story。
 ## v45（细纲长度控制）
 
 - 依据 `plot-core-methods.md`「小纲四步法」的细纲:正文 = 1:2.5～1:3，细纲模板（story-long-write `workflow-setup.md` Phase 3，唯一权威副本）新增「细纲长度与分工」：顶部章卡给作者读、字段值合计 ≤350 字（核心事件 ≤80），章卡后一行 `---` 隔开写手单；五段式/多线每行 ≤40 字、只写功能；具体数字和台词只写在情节点序列；全文 ≤ 字数目标×0.5，硬上限 ×0.7。字段名不变、不删字段。
@@ -239,7 +248,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 48` 与 `setup_skill_version: 1.8.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 49` 与 `setup_skill_version: 1.9.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。
