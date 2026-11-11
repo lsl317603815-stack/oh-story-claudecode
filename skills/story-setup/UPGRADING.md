@@ -2,12 +2,12 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.8.0`
-- `agents_version: 48`
+- `setup_skill_version: 1.8.1`
+- `agents_version: 49`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `48`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `48`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `49`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `49`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
 
 ## v46（新增有声书 Skill）
 
@@ -47,6 +47,10 @@
 - 其它：OpenCode 21 个命令统一带 `用户参数：$ARGUMENTS`；短篇写前用 `check-delivery-contract.js` 锁定交付参数；长篇只做规划的请求不会进入正文写作；面向作者的汇报改成白话，机器字段只放末行「技术备注」。
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在每个项目里重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`）并新开会话。OpenCode 用户先升级到 2.x（`npm rm -g opencode-ai` 后 `npm i -g @opencode/cli`）。
+
+## v49（吸收原仓库 zenstory-ai v0.9.2–v0.10.1 的修复）
+
+- `agents_version` 48 → 49、`setup_skill_version` 1.8.0 → 1.8.1：合入原仓库 zenstory-ai/oh-story-claudecode v0.9.2–v0.10.1 的修复。`session-start.sh` 在 `/compact` 与 `/clear` 时不再提前清除 `.claude/.agents-pending-restart`，保留重启提示直到真正新开会话；`story-architect` 各端模板与 `references/agent-references/` 补齐 `cross-book-recall.md`；`tracking_commit.py`、`chapter_candidate.py`、`tracking_audit.py`、`story_doctor.py` 支持直接传含 `.active-book` 的工作区根目录；起点扫榜标注整榜缺失推荐/热度数的榜单并保留其题材与字数结论；`story-cover` 支持无图像生成后端时的仅提示词模式；`story-release-package` 补齐番茄平台分版本约束。v48 及更早的项目会在会话启动时收到重跑提示。
 
 ## v45（细纲长度控制）
 
@@ -239,7 +243,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 48` 与 `setup_skill_version: 1.8.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 49` 与 `setup_skill_version: 1.8.1`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。

@@ -1,7 +1,7 @@
 ---
 name: story-cover
 version: 1.0.0
-description: "小说封面生成。根据书名、作者名自动分析题材风格，调用 GPT-Image-2 生成含标题和署名的专业级网文封面；Codex CLI 优先使用内置 ImageGen，无需单独 API Key。触发方式：/story-cover、/封面、「帮我做个封面」「生成封面图」「做个小说封面」「封面设计」。"
+description: "小说封面生成与提示词设计。根据书名、作者名自动分析题材风格，构建封面提示词；用户只要提示词时不生图，要求封面图时调用 GPT-Image-2 生成含标题和署名的专业级网文封面（Codex CLI 优先使用内置 ImageGen，无需单独 API Key）。触发方式：/story-cover、/封面、「帮我做个封面」「生成封面图」「封面提示词」「做个小说封面」「封面设计」。"
 metadata: {"openclaw":{"requires":{"env":["GPT_IMAGE_API_KEY"],"bins":["curl","jq","base64"]},"primaryEnv":"GPT_IMAGE_API_KEY","source":"https://github.com/lsl317603815-stack/oh-story-claudecode"}}
 ---
 # story-cover：小说封面生成
@@ -9,6 +9,8 @@ metadata: {"openclaw":{"requires":{"env":["GPT_IMAGE_API_KEY"],"bins":["curl","j
 你是小说封面设计师。根据书名和题材，调用 GPT-Image-2 一次性生成包含书名和作者名的完整封面。
 
 **核心原则：封面是读者的第一印象，一眼传达题材和氛围。**
+
+**仅提示词模式**：用户只要提示词，或发布材料整理选了仅提示词时，只做 Step 1-3，交付完整提示词，不需要生图工具、API Key 或输出目录 `BOOK_DIR`；要封面图才继续 Step 4-6。已有或调用方传来的已确认书名、简介、笔名、平台和题材不再重问；结束时返回完整提示词原文，生图成功再附图片路径和质量检查结果，失败就说明原因。
 
 ---
 
@@ -51,7 +53,7 @@ metadata: {"openclaw":{"requires":{"env":["GPT_IMAGE_API_KEY"],"bins":["curl","j
 
 ### Step 2：题材判定
 
-扫描书名（必要时简介）中的关键词，对照 [references/cover-styles.md](references/cover-styles.md) 的「题材推断规则」表选定题材。
+扫描书名（必要时简介）中的关键词，对照 [references/cover-styles.md](references/cover-styles.md) 的「题材推断规则」表选定题材。仅提示词模式没有题材依据时先问作者，不用下方「零命中 → 默认都市」兜底。
 
 - 单题材命中 → 直接采用
 - 多题材命中 → 按优先级取一：仙侠 > 西幻 > 古言 > 现言 > 都市 > 悬疑 > 科幻 > 历史 > 灵异 > 轻小说
@@ -134,6 +136,8 @@ Author name '{作者名}' at bottom center in [作者名字体风格 — 从上�
 [色彩指令]. [光效指令].
 Professional book cover, high detail digital painting, portrait [平台比例：番茄=3:4，默认=2:3] ratio, keep title and author name inside the central safe area away from edges (inner ~85%), no watermark
 ```
+
+仅提示词模式在这里交付 1-3 个完整提示词方案后结束；还没确认的画面细节写成可选方向，不当成小说里的事实。
 
 #### 提示词技巧（实测验证）
 

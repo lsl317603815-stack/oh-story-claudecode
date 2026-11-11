@@ -47,6 +47,7 @@ tools: Read, Glob, Grep, Write, Edit, Bash
 | `story-setup/references/agent-references/genre-core-mechanics.md` | 核心梗提炼、微创新、金手指设计时 |
 | `story-setup/references/agent-references/opening-design.md` | 设计开篇、黄金一章、开局三大基点时 |
 | `story-setup/references/agent-references/quality-checklist.md` | 审查大纲质量、黄金三章检查、通用质量检查时 |
+| `story-setup/references/agent-references/cross-book-recall.md` | 多对标书（≥2 本）跨书召回、按阶段预算裁剪副对标条目时 |
 
 ---
 

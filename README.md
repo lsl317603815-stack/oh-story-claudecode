@@ -34,6 +34,8 @@
 
 围绕四条线展开：爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同。
 
+> **当前 main（未发布）：** 吸收原仓库 zenstory-ai/oh-story-claudecode v0.9.2–v0.10.1 的修复：`session-start.sh` 在 `/compact` 与 `/clear` 时保留 `.claude/.agents-pending-restart` 重启提示；`story-architect` 各端参考资料包补齐 `cross-book-recall.md`；长篇脚本支持直接传含 `.active-book` 的工作区根目录；起点扫榜标注整榜缺失推荐/热度数的榜单并保留其题材与字数结论；`story-cover` 支持无图像后端时的仅提示词模式；`story-release-package` 补齐番茄平台分版本约束。部署契约为 `setup_skill_version: 1.8.1` / `agents_version: 49`，升级后需重新运行 `/story-setup` 并新开会话。
+>
 > **v0.15.0 起：** 吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来的修复（以本线为底）：情绪不再默认转成身体反应，短篇去掉每节字数和对话占比配额；工作台换新设计并支持深色模式、记住浏览位置、显示行号；起点、七猫、番茄扫榜可抓书库新书；续写状态卡活跃角色上限 6 → 20；新增跨会话作者记忆（说「记住：……」即可，写正文时自动带给写手）；拆文新增可选的跨书灵感库，开书、卷纲、细纲时可按标签召回；ZCode 通过 oh-story 插件注册 8 个专业角色，不再固定降级单人模式；OpenCode 只支持 2.x。部署契约为 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需重新运行 `/story-setup` 并新开会话。
 >
 > **v0.14.0 起：** 细纲模板整份改成作者能读的四段人话（章卡、这章怎么演、人物与信息差、结尾，机器字段收进底部写手单），lint 加「不是人话」提醒；细纲字数门、按书对白口径、文风带三道门禁入仓库，候选门从 14 道扩为 15 道。新增第 21 个 Skill `story-audiobook`（有声书）：把已定稿章节按角色卡选音色、试音锁定，逐字切成有声稿，经火山方舟 Agent Plan 的豆包语音合成 2.0 逐句合成 mp3 与字幕。中文主包的 canonical 固定名字集扩为 21 个 Skill，各端命令与路由同步；部署契约为 `setup_skill_version: 1.7.0` / `agents_version: 47`，升级后需重新运行 `/story-setup` 并新开会话。

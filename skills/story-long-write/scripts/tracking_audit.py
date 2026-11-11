@@ -227,6 +227,15 @@ def main() -> int:
         project = args.project.expanduser().resolve()
         if not project.is_dir():
             raise AuditError(f"项目目录不存在: {project}")
+        marker = project / ".active-book"
+        if not any((project / name).is_dir() for name in ("设定", "大纲", "正文", "追踪")) and marker.is_file():
+            lines = marker.read_text(encoding="utf-8").splitlines()
+            active = lines[0].strip() if lines else ""
+            book = project / active
+            real = book.resolve()
+            if not (bool(active) and (real == project or project in real.parents) and book.is_dir()):
+                raise AuditError(f"{marker} 没有指向工作区里的书目录（写的是「{active}」）；--project 直接传书目录")
+            project = real
         result = audit(
             project,
             load_json_document(args.transaction, "追踪事务"),

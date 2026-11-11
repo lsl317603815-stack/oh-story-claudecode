@@ -18,7 +18,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：白话告诉作者「这次由我直接改」，`Fallback: project custom agents unavailable -> solo` 原文只进报告最后一行「技术备注：」。ZCode 查当前已启用的 oh-story 插件注册的同名角色，用 `Agent` 工具按其实际 schema 派发，不要求 `.zcode/agents/`；角色缺失、调用失败或返回 unknown agent 时才降级，并提示先启用/更新 ZCode 插件；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 48` 不一致时（标记缺失、字段缺失/非整数、小于或大于 48）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 48）` 原文写进技术备注行；大于 48 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 49` 不一致时（标记缺失、字段缺失/非整数、小于或大于 49）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 49）` 原文写进技术备注行；大于 49 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
 **作者习惯**：只接收调用方已有的作者偏好（写作 skill 查出的作者记忆 `lines`），不查询或记录作者记忆；独立调用时不加载记忆文件。偏好作为自然倾向，不逐条追求命中，不牺牲连贯、节奏和字数；当前请求、原文剧情功能和本 skill 保护规则优先。
 
@@ -30,7 +30,7 @@ AI味不按语法错误处理，也不需要"修正"。它属于风格问题：�
 
 ### 原则 2：改最少，效果最大
 
-去AI味不等于重写。目标是改最少的字，让整段文字的"味"变过来。能改一个词就不改一句，能删一句就不重写一段。没有问题的句子尽量保留原句；人名、地名、数字、章节名、专有名词优先保留。
+去AI味不等于重写。目标是改最少的字，让整段文字的"味"变过来。能改一个词就不改一句，能删一句就不重写一段。优先做词或短语级微创修改（像针线活一样保留句间搭扣），不要把每一句话当成孤立考题整句推倒重来；严禁随手铲平句首承接上一句动作、物件或话头的过渡词、同义呼应与“以旧带新”钩子。没有问题的句子尽量保留原句；人名、地名、数字、章节名、专有名词优先保留。
 
 **过度去AI味保护**：
 - **不得整段删除正文内容**。如果某段被标记为多处AI味，应逐句修改而非删除整段
@@ -236,7 +236,7 @@ node scripts/check-degeneration.js --check --language=zh --fail-on=blocking <正
 现有三遍法和 Gate A-G 是候选稿的改写内核。完成后必须执行两个顺序固定的交付 Pass：
 
 1. **Pass F：保真审计**。逐项核对保护账本、人物信息边界、数字与时间、动作主体与结果、伏笔措辞、角色声线。任何不一致先恢复。
-2. **Pass R：残留味审计**。默认只检查 `changed-spans.json` 标出的本轮改动区，查找改写者新引入的模板句、节奏过匀、意义尾巴或声线趋同。只有 `issue_density=structural` 或用户明确要求全文审计时，才扩展到全文结构。
+2. **Pass R：残留味审计**。默认只检查 `changed-spans.json` 标出的本轮改动区，查找改写者新引入的模板句、节奏过匀、意义尾巴、声线趋同，以及因整句重排铲平“以旧带新”搭扣造成的句间断裂或段内主次平权顺拐。只有 `issue_density=structural` 或用户明确要求全文审计时，才扩展到全文结构。
 
 Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 
@@ -245,7 +245,7 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 「证据分层与处置决策」完成后，按以下顺序选择执行路径：
 
 1. **已在 narrative-writer 子代理内**：按选定的 Gate 范围 inline 执行，不再 spawn（嵌套 spawn 会被静默降级）。
-2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n作者偏好：{调用方已有的作者习惯 lines；无则写无}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
+2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n作者偏好：{调用方已有的作者习惯 lines；无则写无}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n针线活与认知对齐：优先做词或短语级微创，不把单句当孤立考题整句推倒重来，保留句首“以旧带新”的承接搭扣；高密度抽象名词堆解压回“具体人物主语+日常动作动词”微句，主谓长隔断归位，无生命/抽象主语不配活人感知或意志动词；远距重提旧物/旧事时顺手带两三个字具体状态锚点搭台阶；多句段落保持主核（核心推进）与卫星（环境/微反应）的主次落差。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
 3. **agent 不存在或 spawn 失败**：主线程按同一 Gate 范围 inline 执行。
 
 无论哪条路径，主会话最后都对最终落盘文件跑「确定性收尾」的复扫，不因执行者已自检而跳过。
@@ -333,6 +333,11 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 - "多年的衣服" → "旧衣服"（保留含义）
 
 形容词原则：一次只用一个形容词修饰或不修饰，不连用、不堆砌。
+
+**名词堆叠解压、主谓隔断归位与死物主语还原**：
+- **高密度名词堆解压**：把四五个名词硬捆的复合词、抽象名物化结构或名词活用为及物动词，解压回「具体人物主语 + 日常动作动词 + 宾语」的微句（如“完成了对现场痕迹的初步清理” → “她先把桌上的水渍擦干净”）。
+- **主谓长隔断归位**：主语与核心动作谓语之间隔着十几个字的定语或插入语时，拆出修饰或顺着动作先后重排，防止读者读到谓语时忘了主语。
+- **感官主体与死物主语还原**：霉味/潮气/声音/光等感官对象，以及沉默/夜色/秘密等抽象概念或环境死物，不直接配活人感知或意志动词（如“沉默在房间里竖起了张力的里程碑”）；除明确建立的有意拟人外，一律把动作主语还给场内活人，或顺着物理路径与因果逻辑改写。
 
 #### 门禁 C：情绪落地
 

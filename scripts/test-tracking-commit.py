@@ -1060,6 +1060,37 @@ class TrackingCommitTests(unittest.TestCase):
         self.assertIn("角色变化（原有 1 项）", result.stderr)
         self.run_tool("check")
 
+    def test_workspace_root_with_active_book_works_like_the_book_dir(self) -> None:
+        self.init()
+        workspace = Path(self.temporary.name)
+        (workspace / ".active-book").write_text(f"{self.project.name}\n", encoding="utf-8")
+        tx = transaction(1)
+        tx["expected_state_revision"] = self.read_state()["state_revision"]
+        tx_path = workspace / "tx-1.json"
+        tx_path.write_text(json.dumps(tx, ensure_ascii=False), encoding="utf-8")
+        commit_res = subprocess.run(
+            [sys.executable, str(TOOL), "commit", "--project", str(workspace), "--input", str(tx_path)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(commit_res.returncode, 0, commit_res.stderr)
+        self.assertEqual(self.read_state()["last_committed_chapter"], 1)
+        check_res = subprocess.run(
+            [sys.executable, str(TOOL), "check", "--project", str(workspace)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(check_res.returncode, 0, check_res.stderr)
+
+    def test_active_book_pointing_outside_workspace_names_the_fix(self) -> None:
+        workspace = Path(self.temporary.name) / "ws"
+        workspace.mkdir()
+        (workspace / ".active-book").write_text("../elsewhere\n", encoding="utf-8")
+        res = subprocess.run(
+            [sys.executable, str(TOOL), "check", "--project", str(workspace)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(res.returncode, 2)
+        self.assertIn("--project 直接传书目录", res.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -291,6 +291,13 @@
       "targets": [
         "skills/story-short-write/scripts/author_memory_commit.py"
       ]
+    },
+    {
+      "name": "reference-cross-book-recall",
+      "source": "skills/story-short-write/references/cross-book-recall.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/cross-book-recall.md"
+      ]
     }
   ]
 }

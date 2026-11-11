@@ -109,7 +109,7 @@ function runtimeTargetEnabled(root, targetName) {
   return match[1].split(",").map((item) => item.trim()).includes(targetName)
 }
 
-const WORKBUDDY_AGENTS_VERSION = 48
+const WORKBUDDY_AGENTS_VERSION = 49
 
 function workbuddyAgentsVersionFindings(sentinelText) {
   const match = String(sentinelText || "").match(/^agents_version:\s*(.*?)\s*$/m)

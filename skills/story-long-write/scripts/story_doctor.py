@@ -397,6 +397,15 @@ def cmd_check(args: argparse.Namespace) -> int:
     project = Path(args.project).expanduser().resolve()
     if not project.is_dir():
         raise DoctorError(f"项目目录不存在: {project}")
+    marker = project / ".active-book"
+    if not any((project / name).is_dir() for name in ("设定", "大纲", "正文", "追踪")) and marker.is_file():
+        lines = marker.read_text(encoding="utf-8").splitlines()
+        active = lines[0].strip() if lines else ""
+        book = project / active
+        real = book.resolve()
+        if not (bool(active) and (real == project or project in real.parents) and book.is_dir()):
+            raise DoctorError(f"{marker} 没有指向工作区里的书目录（写的是「{active}」）；--project 直接传书目录")
+        project = real
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     checks: list[dict[str, Any]] = []

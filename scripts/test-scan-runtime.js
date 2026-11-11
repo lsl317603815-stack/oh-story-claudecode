@@ -643,6 +643,23 @@ function testQidianFieldContractAndDescriptionLimit() {
   }
 }
 
+// 起点：移动端榜单记录只有名次、书名、作者、题材、字数和简介，不带总推荐。月票榜另有榜单值，
+// 其余榜整份没有热度数字时，文件头不能标「数据质量：[OK]」，否则聚合会把它当成正常采集。
+function testQidianQualityFlagsMissingHeat() {
+  const qidian = loadFresh(path.join(repoRoot, "skills/story-long-scan/scripts/qidian-rank-scraper.js"));
+  const record = (i, extra = {}) => ({
+    catId: 21, bName: `样书${i}`, rankNum: i + 1, cat: "玄幻", cnt: "12.3万字", subCatId: 8,
+    bid: String(1000 + i), subCat: "东方玄幻", bAuth: "作者", desc: "简介", _index: i, ...extra,
+  });
+  const signList = Array.from({ length: 20 }, (_, i) => qidian.normalizeMobileBook(record(i), i));
+  const flagged = qidian.rankQualityLines(signList);
+  assert.strictEqual(flagged[0], "- 数据质量：[存在问题]");
+  assert.match(flagged[1], /总推荐缺失 20 \/ 20 条/);
+
+  const monthlyTickets = Array.from({ length: 20 }, (_, i) => qidian.normalizeMobileBook(record(i, { rankCnt: "8000" }), i));
+  assert.deepStrictEqual(qidian.rankQualityLines(monthlyTickets), ["- 数据质量：[OK]", "- 问题摘要：无"]);
+}
+
 // 七猫大热榜：日/月必须是显式采集维度，并进入文件名；非大热榜只采一次。
 // ---------------------------------------------------------------------------
 // 起点书库（--type library）：反爬字体解码、翻页、名次、去重、partial。全程离线：
@@ -1582,8 +1599,8 @@ function testRankQualityHeaders() {
   const ok = qidian.renderMarkdown(
     { label: "月票榜" },
     [
-      { rank: 1, title: "甲", author: "a", genre: "玄幻·东方玄幻", words: "12万字" },
-      { rank: 2, title: "乙", author: "b", genre: "都市·都市生活", words: "" },
+      { rank: 1, title: "甲", author: "a", genre: "玄幻·东方玄幻", words: "12万字", rankValue: "8000" },
+      { rank: 2, title: "乙", author: "b", genre: "都市·都市生活", words: "", rankValue: "7000" },
     ],
     "https://m.qidian.com/rank/yuepiao/",
     "mobile-ssr"
@@ -1592,9 +1609,9 @@ function testRankQualityHeaders() {
   const broken = qidian.renderMarkdown(
     { label: "月票榜" },
     [
-      { rank: 1, title: "甲", author: "a", genre: "玄幻·东方玄幻", words: "12万字" },
-      { rank: 2, title: "乙", author: "b", genre: "", words: "8万字" },
-      { rank: 3, title: "丙", author: "c", genre: "", words: "9万字" },
+      { rank: 1, title: "甲", author: "a", genre: "玄幻·东方玄幻", words: "12万字", rankValue: "8000" },
+      { rank: 2, title: "乙", author: "b", genre: "", words: "8万字", rankValue: "7000" },
+      { rank: 3, title: "丙", author: "c", genre: "", words: "9万字", rankValue: "6000" },
     ],
     "https://m.qidian.com/rank/yuepiao/",
     "mobile-ssr"
@@ -2377,6 +2394,7 @@ testCliResultGate(longUtilsPath);
 testJjwxcDetailFailureIsolation();
 testQidianRankIsolation();
 testQidianFieldContractAndDescriptionLimit();
+testQidianQualityFlagsMissingHeat();
 testRankQualityHeaders();
 testQidianCaptchaCheckIgnoresBookText();
 testQidianLibraryFontDecoding();

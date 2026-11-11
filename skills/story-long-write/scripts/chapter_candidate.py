@@ -141,6 +141,26 @@ def emit_json(payload: object) -> None:
     sys.stdout.buffer.flush()
 
 
+BOOK_DIRS = ("设定", "大纲", "正文", "追踪")
+
+
+def resolve_book_dir(project: Path) -> Path:
+    """`--project` 给书目录或给放 `.active-book` 的工作区根都行：后者按 `.active-book`
+    第一行（相对工作区根的书路径）落到那本书。已经像书目录、或没有 `.active-book` 时原样返回。"""
+    root = Path(project)
+    marker = root / ".active-book"
+    if any((root / name).is_dir() for name in BOOK_DIRS) or not marker.is_file():
+        return root
+    lines = marker.read_text(encoding="utf-8").splitlines()
+    active = lines[0].strip() if lines else ""
+    book = root / active
+    real = book.resolve()
+    inside = real == root.resolve() or root.resolve() in real.parents
+    if not (bool(active) and inside and book.is_dir()):
+        raise CandidateError(f"{marker} 没有指向工作区里的书目录（写的是「{active}」）；--project 直接传书目录")
+    return book
+
+
 def resolve_inside(project: Path, raw: str, *, must_exist: bool, label: str) -> tuple[Path, str]:
     candidate = Path(raw).expanduser()
     if not candidate.is_absolute():
@@ -2046,6 +2066,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     try:
+        if getattr(args, "project", None) is not None:
+            args.project = str(resolve_book_dir(Path(args.project).expanduser()))
         return int(args.func(args))
     except CandidateError as exc:
         sys.stderr.flush()

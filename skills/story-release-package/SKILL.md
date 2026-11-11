@@ -13,7 +13,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 - `qa.review.publish` 已由必需的独立 Reviewer 全部通过，且回执绑定当前 `artifact_version_id` 和 `candidate_hash`。
 - Run Envelope 的 `owner_id` / `project_id` / `snapshot_id` / `context_epoch` 与所有输入一致。
-- 目标平台及其字数、标签、章节、内容级别限制来自版本化的 `platform_constraints`，不凭模型记忆猜测。
+- 目标平台及其字数、标签、章节、内容级别限制来自版本化的 `platform_constraints`，不凭模型记忆猜测。目标平台为番茄小说时，加载 [references/fanqie-constraints.md](references/fanqie-constraints.md) 并按作品类型分流加载 [references/fanqie-reading-male.md](references/fanqie-reading-male.md)、[references/fanqie-reading-female.md](references/fanqie-reading-female.md)、[references/fanqie-content-tags.md](references/fanqie-content-tags.md) 或 [references/fanqie-short.md](references/fanqie-short.md)（番茄短故事无需简介，分类五组合计最多 8 项；长篇书名最多 15 字且只允许全角 `！，？：【】`）。
 
 缺任一前置时返回 `REVIEW_REQUIRED`，不生成伪完整包。
 
