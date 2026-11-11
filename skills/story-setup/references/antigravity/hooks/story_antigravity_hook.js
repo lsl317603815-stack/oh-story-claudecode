@@ -10,6 +10,7 @@
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
+const { spawnSync } = require("node:child_process")
 const core = require("./story_hook_core.js")
 
 function readInput() {
@@ -197,6 +198,66 @@ function preInvocation() {
   emit(messages.length ? { injectSteps: messages.map((message) => ({ ephemeralMessage: message })) } : {})
 }
 
+function parseDotEnvFile(envPath) {
+  const values = {}
+  if (!fs.existsSync(envPath)) return values
+  try {
+    for (const raw of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+      let line = raw.trim()
+      if (!line || line.startsWith("#")) continue
+      if (line.startsWith("export ")) line = line.slice(7).trim()
+      const eq = line.indexOf("=")
+      if (eq <= 0) continue
+      const key = line.slice(0, eq).trim()
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue
+      let val = line.slice(eq + 1).trim()
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1)
+      }
+      values[key] = val
+    }
+  } catch {}
+  return values
+}
+
+function runProjectStopHooks() {
+  const root = projectRoot()
+  const book = core.discoverActiveBook(root) || root
+  const bases = path.resolve(book) === path.resolve(root) ? [root] : [root, book]
+  const env = {
+    ...process.env,
+    ...parseDotEnvFile(path.join(root, ".story", ".env.local")),
+    ...(path.resolve(book) !== path.resolve(root) ? parseDotEnvFile(path.join(book, ".story", ".env.local")) : {}),
+    STORY_HOOK_EVENT: "stop",
+    STORY_PROJECT_ROOT: root,
+    STORY_BOOK_ROOT: book,
+  }
+  for (const base of bases) {
+    const dir = path.join(base, ".story", "hooks")
+    let entries = []
+    try {
+      entries = fs.readdirSync(dir).filter((name) => name.endsWith(".sh")).sort()
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      const script = path.join(dir, name)
+      try {
+        if (!fs.statSync(script).isFile()) continue
+        const res = spawnSync("bash", [script], {
+          cwd: book,
+          env,
+          stdio: ["ignore", "ignore", "pipe"],
+          encoding: "utf8",
+          timeout: 15000,
+          windowsHide: true,
+        })
+        if (res.stderr) process.stderr.write(res.stderr)
+      } catch {}
+    }
+  }
+}
+
 function stop() {
   const state = readPending()
   const message = pendingMessage(state)
@@ -207,6 +268,7 @@ function stop() {
     writePending(state)
     return emit({ decision: "continue", reason: message })
   }
+  runProjectStopHooks()
   emit({ decision: "stop" })
 }
 

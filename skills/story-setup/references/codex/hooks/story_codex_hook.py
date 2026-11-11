@@ -1048,6 +1048,35 @@ def foreshadow_schedule_finding(book: Path) -> str | None:
     return message
 
 
+def _open_prose_only_polish_id(book: Path) -> str | None:
+    manifest_path = book / "追踪" / "修改影响" / "active.json"
+    try:
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != 1
+        or manifest.get("mode") != "prose_only"
+        or not isinstance(manifest.get("change_id"), str)
+    ):
+        return None
+    stamp_path = manifest_path.parent / "active.approved.json"
+    try:
+        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+        approved = (
+            isinstance(stamp, dict)
+            and stamp.get("schema_version") == 1
+            and stamp.get("status") == "PASS"
+            and stamp.get("change_id") == manifest.get("change_id")
+            and stamp.get("manifest_sha256") == hashlib.sha256(manifest_bytes).hexdigest()
+        )
+    except (OSError, UnicodeError, ValueError):
+        approved = False
+    return None if approved else manifest["change_id"]
+
+
 def continuity_findings(root: Path) -> list[str]:
     """跨批连续性兜底：① 追踪 staleness（写了章但 续写状态卡没跟上）；
     ② 章节标题去重（两章同名多半是误复制）。模型无关，回合/会话边界提醒，无问题则静默。
@@ -1069,8 +1098,12 @@ def continuity_findings(root: Path) -> list[str]:
             except Exception:
                 ctx_m = 0
             if newest > ctx_m + 1:
-                latest = max(chapters, key=lambda c: c.stat().st_mtime).name
-                msgs.append(f"[continuity] {safe_rel(root, book)}：正文已更新到「{latest}」但续写状态卡更早——为该章提交 tracking_commit.py 事务、check 通过后再续写，禁止分别手改 上下文.md/伏笔.md。")
+                polish_id = _open_prose_only_polish_id(book)
+                if polish_id:
+                    msgs.append(f"[continuity] {safe_rel(root, book)}：纯润色事务 {polish_id} 进行中——改完后运行 revision_guard.py finish-polish 自动跑门禁并同步回执与文风画像，无需提交 tracking_commit.py 事务。")
+                else:
+                    latest = max(chapters, key=lambda c: c.stat().st_mtime).name
+                    msgs.append(f"[continuity] {safe_rel(root, book)}：正文已更新到「{latest}」但续写状态卡更早——为该章提交 tracking_commit.py 事务、check 通过后再续写，禁止分别手改 上下文.md/伏笔.md。")
         # ①b 续写状态卡预算：上下文.md 由事务工具整份重建，硬上限 12288 字节。
         # 若不处理，每章读取量会随章节数增长，最终达到 O(N^2)。这里只提醒、不阻止。tracking_commit.py
         # 渲染时自己就拒绝超预算的卡，所以超预算必是手改/手工追加；mode=revision 事务缩不了手工
@@ -1790,7 +1823,12 @@ def revision_source_info(root: Path, abs_path: Path) -> dict[str, Any] | None:
         return None
     parts = relative.parts
     source_index = next((i for i, part in enumerate(parts) if part in ("正文", "大纲", "设定")), -1)
-    if source_index < 1 or len(parts) <= source_index + 1 or not parts[-1].endswith(".md"):
+    if source_index < 0 or len(parts) <= source_index + 1 or not parts[-1].endswith(".md"):
+        return None
+    if any(
+        "备份" in part or "归档" in part or re.search(r"archives?", part, re.I) or part == "拆文库" or part.startswith(".")
+        for part in parts[:source_index]
+    ):
         return None
     if any(
         "备份" in part or part in ("归档", "archive", "archives") or part.startswith(".")

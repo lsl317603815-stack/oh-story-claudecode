@@ -10,6 +10,8 @@
 - 用户要修改总纲、卷纲、细纲、角色/身世/关系设定、世界规则、物权、机构权限或终局口径
 - 目标：修改源产物并沿“设定/总纲 ↔ 卷纲 ↔ 细纲 ↔ 正文 ↔ 结构化追踪”闭环所有受影响投影
 
+> **纯润色快速通道（不改剧情事实，支持整章重写句式/去AI味/过AIGC检测）**：若仅润色已接纳章节的文笔、句式、分段或节奏，完全不改变剧情事件、人物状态、伏笔、时间线、设定与大纲事实，直接走零改动比例上限的 `prose_only` 快速通道——运行 `{PYTHON} scripts/revision_guard.py start-polish --project <书目录> --chapters 23`（支持 `21-24` 或 `21,23`），直接改写对应 `正文/` 章节，完成后运行 `{PYTHON} scripts/revision_guard.py finish-polish --project <书目录>`。工具自动对每个润色章跑完 15 道确定性门禁、同步章节提交回执与投影日志、刷新 `accepted-voice-profile.json` / `golden-voice-profile.json` 并盖审批章，免调两次 `revision-governor`、免跑空追踪事务。一旦改写触及任何剧情事实或跨章承诺，立即停下改走下方完整 Step 1–6。
+
 > 用户必须能说明要改的事实或源文件；不再限于章号。影响章节由 `revision_guard.py plan` 展开，不靠印象手列。
 
 ## Step 1：建立修订影响清单

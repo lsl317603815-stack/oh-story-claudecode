@@ -72,6 +72,7 @@ ACTION_ALIASES = {
     "add": "upsert", "new": "upsert", "create": "upsert", "update": "upsert", "plant": "upsert",
     "advance": "upsert", "resolve": "upsert", "insert": "upsert",
     "新增": "upsert", "埋设": "upsert", "更新": "upsert", "推进": "upsert", "回收": "upsert",
+    "patch": "patch", "局部更新": "patch",
     "remove": "delete", "删除": "delete",
 }
 # 带状态含义的伏笔动作词：它们也映射成 upsert，但动作词本身说了伏笔走到哪一步。
@@ -164,10 +165,14 @@ def with_aliases(row: dict[str, Any], aliases: dict[str, str]) -> dict[str, Any]
     return row
 
 
-def normalize_action(value: object, label: str, *, allow_delete: bool) -> str:
+def normalize_action(value: object, label: str, *, allow_delete: bool, allow_patch: bool = False) -> str:
     action = clean_text(value, label, max_bytes=24)
     action = ACTION_ALIASES.get(action.lower(), action.lower())
-    allowed = ("upsert", "delete") if allow_delete else ("upsert",)
+    allowed: list[str] = ["upsert"]
+    if allow_patch:
+        allowed.append("patch")
+    if allow_delete:
+        allowed.append("delete")
     require(action in allowed, f"{label} is invalid: use {' or '.join(allowed)}")
     return action
 
@@ -231,12 +236,11 @@ def byte_size(text: str) -> int:
 
 
 def clip_bytes(text: str, limit: int) -> str:
-    if byte_size(text) <= limit:
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
         return text
-    clipped = text
-    while byte_size(clipped) > limit - 3:
-        clipped = clipped[:-1]
-    return clipped + "…"
+    budget = max(0, limit - 3)
+    return encoded[:budget].decode("utf-8", errors="ignore") + "…"
 
 
 def emit(text: str, *, error: bool = False) -> None:
@@ -403,7 +407,12 @@ def normalize_snapshot(value: object, label: str) -> dict[str, Any]:
     }
 
 
-def normalize_snapshots(value: object, label: str = "character_snapshots") -> dict[str, dict[str, Any]]:
+def normalize_snapshots(
+    value: object,
+    label: str = "character_snapshots",
+    *,
+    existing_characters: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
     snapshots = as_mapping(value, label)
     normalized: dict[str, dict[str, Any]] = {}
     portable_names: set[str] = set()
@@ -412,7 +421,21 @@ def normalize_snapshots(value: object, label: str = "character_snapshots") -> di
         key = portable_name_key(name)
         require(key not in portable_names, f"{label} contains a cross-platform duplicate character {name}")
         portable_names.add(key)
-        normalized[name] = normalize_snapshot(raw_snapshot, f"{label}.{name}")
+        snapshot_input = raw_snapshot
+        if existing_characters is not None and isinstance(raw_snapshot, dict) and "action" in raw_snapshot:
+            action = normalize_action(
+                raw_snapshot.get("action"),
+                f"{label}.{name}.action",
+                allow_delete=False,
+                allow_patch=True,
+            )
+            payload = {field: item for field, item in raw_snapshot.items() if field != "action"}
+            if action == "patch":
+                require(name in existing_characters, f"{label}.{name} does not exist; cannot patch")
+                snapshot_input = {**existing_characters[name], **payload}
+            else:
+                snapshot_input = payload
+        normalized[name] = normalize_snapshot(snapshot_input, f"{label}.{name}")
     return normalized
 
 
@@ -460,6 +483,7 @@ def normalize_foreshadow_change(
     *,
     allow_delete: bool,
     through_chapter: int,
+    existing: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     row = with_aliases(as_mapping(value, label), FORESHADOW_KEY_ALIASES)
     require_known_keys(
@@ -468,11 +492,17 @@ def normalize_foreshadow_change(
         label,
     )
     raw_action = row.get("action", "upsert")
-    action = normalize_action(raw_action, f"{label}.action", allow_delete=allow_delete)
+    action = normalize_action(raw_action, f"{label}.action", allow_delete=allow_delete, allow_patch=existing is not None)
     identifier = clean_text(row.get("id"), f"{label}.id", max_bytes=24)
     require(FORESHADOW_ID.fullmatch(identifier) is not None, f"{label}.id must look like F001")
     if action == "delete":
         return {"action": action, "id": identifier}
+    if action == "patch":
+        require(existing is not None and identifier in existing, f"{label}.id {identifier} does not exist; cannot patch")
+        base = {key: item for key, item in existing[identifier].items() if key != "updated_chapter"}
+        row = {**base, **{key: item for key, item in row.items() if key != "action"}, "action": "upsert"}
+        raw_action = "upsert"
+        action = "upsert"
     implied = FORESHADOW_ACTION_STATUS.get(" ".join(str(raw_action).split()).lower())
     if implied is not None:
         if row.get("status") in (None, ""):
@@ -562,6 +592,7 @@ def normalize_timeline_change(
     *,
     allow_delete: bool,
     through_chapter: int,
+    existing: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     event = with_aliases(as_mapping(value, label), TIMELINE_KEY_ALIASES)
     require_known_keys(
@@ -569,11 +600,21 @@ def normalize_timeline_change(
         {"action", "id", "story_time", "objective_fact", "reader_knowledge", "reveal_status", "reveal_chapter", "characters"},
         label,
     )
-    action = normalize_action(event.get("action", "upsert"), f"{label}.action", allow_delete=allow_delete)
+    action = normalize_action(
+        event.get("action", "upsert"),
+        f"{label}.action",
+        allow_delete=allow_delete,
+        allow_patch=existing is not None,
+    )
     identifier = clean_text(event.get("id"), f"{label}.id", max_bytes=24)
     require(EVENT_ID.fullmatch(identifier) is not None, f"{label}.id must look like E001")
     if action == "delete":
         return {"action": action, "id": identifier}
+    if action == "patch":
+        require(existing is not None and identifier in existing, f"{label}.id {identifier} does not exist; cannot patch")
+        base = {key: item for key, item in existing[identifier].items() if key not in {"updated_chapter", "first_recorded_chapter"}}
+        event = {**base, **{key: item for key, item in event.items() if key != "action"}, "action": "upsert"}
+        action = "upsert"
     reveal_status = clean_text(event.get("reveal_status"), f"{label}.reveal_status", max_bytes=24)
     require(reveal_status in REVEAL_STATUSES, f"{label}.reveal_status must be one of {REVEAL_STATUSES}")
     reveal_raw = event.get("reveal_chapter")
@@ -670,6 +711,7 @@ def normalize_fact_change(
     *,
     allow_delete: bool,
     through_chapter: int,
+    existing: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     fact = as_mapping(value, label)
     require_known_keys(
@@ -681,12 +723,19 @@ def normalize_fact_change(
         },
         label,
     )
-    action = clean_text(fact.get("action", "upsert"), f"{label}.action", max_bytes=24)
-    require(action in ({"upsert", "delete"} if allow_delete else {"upsert"}), f"{label}.action is invalid")
+    raw_action = clean_text(fact.get("action", "upsert"), f"{label}.action", max_bytes=24)
+    action = {"patch": "patch", "局部更新": "patch"}.get(raw_action.lower(), raw_action)
+    allowed = {"upsert"} | ({"delete"} if allow_delete else set()) | ({"patch"} if existing is not None else set())
+    require(action in allowed, f"{label}.action is invalid")
     identifier = clean_text(fact.get("id"), f"{label}.id", max_bytes=24)
     require(FACT_ID.fullmatch(identifier) is not None, f"{label}.id must look like K001 or R001")
     if action == "delete":
         return {"action": action, "id": identifier}
+    if action == "patch":
+        require(existing is not None and identifier in existing, f"{label}.id {identifier} does not exist; cannot patch")
+        base = {key: item for key, item in existing[identifier].items() if key != "updated_chapter"}
+        fact = {**base, **{key: item for key, item in fact.items() if key != "action"}, "action": "upsert"}
+        action = "upsert"
 
     category = clean_text(fact.get("category"), f"{label}.category", max_bytes=24)
     require(category in FACT_CATEGORIES, f"{label}.category must be one of {FACT_CATEGORIES}")
@@ -1089,6 +1138,9 @@ def normalize_delta(
     snapshots: dict[str, dict[str, Any]],
     existing_core_names: dict[str, str],
     mode: str = "append",
+    existing_foreshadow: dict[str, dict[str, Any]] | None = None,
+    existing_timeline: dict[str, dict[str, Any]] | None = None,
+    existing_facts: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     delta = as_mapping(value, "delta")
     require_known_keys(
@@ -1157,19 +1209,31 @@ def normalize_delta(
     require(len(character_keys) == len(set(character_keys)), "delta.character_changes contains duplicate characters")
     foreshadow_changes = [
         normalize_foreshadow_change(
-            raw, f"delta.foreshadow_changes[{index}]", allow_delete=True, through_chapter=through_chapter
+            raw,
+            f"delta.foreshadow_changes[{index}]",
+            allow_delete=True,
+            through_chapter=through_chapter,
+            existing=existing_foreshadow,
         )
         for index, raw in enumerate(as_list(delta.get("foreshadow_changes", []), "delta.foreshadow_changes"))
     ]
     timeline_events = [
         normalize_timeline_change(
-            raw, f"delta.timeline_events[{index}]", allow_delete=True, through_chapter=through_chapter
+            raw,
+            f"delta.timeline_events[{index}]",
+            allow_delete=True,
+            through_chapter=through_chapter,
+            existing=existing_timeline,
         )
         for index, raw in enumerate(as_list(delta.get("timeline_events", []), "delta.timeline_events"))
     ]
     fact_changes = [
         normalize_fact_change(
-            raw, f"delta.fact_changes[{index}]", allow_delete=True, through_chapter=through_chapter
+            raw,
+            f"delta.fact_changes[{index}]",
+            allow_delete=True,
+            through_chapter=through_chapter,
+            existing=existing_facts,
         )
         for index, raw in enumerate(as_list(delta.get("fact_changes", []), "delta.fact_changes"))
     ]
@@ -1489,7 +1553,10 @@ def _normalize_transaction(state: dict[str, Any], document: object) -> dict[str,
     else:
         require(chapter <= last, f"cannot revise unwritten chapter {chapter}; last committed chapter is {last}")
     context = validate_context_input(root.get("context"), include_initial_fields=False)
-    snapshots = normalize_snapshots(root.get("character_snapshots", {}))
+    snapshots = normalize_snapshots(
+        root.get("character_snapshots", {}),
+        existing_characters=state["characters"],
+    )
     existing_names = {portable_name_key(name): name for name in state["characters"]}
     for name in snapshots:
         existing = existing_names.get(portable_name_key(name))
@@ -1501,6 +1568,9 @@ def _normalize_transaction(state: dict[str, Any], document: object) -> dict[str,
         snapshots=snapshots,
         existing_core_names=existing_names,
         mode=mode,
+        existing_foreshadow=state["foreshadow"],
+        existing_timeline=state["timeline"],
+        existing_facts=state["facts"],
     )
     return {
         "mode": mode,

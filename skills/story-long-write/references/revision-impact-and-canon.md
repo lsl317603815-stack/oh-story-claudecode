@@ -73,6 +73,18 @@ hooks 的机械判定：
 - 活动事务未验收时，只允许写 `changed_files` 中列明的源文件，并阻止穿插创建未列明的新章/新纲；
 - 审批戳与清单摘要一致后事务关闭，正常下一章可继续；再次修改旧内容必须建立新事务。
 
+### 纯润色快速通道（`mode=prose_only`）
+
+当且仅当修改范围严格限定为已接纳 `正文/第N章*.md` 的纯文笔/句式/去味润色（不改任何剧情事实、角色状态、伏笔、时间线、设定或细纲，也不限制句级改写比例）时，使用内置快速通道代替完整影响链：
+
+```text
+{PYTHON} scripts/revision_guard.py start-polish --project <项目根> --chapters 23
+# 直接编辑已授权的正文章节（支持多章如 21-24，不设改动比例上限）
+{PYTHON} scripts/revision_guard.py finish-polish --project <项目根>
+```
+
+`start-polish` 生成 `mode="prose_only"` 的 `active.json` 并记录润色前 SHA-256；`finish-polish` 自动执行全部 15 道正文确定性门禁、同步 `追踪/章节提交/第NNN章.json` 回执与 `投影日志.jsonl`、更新已配置的 `voice_profile` 并写入 `active.approved.json`。若任一门禁存在 blocking，拒绝关闭并保留活动清单供继续修文。
+
 ## 五、禁止的省事方式
 
 - 只改正文，用“细纲只是参考”解释已经出现的反向口径。

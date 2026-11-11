@@ -73,6 +73,15 @@ DIALOGUE_LIMIT_KEYS = {
     "max_consecutive_tagged_turns": 3,
     "max_consecutive_bare_tagged_turns": 2,
 }
+GATE_PRESETS: dict[str, dict[str, Any]] = {
+    "aigc-safe-g5": {
+        "dialogue": {
+            "max_consecutive_tagged_turns": 5,
+            "max_consecutive_bare_tagged_turns": 2,
+        },
+        "prose_bands": True,
+    },
+}
 GATE_CONFIG_RELATIVE = "设定/门禁配置.json"
 QUALITY_DIR = "质检回执"
 PROGRESS_FILE = "质检进度.md"
@@ -118,9 +127,20 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
 
 
 def atomic_append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    existing = path.read_bytes() if path.is_file() else b""
+    path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
-    atomic_write_bytes(path, existing + line)
+    with path.open("ab+") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        if size > 0:
+            handle.seek(size - 1)
+            if handle.read(1) != b"\n":
+                handle.seek(0, os.SEEK_END)
+                handle.write(b"\n")
+        handle.seek(0, os.SEEK_END)
+        handle.write(line)
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def load_json(path: Path, label: str) -> dict[str, Any]:
@@ -513,6 +533,7 @@ def review_problems(data: dict[str, Any], current_sha: str) -> list[str]:
 
 def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
     config: dict[str, Any] = {
+        "preset": None,
         "gates": {name: {"mode": "blocking"} for name in WAIVABLE_GATES},
         "default_pressure": "normal",
         "punctuation": {"pause_mode": "keep", "quote_mode": "keep"},
@@ -525,9 +546,20 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
     raw = load_json(path, "门禁配置")
     if raw.get("schema_version") != 1:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 的 schema_version 必须是 1")
-    unknown = set(raw) - {"schema_version", "gates", "default_pressure", "punctuation", "dialogue", "prose_bands", "note"}
+    unknown = set(raw) - {
+        "schema_version", "preset", "gates", "default_pressure",
+        "punctuation", "dialogue", "prose_bands", "note",
+    }
     if unknown:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 含不支持的字段: {', '.join(sorted(unknown))}")
+    preset = raw.get("preset")
+    if preset is not None:
+        if not isinstance(preset, str) or preset not in GATE_PRESETS:
+            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.preset 必须是 {'/'.join(GATE_PRESETS)}")
+        preset_cfg = GATE_PRESETS[preset]
+        config["preset"] = preset
+        config["dialogue"].update(preset_cfg.get("dialogue", {}))
+        config["prose_bands"] = bool(preset_cfg.get("prose_bands", False))
     gates = raw.get("gates", {})
     if not isinstance(gates, dict):
         raise CandidateError(f"{GATE_CONFIG_RELATIVE}.gates 必须是 object")
@@ -552,16 +584,21 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
     dialogue = raw.get("dialogue", {})
     if not isinstance(dialogue, dict) or set(dialogue) - {*DIALOGUE_LIMIT_KEYS, "reason"}:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE}.dialogue 只能含 {'/'.join(DIALOGUE_LIMIT_KEYS)}/reason")
-    for key, default in DIALOGUE_LIMIT_KEYS.items():
-        limit = dialogue.get(key, default)
+    for key in DIALOGUE_LIMIT_KEYS:
+        if key not in dialogue:
+            continue
+        limit = dialogue[key]
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise CandidateError(f"{GATE_CONFIG_RELATIVE}.dialogue.{key} 必须是正整数")
         config["dialogue"][key] = limit
     # prose_bands 的逐项校验在 prose_metrics.py（它认识实测项名）；这里只挡住明显的类型错误。
     if "prose_bands" in raw:
-        if not isinstance(raw["prose_bands"], dict):
-            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.prose_bands 必须是 object")
-        config["prose_bands"] = bool(raw["prose_bands"])
+        if raw["prose_bands"] is False:
+            config["prose_bands"] = False
+        elif isinstance(raw["prose_bands"], dict):
+            config["prose_bands"] = bool(raw["prose_bands"]) or bool(config["preset"])
+        else:
+            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.prose_bands 必须是 object 或 false")
     return config, sha256_file(path)
 
 
@@ -601,12 +638,19 @@ def gate_specs(
     chapter: int,
     config: dict[str, Any],
     pressure: str,
+    *,
+    polish_chapters: set[int] | None = None,
 ) -> list[dict[str, Any]]:
     scripts = Path(__file__).resolve().parent
     style = project / "设定" / "文风.md"
     punctuation = config["punctuation"]
     dialogue = config["dialogue"]
     bands = ["--gate-config", str(project / GATE_CONFIG_RELATIVE)] if config["prose_bands"] else []
+    polish_args = (
+        ["--polish-chapters", ",".join(str(num) for num in sorted(polish_chapters))]
+        if polish_chapters
+        else []
+    )
 
     def node(script: str, *args: str) -> list[str]:
         return ["node", str(scripts / script), *args]
@@ -631,7 +675,8 @@ def gate_specs(
         {"name": "ai_patterns", "kind": "blocking", "script": "check-ai-patterns.js",
          "command": node("check-ai-patterns.js", "--check", "--json", "--fail-on=blocking", str(candidate))},
         {"name": "degeneration", "kind": "blocking", "script": "check-degeneration.js",
-         "command": node("check-degeneration.js", "--check", "--language=zh", "--fail-on=blocking", str(candidate))},
+         "command": node("check-degeneration.js", "--check", "--language=zh", "--skip-language-leak",
+                         "--fail-on=blocking", str(candidate))},
         {"name": "prose_metrics", "kind": "blocking", "script": "prose_metrics.py",
          "command": python("prose_metrics.py", *bands, str(candidate))},
         {"name": "word_target", "kind": "blocking", "script": "word_target_gate.py",
@@ -639,7 +684,8 @@ def gate_specs(
         {"name": "outline_copy", "kind": "blocking", "script": "check-outline-copy.js",
          "command": node("check-outline-copy.js", "--outline", str(outline), "--fail-on=blocking", str(candidate))},
         {"name": "accepted_voice_profile", "kind": "blocking", "script": "voice_profile.py",
-         "command": python("voice_profile.py", "check", "--project", str(project), "--candidate", str(candidate))},
+         "command": python("voice_profile.py", "check", "--project", str(project), "--candidate", str(candidate),
+                           *polish_args)},
         {"name": "cross_chapter_shape", "kind": "blocking", "script": "chapter_shape_gate.py",
          "command": python("chapter_shape_gate.py", "--project", str(project), "--candidate", str(candidate),
                            "--chapter", str(chapter), "--window", "6")},
@@ -661,15 +707,131 @@ def gate_specs(
     ]
 
 
-def gate_status(spec: dict[str, Any], returncode: int) -> str:
-    if returncode == 0:
-        return "pass"
-    if spec["kind"] == "advisory":
-        return "advisory" if returncode in spec.get("advisory_codes", {1}) else "error"
-    return "fail"
+def compute_gates_digest(
+    project: Path,
+    data: dict[str, Any],
+    candidate_sha: str,
+    outline: Path,
+    config_sha: str | None,
+    pressure_level: str,
+    specs: list[dict[str, Any]],
+) -> str:
+    scripts = Path(__file__).resolve().parent
+    style = project / "设定" / "文风.md"
+    voice = project / "追踪" / "文风" / "accepted-voice-profile.json"
+    golden = project / "追踪" / "文风" / "golden-voice-profile.json"
+    script_hashes: dict[str, str | None] = {}
+    for spec in specs:
+        script_name = spec["script"]
+        if script_name not in script_hashes:
+            script_path = scripts / script_name
+            script_hashes[script_name] = sha256_file(script_path) if script_path.is_file() else None
+    batch_runner = scripts / "run_js_gates_batch.js"
+    if batch_runner.is_file():
+        script_hashes["run_js_gates_batch.js"] = sha256_file(batch_runner)
+    payload = {
+        "candidate_sha256": candidate_sha,
+        "outline_sha256": sha256_file(outline) if outline.is_file() else None,
+        "style_sha256": sha256_file(style) if style.is_file() else None,
+        "voice_profile_sha256": sha256_file(voice) if voice.is_file() else None,
+        "golden_profile_sha256": sha256_file(golden) if golden.is_file() else None,
+        "gate_config_sha256": config_sha,
+        "approval_mode": data.get("approval_mode"),
+        "pressure": pressure_level,
+        "waivers": data.get("waivers", []),
+        "scripts": script_hashes,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return sha256_bytes(encoded)
 
 
-def run_gates(project: Path, run: Path, data: dict[str, Any], candidate: Path, outline: Path) -> dict[str, Any]:
+def build_gate_summary(report: dict[str, Any]) -> dict[str, Any]:
+    character_count: int | None = None
+    off_band: list[str] = []
+    voice_drift_count = 0
+    golden_drift_count = 0
+    for item in report.get("gates", []):
+        if not isinstance(item, dict):
+            continue
+        payload = item.get("payload")
+        if item.get("name") == "prose_metrics" and isinstance(payload, dict):
+            if isinstance(payload.get("character_count"), int):
+                character_count = payload["character_count"]
+            band = payload.get("style_band")
+            if isinstance(band, dict) and isinstance(band.get("off_band"), list):
+                off_band = [str(label) for label in band["off_band"]]
+        elif item.get("name") == "accepted_voice_profile" and isinstance(payload, dict):
+            if character_count is None and isinstance(payload.get("character_count"), int):
+                character_count = payload["character_count"]
+            drifts = payload.get("drift_advisories")
+            if isinstance(drifts, list):
+                voice_drift_count = len(drifts)
+            golden = payload.get("golden_voice")
+            if isinstance(golden, dict) and isinstance(golden.get("drift_advisories"), list):
+                golden_drift_count = len(golden["drift_advisories"])
+    return {
+        "schema_version": 1,
+        "chapter": report.get("chapter"),
+        "candidate": report.get("candidate"),
+        "candidate_sha256": report.get("candidate_sha256"),
+        "gates_digest": report.get("gates_digest"),
+        "generated_at": report.get("generated_at"),
+        "status": report.get("status"),
+        "pressure": report.get("pressure"),
+        "character_count": character_count,
+        "gate_total": len(report.get("gates", [])),
+        "gate_passed": sum(1 for item in report.get("gates", []) if isinstance(item, dict) and item.get("status") == "pass"),
+        "failures": report.get("failures", []),
+        "advisories": report.get("advisories", []),
+        "waived": report.get("waived", []),
+        "off_band": off_band,
+        "voice_drift_count": voice_drift_count,
+        "golden_drift_count": golden_drift_count,
+    }
+
+
+def _format_gate_result(
+    spec: dict[str, Any],
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    scripts: Path,
+    waived: set[str | None],
+    allow_waivers: bool,
+) -> dict[str, Any]:
+    status = gate_status(spec, returncode)
+    if status == "fail" and spec["name"] in waived and allow_waivers:
+        status = "waived"
+    script_path = scripts / spec["script"]
+    result: dict[str, Any] = {
+        "name": spec["name"],
+        "kind": spec["kind"],
+        "status": status,
+        "returncode": returncode,
+        "script_sha256": sha256_file(script_path) if script_path.is_file() else None,
+        "stdout": stdout[-4000:],
+        "stderr": stderr[-4000:],
+    }
+    if spec.get("remedy"):
+        result["remedy"] = spec["remedy"]
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, (dict, list)):
+        result["payload"] = payload
+    return result
+
+
+def run_gates(
+    project: Path,
+    run: Path | None,
+    data: dict[str, Any],
+    candidate: Path,
+    outline: Path,
+    *,
+    polish_chapters: set[int] | None = None,
+) -> dict[str, Any]:
     if not candidate.is_file() or not candidate.read_text(encoding="utf-8").strip():
         raise CandidateError("候选稿为空")
     chapter = int(data["chapter"])
@@ -678,47 +840,116 @@ def run_gates(project: Path, run: Path, data: dict[str, Any], candidate: Path, o
     scripts = Path(__file__).resolve().parent
     waived = {item.get("gate") for item in data.get("waivers", []) if isinstance(item, dict)}
     allow_waivers = data.get("approval_mode") == "review"
-    results: list[dict[str, Any]] = []
+    specs = gate_specs(
+        project,
+        candidate,
+        outline,
+        chapter,
+        config,
+        pressure["level"],
+        polish_chapters=polish_chapters,
+    )
+    candidate_sha = sha256_file(candidate)
+    digest = compute_gates_digest(project, data, candidate_sha, outline, config_sha, pressure["level"], specs)
+    batch_runner = scripts / "run_js_gates_batch.js"
+    results_by_name: dict[str, dict[str, Any]] = {}
     stopped_after = None
-    for spec in gate_specs(project, candidate, outline, chapter, config, pressure["level"]):
+
+    if batch_runner.is_file():
+        # 1) writing_method runs before language fail_fast
+        first_spec = specs[0]
+        completed = subprocess.run(
+            first_spec["command"], text=True, capture_output=True, check=False, encoding="utf-8", errors="replace"
+        )
+        results_by_name[first_spec["name"]] = _format_gate_result(
+            first_spec, completed.returncode, completed.stdout, completed.stderr, scripts, waived, allow_waivers
+        )
+        # 2) Run all 10 JS gates in a single Node process (respecting fail_fast on language)
+        js_specs = [spec for spec in specs[1:] if spec["command"][0] == "node"]
+        batch_input = json.dumps(
+            {
+                "gates": [
+                    {
+                        "name": spec["name"],
+                        "script": spec["command"][1],
+                        "args": spec["command"][2:],
+                        "fail_fast": bool(spec.get("fail_fast")),
+                    }
+                    for spec in js_specs
+                ]
+            },
+            ensure_ascii=False,
+        )
         try:
-            completed = subprocess.run(
-                spec["command"], text=True, capture_output=True, check=False, encoding="utf-8", errors="replace"
+            js_completed = subprocess.run(
+                ["node", str(batch_runner)],
+                input=batch_input,
+                text=True,
+                capture_output=True,
+                check=False,
+                encoding="utf-8",
+                errors="replace",
             )
         except FileNotFoundError as exc:
             raise CandidateError("运行正文门禁需要 node") from exc
-        status = gate_status(spec, completed.returncode)
-        if status == "fail" and spec["name"] in waived and allow_waivers:
-            status = "waived"
-        script_path = scripts / spec["script"]
-        result: dict[str, Any] = {
-            "name": spec["name"],
-            "kind": spec["kind"],
-            "status": status,
-            "returncode": completed.returncode,
-            "script_sha256": sha256_file(script_path) if script_path.is_file() else None,
-            "stdout": completed.stdout[-4000:],
-            "stderr": completed.stderr[-4000:],
-        }
-        if spec.get("remedy"):
-            result["remedy"] = spec["remedy"]
-        try:
-            payload = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            payload = None
-        if isinstance(payload, (dict, list)):
-            result["payload"] = payload
-        results.append(result)
-        if spec.get("fail_fast") and status in {"fail", "error"}:
-            # 语言门不过时其他门禁的结论没有意义，先改语言
-            stopped_after = spec["name"]
-            break
+        if js_completed.returncode != 0:
+            detail = (js_completed.stderr or js_completed.stdout or "run_js_gates_batch.js 异常退出").strip()
+            raise CandidateError(f"批量运行 JS 门禁失败: {detail[-800:]}")
+        batch_payload = json.loads(js_completed.stdout)
+        stopped_after = batch_payload.get("stopped_after")
+        spec_map = {spec["name"]: spec for spec in js_specs}
+        for raw_item in batch_payload.get("results", []):
+            spec = spec_map[raw_item["name"]]
+            results_by_name[spec["name"]] = _format_gate_result(
+                spec,
+                int(raw_item["returncode"]),
+                str(raw_item.get("stdout", "")),
+                str(raw_item.get("stderr", "")),
+                scripts,
+                waived,
+                allow_waivers,
+            )
+        # 3) Run remaining Python gates unless fail_fast stopped after language
+        if not stopped_after:
+            for spec in specs[1:]:
+                if spec["command"][0] == "node":
+                    continue
+                py_completed = subprocess.run(
+                    spec["command"], text=True, capture_output=True, check=False, encoding="utf-8", errors="replace"
+                )
+                results_by_name[spec["name"]] = _format_gate_result(
+                    spec, py_completed.returncode, py_completed.stdout, py_completed.stderr, scripts, waived, allow_waivers
+                )
+        results: list[dict[str, Any]] = []
+        for spec in specs:
+            if spec["name"] in results_by_name:
+                results.append(results_by_name[spec["name"]])
+            if stopped_after and spec["name"] == stopped_after:
+                break
+    else:
+        results = []
+        for spec in specs:
+            try:
+                completed = subprocess.run(
+                    spec["command"], text=True, capture_output=True, check=False, encoding="utf-8", errors="replace"
+                )
+            except FileNotFoundError as exc:
+                raise CandidateError("运行正文门禁需要 node") from exc
+            result = _format_gate_result(
+                spec, completed.returncode, completed.stdout, completed.stderr, scripts, waived, allow_waivers
+            )
+            results.append(result)
+            if spec.get("fail_fast") and result["status"] in {"fail", "error"}:
+                stopped_after = spec["name"]
+                break
+
     failures = [item["name"] for item in results if item["status"] in {"fail", "error"}]
     return {
         "schema_version": GATE_REPORT_SCHEMA_VERSION,
         "chapter": chapter,
         "candidate": data["candidate"],
-        "candidate_sha256": sha256_file(candidate),
+        "candidate_sha256": candidate_sha,
+        "gates_digest": digest,
         "generated_at": utc_now(),
         "status": "fail" if failures else "pass",
         "stopped_after": stopped_after,
@@ -842,8 +1073,16 @@ def legacy_gate_names() -> set[str]:
     }
 
 
+def gate_status(spec: dict[str, Any], returncode: int) -> str:
+    if returncode == 0:
+        return "pass"
+    if spec["kind"] == "advisory":
+        return "advisory" if returncode in spec.get("advisory_codes", {1}) else "error"
+    return "fail"
+
+
 def gate_run(project: Path, run: Path, manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
-    """运行门禁、写 gate-report.json、登记谱系；不因失败抛错，由调用方决定。"""
+    """运行门禁、写 gate-report.json 与 gate-summary.json、登记谱系；不因失败抛错，由调用方决定。"""
     candidate = project / data["candidate"]
     outline = candidate_outline(project, data)
     if is_gated(data):
@@ -858,23 +1097,62 @@ def gate_run(project: Path, run: Path, manifest_path: Path, data: dict[str, Any]
         report["status"] = "fail" if report["failures"] else "pass"
         report["protocol"] = LEGACY_PROTOCOL
     report_path = run / "gate-report.json"
+    summary_path = run / "gate-summary.json"
     atomic_write_json(report_path, report)
+    atomic_write_json(summary_path, build_gate_summary(report))
     data["gate_run"] = {
         "candidate_sha256": report["candidate_sha256"],
+        "gates_digest": report.get("gates_digest"),
         "status": report["status"],
         "failures": report["failures"],
         "advisories": report["advisories"],
         "waived": report["waived"],
         "generated_at": report["generated_at"],
         "report_sha256": sha256_file(report_path),
+        "summary_sha256": sha256_file(summary_path),
     }
     atomic_write_json(manifest_path, data)
     return report
 
 
+def _cached_gate_report(project: Path, run: Path, data: dict[str, Any]) -> dict[str, Any] | None:
+    if not is_gated(data):
+        return None
+    gate_meta = data.get("gate_run")
+    report_path = run / "gate-report.json"
+    if not isinstance(gate_meta, dict) or gate_meta.get("status") != "pass" or not report_path.is_file():
+        return None
+    if gate_meta.get("report_sha256") != sha256_file(report_path):
+        return None
+    candidate = project / data["candidate"]
+    if not candidate.is_file():
+        return None
+    candidate_sha = sha256_file(candidate)
+    if gate_meta.get("candidate_sha256") != candidate_sha:
+        return None
+    outline = candidate_outline(project, data)
+    config, config_sha = load_gate_config(project)
+    pressure = resolve_pressure(data, outline, config)
+    specs = gate_specs(project, candidate, outline, int(data["chapter"]), config, pressure["level"])
+    expected_digest = compute_gates_digest(project, data, candidate_sha, outline, config_sha, pressure["level"], specs)
+    if gate_meta.get("gates_digest") != expected_digest:
+        return None
+    try:
+        report = load_json(report_path, "门禁报告")
+    except CandidateError:
+        return None
+    if report.get("status") != "pass" or report.get("candidate_sha256") != candidate_sha:
+        return None
+    summary_path = run / "gate-summary.json"
+    if not summary_path.is_file():
+        atomic_write_json(summary_path, build_gate_summary(report))
+    return report
+
+
 def validate_run(project: Path, run: Path, manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
     result = require_fresh(project, data)
-    report = gate_run(project, run, manifest_path, data)
+    cached = _cached_gate_report(project, run, data)
+    report = cached if cached is not None else gate_run(project, run, manifest_path, data)
     if report["status"] != "pass":
         raise CandidateError(failure_summary(report))
     return {**result, "candidate_sha256": report["candidate_sha256"], "gates": report["gates"], "report": report}
@@ -1550,6 +1828,8 @@ def copy_quality_receipts(project: Path, run: Path, data: dict[str, Any], chapte
     destination = quality_dir(project, chapter)
     destination.mkdir(parents=True, exist_ok=True)
     copies: list[tuple[Path, str]] = [(run / "gate-report.json", "gate-report.json")]
+    if (run / "gate-summary.json").is_file():
+        copies.append((run / "gate-summary.json", "gate-summary.json"))
     for kind in REVIEW_KINDS:
         copies.append((run / "reviews" / f"{kind}.receipt.json", f"{kind}.json"))
         copies.append((run / "reviews" / f"{kind}.report.json", f"{kind}.report.json"))
@@ -1683,20 +1963,36 @@ CORPUS_POOL_ENV = "STORY_DESLOP_CORPUS_POOL"
 DEFAULT_CORPUS_POOL = Path("~/Documents/小说/_去AI味语料/网文")
 
 
+def _story_config_corpus_pool(project: Path) -> str | None:
+    for base in (project, *project.parents[:2]):
+        cfg = base / ".story" / "config.json"
+        if cfg.is_file():
+            try:
+                raw = json.loads(cfg.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(raw, dict) and isinstance(raw.get("deslop_corpus_pool"), str):
+                return raw["deslop_corpus_pool"]
+    return None
+
+
 def append_deslop_corpus(project: Path, chapter: int, pool_arg: str | None) -> None:
     """接纳闭环后把本章 M 层与谱系 A1/A2 快照幂等追加进去 AI 味语料池（仓外，规则表滚动维护用）。
 
-    语料池目录按 --corpus-pool、环境变量 STORY_DESLOP_CORPUS_POOL、缺省 ~/Documents/小说/_去AI味语料/网文 取；
-    追加器是池旁 ../_工具/build_corpus.py。池或追加器不存在只提示跳过；追加失败只告警。都不阻断接纳。
-    --corpus-pool off（或环境变量为 off）关闭本步。
+    语料池目录按 --corpus-pool、环境变量 STORY_DESLOP_CORPUS_POOL、.story/config.json 的
+    deslop_corpus_pool、缺省 ~/Documents/小说/_去AI味语料/网文 取；追加器是池旁 ../_工具/build_corpus.py。
+    未显式配置且默认池不存在时静默跳过；显式配置但不存在时提示跳过；都不阻断接纳。
     """
-    raw = pool_arg if pool_arg is not None else os.environ.get(CORPUS_POOL_ENV)
-    if raw is not None and raw.strip().lower() in {"off", "none", "0", ""}:
+    explicit = pool_arg if pool_arg is not None else os.environ.get(CORPUS_POOL_ENV)
+    if explicit is None:
+        explicit = _story_config_corpus_pool(project)
+    if explicit is not None and explicit.strip().lower() in {"off", "none", "0", ""}:
         return
-    pool = Path(raw).expanduser() if raw else DEFAULT_CORPUS_POOL.expanduser()
+    pool = Path(explicit).expanduser() if explicit else DEFAULT_CORPUS_POOL.expanduser()
     tool = pool.parent / "_工具" / "build_corpus.py"
     if not (pool / "manifest.json").is_file() or not tool.is_file():
-        print(f"语料池不存在（{pool}），跳过去 AI 味语料追加；不影响接纳", file=sys.stderr)
+        if explicit is not None:
+            print(f"语料池不存在（{pool}），跳过去 AI 味语料追加；不影响接纳", file=sys.stderr)
         return
     try:
         completed = subprocess.run(
@@ -1711,6 +2007,154 @@ def append_deslop_corpus(project: Path, chapter: int, pool_arg: str | None) -> N
         print(f"去 AI 味语料追加失败（退出 {completed.returncode}）：{message[-300:]}；不影响接纳", file=sys.stderr)
     elif message:
         print(message.splitlines()[-1], file=sys.stderr)
+
+
+def prune_lineage(run: Path, data: dict[str, Any]) -> dict[str, int]:
+    """保留首稿、去味前后快照与终稿等关键里程碑 .lineage/*.md，清理闭环后不再使用的中间编辑碎片。"""
+    directory = lineage_dir(run)
+    if not directory.is_dir():
+        return {"removed_files": 0, "freed_bytes": 0}
+    lineage = data.get("lineage") if isinstance(data.get("lineage"), list) else []
+    keep: set[str] = set()
+    if lineage:
+        first_sha = lineage[0].get("sha256")
+        if isinstance(first_sha, str):
+            keep.add(first_sha)
+        last_sha = lineage[-1].get("sha256")
+        if isinstance(last_sha, str):
+            keep.add(last_sha)
+    first_draft = next((item.get("sha256") for item in lineage if isinstance(item, dict) and item.get("source") == "draft"), None)
+    if isinstance(first_draft, str):
+        keep.add(first_draft)
+    deslops = [item.get("sha256") for item in lineage if isinstance(item, dict) and item.get("source") == "deslop"]
+    if deslops and isinstance(deslops[-1], str):
+        keep.add(deslops[-1])
+    deslop_review = (data.get("reviews") or {}).get("deslop")
+    if isinstance(deslop_review, dict):
+        for key in ("candidate_sha256", "output_sha256"):
+            val = deslop_review.get(key)
+            if isinstance(val, str):
+                keep.add(val)
+    for section, key in (("approval", "candidate_sha256"), ("promotion", "target_sha256"), ("gate_run", "candidate_sha256")):
+        sec = data.get(section)
+        if isinstance(sec, dict) and isinstance(sec.get(key), str):
+            keep.add(sec[key])
+    removed = 0
+    freed = 0
+    for snap in sorted(directory.glob("*.md")):
+        if snap.stem in keep:
+            continue
+        try:
+            size = snap.stat().st_size
+            snap.unlink()
+            removed += 1
+            freed += size
+        except OSError:
+            continue
+    return {"removed_files": removed, "freed_bytes": freed}
+
+
+def _parse_dotenv_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return values
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        else:
+            value = re.sub(r"\s+#.*$", "", value).strip()
+        values[key] = value
+    return values
+
+
+def run_project_hooks(project: Path, event: str, extra_env: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """触发工作区或书目录下 .story/hooks/*.sh（非阻塞，退出码非零仅告警）。"""
+    workspace = project
+    if (project.parent / ".active-book").is_file():
+        workspace = project.parent.resolve()
+    bases: list[Path] = []
+    for candidate in (workspace, project.resolve()):
+        if candidate not in bases:
+            bases.append(candidate)
+    dotenv: dict[str, str] = {}
+    hook_dirs: list[Path] = []
+    for base in bases:
+        dotenv.update(_parse_dotenv_file(base / ".story" / ".env.local"))
+        hook_dir = base / ".story" / "hooks"
+        if hook_dir.is_dir():
+            hook_dirs.append(hook_dir)
+    if not hook_dirs:
+        return []
+    env = dict(os.environ)
+    for key, value in dotenv.items():
+        env.setdefault(key, value)
+    env["STORY_HOOK_EVENT"] = event
+    env["STORY_BOOK_ROOT"] = str(project.resolve())
+    env["STORY_PROJECT_ROOT"] = str(workspace.resolve())
+    if extra_env:
+        env.update(extra_env)
+    executed: list[dict[str, Any]] = []
+    for hook_dir in hook_dirs:
+        for script in sorted(hook_dir.glob("*.sh")):
+            if not script.is_file():
+                continue
+            try:
+                completed = subprocess.run(
+                    ["bash", str(script)],
+                    cwd=str(project.resolve()),
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                executed.append({"script": str(script), "returncode": completed.returncode})
+                if completed.returncode != 0:
+                    detail = (completed.stderr or completed.stdout or "").strip()[-300:]
+                    print(
+                        f"项目钩子告警（{script.name} 退出 {completed.returncode}）：{detail}",
+                        file=sys.stderr,
+                    )
+            except (OSError, subprocess.SubprocessError) as exc:
+                executed.append({"script": str(script), "returncode": -1, "error": str(exc)})
+                print(f"项目钩子未完成（{script.name}: {exc}）", file=sys.stderr)
+    return executed
+
+
+def cmd_prune_lineage(args: argparse.Namespace) -> int:
+    project = Path(args.project).expanduser().resolve()
+    if not project.is_dir():
+        raise CandidateError(f"项目目录不存在: {project}")
+    pruned_runs = 0
+    removed_files = 0
+    freed_bytes = 0
+    for manifest_path, data in iter_manifests(project):
+        if data.get("status") not in {"committed", "abandoned"}:
+            continue
+        stats = prune_lineage(manifest_path.parent, data)
+        if stats["removed_files"] > 0:
+            pruned_runs += 1
+            removed_files += stats["removed_files"]
+            freed_bytes += stats["freed_bytes"]
+    emit_json({"pruned_runs": pruned_runs, "removed_files": removed_files, "freed_bytes": freed_bytes})
+    return 0
 
 
 def cmd_close(args: argparse.Namespace) -> int:
@@ -1748,6 +2192,8 @@ def cmd_close(args: argparse.Namespace) -> int:
     )
     write_progress(project)
     append_deslop_corpus(project, chapter, getattr(args, "corpus_pool", None))
+    prune_lineage(manifest_path.parent, data)
+    run_project_hooks(project, "chapter-closed", {"STORY_CHAPTER": str(chapter)})
     print(receipt)
     if (project / "有声书" / "选角.json").is_file():
         print(f"提示：本书已选角，可用 /story-audiobook 生成第 {chapter} 章有声书（不会自动生成）。", file=sys.stderr)
@@ -1837,9 +2283,14 @@ def cmd_sync(args: argparse.Namespace) -> int:
 def gate_cell(report: dict[str, Any] | None) -> str:
     if not report:
         return "缺门禁报告"
-    gates = report.get("gates", [])
-    passed = sum(1 for item in gates if item.get("status") == "pass")
-    parts = [f"{passed}/{len(gates)} 通过"]
+    if isinstance(report.get("gate_passed"), int) and isinstance(report.get("gate_total"), int):
+        passed = report["gate_passed"]
+        total = report["gate_total"]
+    else:
+        gates = report.get("gates", [])
+        passed = sum(1 for item in gates if item.get("status") == "pass")
+        total = len(gates)
+    parts = [f"{passed}/{total} 通过"]
     if report.get("waived"):
         parts.append("豁免 " + "、".join(report["waived"]))
     if report.get("advisories"):
@@ -1878,15 +2329,18 @@ def build_progress(project: Path) -> str:
         mode = "自动定稿" if receipt.get("approval_mode") == "auto" else "作者接纳"
         if receipt.get("protocol") == PROTOCOL and isinstance(chapter, int):
             directory = quality_dir(project, chapter)
-            gate_report = load_optional(directory / "gate-report.json")
-            metrics = next(
-                (item.get("payload") for item in (gate_report or {}).get("gates", []) if item.get("name") == "prose_metrics"),
-                None,
-            )
-            words = metrics.get("character_count") if isinstance(metrics, dict) else None
-            pressure = PRESSURE_LABELS.get(((gate_report or {}).get("pressure") or {}).get("level", ""), "—")
+            gate_info = load_optional(directory / "gate-summary.json") or load_optional(directory / "gate-report.json")
+            if gate_info and isinstance(gate_info.get("character_count"), int):
+                words: int | None = gate_info["character_count"]
+            else:
+                metrics = next(
+                    (item.get("payload") for item in (gate_info or {}).get("gates", []) if item.get("name") == "prose_metrics"),
+                    None,
+                )
+                words = metrics.get("character_count") if isinstance(metrics, dict) else None
+            pressure = PRESSURE_LABELS.get(((gate_info or {}).get("pressure") or {}).get("level", ""), "—")
             rows.append(
-                f"| {label} | {status} | {mode} | {gate_cell(gate_report)} | {pressure} | "
+                f"| {label} | {status} | {mode} | {gate_cell(gate_info)} | {pressure} | "
                 f"{review_cell(load_optional(directory / 'deslop.json'))} | "
                 f"{review_cell(load_optional(directory / 'consistency.json'))} | {words if words is not None else '—'} |"
             )
@@ -2200,6 +2654,10 @@ def build_parser() -> argparse.ArgumentParser:
     progress = sub.add_parser("progress", help="根据接纳回执重建 追踪/质检进度.md")
     progress.add_argument("--project", required=True)
     progress.set_defaults(func=cmd_progress)
+
+    prune = sub.add_parser("prune-lineage", help="清理已闭环/已放弃候选章目录中的非关键中间编辑快照")
+    prune.add_argument("--project", required=True)
+    prune.set_defaults(func=cmd_prune_lineage)
 
     step = sub.add_parser("next", help="只打印本书当前该做的下一步")
     step.add_argument("--project", required=True)

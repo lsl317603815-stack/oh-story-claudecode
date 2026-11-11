@@ -71,6 +71,8 @@ const META_PLANNING_MARKER_RE = /内容概括|情节安排|这章怎么演|人�
 // 判断命中是否真的位于引号内；同一行其他位置出现引号不再把整行误降级。
 const CJK_CHAR_RE = /[\u3400-\u9fff]/g;
 const LATIN_LETTER_RE = /[A-Za-z]/g;
+const UNICODE_FOREIGN_CHAR_RE = /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\u2160-\u2188\u24B6-\u24E9\u{1D400}-\u{1D7FF}]/u;
+const UNICODE_FOREIGN_TOKEN_RE = /^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\u2160-\u2188\u24B6-\u24E9\u{1D400}-\u{1D7FF}]+(?:['’.-][\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\u2160-\u2188\u24B6-\u24E9\u{1D400}-\u{1D7FF}]+)*$/u;
 const LATIN_TOKEN_SOURCE = "[A-Za-z]+(?:['’][A-Za-z]+)?";
 const LATIN_TOKEN_RE = new RegExp(`(?<![A-Za-z0-9])${LATIN_TOKEN_SOURCE}(?![A-Za-z0-9])`, 'g');
 const LANGUAGE_MODES = new Set(['auto', 'zh', 'en']);
@@ -79,7 +81,7 @@ const LANGUAGE_PHRASE_MIN_LETTERS = 12;
 const META_CHAPTER_REF_RE = /\b(?:ch|chap|chapter)\.?\s?\d{1,4}\b/i;
 const META_TIER2_RE = /第[一二三四五六七八九十百千万两0-9]+章|本章|这一章|上一章|下一章|上章|下章|前一章|后一章|前文|后文|伏笔|读者|任务描述/;
 
-const options = { json: false, files: [], failOn: 'all', language: 'auto' };
+const options = { json: false, files: [], failOn: 'all', language: 'auto', skipLanguageLeak: false };
 
 for (let i = 2; i < process.argv.length; i += 1) {
   const arg = process.argv[i];
@@ -87,6 +89,8 @@ for (let i = 2; i < process.argv.length; i += 1) {
     // Accepted for symmetry with the other detectors; detection is always check-only.
   } else if (arg === '--json') {
     options.json = true;
+  } else if (arg === '--skip-language-leak') {
+    options.skipLanguageLeak = true;
   } else if (arg.startsWith('--fail-on=')) {
     const v = arg.slice('--fail-on='.length);
     if (v !== 'blocking' && v !== 'all') die(`--fail-on must be 'blocking' or 'all'`);
@@ -131,7 +135,11 @@ for (const file of options.files) {
     continue;
   }
   const whitelist = isStdin ? emptyLanguageWhitelist() : loadLanguageWhitelist(fullPath);
-  const findings = scanDocument(input, { language: options.language, whitelist })
+  const findings = scanDocument(input, {
+    language: options.language,
+    whitelist,
+    skipLanguageLeak: options.skipLanguageLeak,
+  })
     .map((finding) => ({ file, ...finding }));
   allFindings.push(...findings);
 }
@@ -156,7 +164,7 @@ function die(message) {
   process.exit(2);
 }
 
-function scanDocument(input, { language = 'auto', whitelist = emptyLanguageWhitelist() } = {}) {
+function scanDocument(input, { language = 'auto', whitelist = emptyLanguageWhitelist(), skipLanguageLeak = false } = {}) {
   const lines = input.split(/\r?\n/);
   const content = []; // { text, trimmed, lineNo } for body lines outside front-matter/fences
   let fence = null; // { marker, length }
@@ -194,8 +202,10 @@ function scanDocument(input, { language = 'auto', whitelist = emptyLanguageWhite
   findings.push(...findTruncation(content));
   findings.push(...findPlaceholders(content));
   findings.push(...findMetaLeak(content));
-  const resolvedLanguage = resolveDocumentLanguage(content, language);
-  if (resolvedLanguage === 'zh') findings.push(...findLanguageLeak(content, whitelist));
+  if (!skipLanguageLeak) {
+    const resolvedLanguage = resolveDocumentLanguage(content, language);
+    if (resolvedLanguage === 'zh') findings.push(...findLanguageLeak(content, whitelist));
+  }
   findings.sort((a, b) => a.line - b.line || a.column - b.column);
   return findings;
 }
@@ -407,15 +417,21 @@ function loadLanguageWhitelist(filePath) {
     for (const rawLine of fs.readFileSync(whitelistPath, 'utf8').split(/\r?\n/)) {
       if (/^\s*#/.test(rawLine)) continue;
       const entry = rawLine.replace(/\s+#.*$/, '').trim();
-      if (!entry || !/[A-Za-z]/.test(entry) || CJK_CHAR_RE.test(entry)) {
+      if (!entry || !UNICODE_FOREIGN_CHAR_RE.test(entry) || CJK_CHAR_RE.test(entry)) {
         CJK_CHAR_RE.lastIndex = 0;
         continue;
       }
       CJK_CHAR_RE.lastIndex = 0;
-      if (new RegExp(`^${LATIN_TOKEN_SOURCE}$`).test(entry)) tokens.add(entry);
-      else {
+      if (new RegExp(`^${LATIN_TOKEN_SOURCE}$`).test(entry) || UNICODE_FOREIGN_TOKEN_RE.test(entry)) {
+        tokens.add(entry);
+      } else {
         const phrase = normalizeEnglishPhrase(entry);
-        if (phrase) phrases.add(phrase);
+        if (phrase) {
+          phrases.add(phrase);
+          if (new RegExp(`^${LATIN_TOKEN_SOURCE}$`).test(phrase) || UNICODE_FOREIGN_TOKEN_RE.test(phrase)) {
+            tokens.add(phrase);
+          }
+        }
       }
     }
     return { tokens, phrases, source: whitelistPath };
@@ -647,7 +663,7 @@ function findLanguageLeak(content, whitelist) {
     const columnAt = (trimmedIndex) => sourceColumn(text, leadingCodeUnits + trimmedIndex);
     const masked = maskProtectedLatin(trimmed);
     const tokens = latinTokens(masked);
-    if (tokens.length === 0) continue;
+    if (tokens.length === 0 && !UNICODE_FOREIGN_CHAR_RE.test(masked)) continue;
     const ranges = quotedRanges(trimmed);
     const covered = [];
 
@@ -734,6 +750,16 @@ function findLanguageLeak(content, whitelist) {
     const candidates = tokens.filter((token) => !isCovered(covered, token.index, token.end));
     let run = [];
     const flushRun = () => {
+      if (run.length >= 2) {
+        const start = run[0].index;
+        const end = run[run.length - 1].end;
+        const original = trimmed.slice(start, end);
+        if (isWhitelistedPhrase(original, whitelist)) {
+          cover(covered, start, end);
+          run = [];
+          return;
+        }
+      }
       const uppercasePhrase = run.length >= 2 && run.every((token) => /^[A-Z]+$/.test(token.value));
       if (run.length < LANGUAGE_PHRASE_MIN_WORDS && !uppercasePhrase) {
         run = [];

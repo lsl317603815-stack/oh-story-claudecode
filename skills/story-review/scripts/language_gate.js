@@ -91,8 +91,38 @@ function isWhitelistTokenAt(text, index) {
   return isForeignLetter(char) || /[0-9_.+/#-]/.test(char);
 }
 
+function normalizeWhitelistPhrase(value) {
+  let normalized = String(value || '').trim();
+  const outerPairs = [['“', '”'], ['‘', '’'], ['「', '」'], ['『', '』'], ['"', '"'], ["'", "'"]];
+  let changed = true;
+  while (changed && normalized.length >= 2) {
+    changed = false;
+    for (const [open, close] of outerPairs) {
+      if (normalized.startsWith(open) && normalized.endsWith(close)) {
+        normalized = normalized.slice(open.length, -close.length).trim();
+        changed = true;
+        break;
+      }
+    }
+  }
+  return normalized.replace(/[。.！？!?,，；;：:…]+$/, '').trim().replace(/[ \t]+/g, ' ');
+}
+
+function expandWhitelistEntries(entries) {
+  const expanded = new Set();
+  for (const raw of entries) {
+    if (!raw) continue;
+    expanded.add(raw);
+    const normalized = normalizeWhitelistPhrase(raw);
+    if (normalized && normalized !== raw && [...normalized].some(isForeignLetter)) {
+      expanded.add(normalized);
+    }
+  }
+  return [...expanded];
+}
+
 function markWhitelistEntries(text, mask, entries) {
-  for (const entry of entries) {
+  for (const entry of expandWhitelistEntries(entries)) {
     let offset = 0;
     while (offset <= text.length - entry.length) {
       const start = text.indexOf(entry, offset);

@@ -367,6 +367,10 @@ def _is_excluded(path: PurePosixPath, output_rel: Optional[PurePosixPath]) -> bo
     # docs/plans is a repository-local planning area in this project.
     if len(lower_parts) >= 2 and lower_parts[:2] == ("docs", "plans"):
         return True
+    # Repo-level regression scripts (scripts/test-*) are CI/maintainer-only and
+    # are not needed inside user skill archives.
+    if len(lower_parts) >= 2 and lower_parts[0] == "scripts" and lower_parts[1].startswith("test-"):
+        return True
     # .agents/skills is a symlink to skills/, and it only serves repo-local
     # discovery for Codex and Reasonix while working on this repository — it is
     # dev-only, never part of what a user installs. Shipping it made the archive

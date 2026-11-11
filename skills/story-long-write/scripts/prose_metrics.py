@@ -62,27 +62,60 @@ BAND_METRICS: dict[str, str] = {
 }
 BAND_KEYS = {"low", "high", "label", "source"}
 
+PRESET_PROSE_BANDS: dict[str, dict[str, Any]] = {
+    "aigc-safe-g5": {
+        "note": "内置 aigc-safe-g5 绿通对标带（advisory：超带只报不阻，不授权机械改文）",
+        "paragraph_mean_chars": {"low": 44, "high": 65, "label": "段均字数", "source": "aigc-safe-g5 预设"},
+        "sentence_mean_chars": {"low": 40, "high": 60, "label": "句均字数", "source": "aigc-safe-g5 预设"},
+        "short_sentence_rate_pct": {"low": 0, "high": 12, "label": "短句(<15字)占比%", "source": "aigc-safe-g5 预设"},
+        "bare_quote_rate_pct": {"low": 0, "high": 15, "label": "裸引语占含引号段%", "source": "aigc-safe-g5 预设"},
+        "leading_colon_tag_count": {"low": 5, "high": 35, "label": "前置冒号标签段数", "source": "aigc-safe-g5 预设"},
+        "short_paragraph_rate_pct": {"low": 0, "high": 4, "label": "≤12字段落占比%", "source": "aigc-safe-g5 预设"},
+        "function_word_per_kilo": {"low": 135, "high": 156, "label": "叙述口语虚词/千字", "source": "aigc-safe-g5 预设"},
+        "particle_per_kilo": {"low": 80, "high": 96, "label": "叙述语气助词/千字", "source": "aigc-safe-g5 预设"},
+        "narr_modal_end_pct": {"low": 0, "high": 10, "label": "叙述句尾语气词%", "source": "aigc-safe-g5 预设"},
+        "narr_second_person_pct": {"low": 0, "high": 3, "label": "叙述句含你我咱%", "source": "aigc-safe-g5 预设"},
+        "narr_exclaim_pct": {"low": 4, "high": 18, "label": "叙述句以！收%", "source": "aigc-safe-g5 预设"},
+        "narr_question_pct": {"low": 3, "high": 18, "label": "叙述句以？收%", "source": "aigc-safe-g5 预设"},
+        "degree_adverb_per_kilo": {"low": 3, "high": 12, "label": "程度与口语副词/千字", "source": "aigc-safe-g5 预设"},
+        "sentence_cv": {"low": 0.2, "high": 0.55, "label": "句长离散度", "source": "aigc-safe-g5 预设"},
+    }
+}
+
 
 def is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def load_bands(config_path: Path) -> tuple[dict[str, dict[str, Any]], str | None]:
-    """Read ``prose_bands`` from a book's gate config; an absent key means no bands."""
+    """Read ``prose_bands`` (and optional ``preset``) from a book's gate config."""
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"门禁配置不是合法 JSON: {config_path}: {exc}") from exc
-    bands = raw.get("prose_bands") if isinstance(raw, dict) else None
-    if bands is None:
+    if not isinstance(raw, dict):
         return {}, None
-    if not isinstance(bands, dict):
-        raise ValueError("prose_bands 必须是 object")
-    note = bands.get("note")
+    preset = raw.get("preset")
+    merged: dict[str, Any] = {}
+    if preset is not None:
+        if not isinstance(preset, str) or preset not in PRESET_PROSE_BANDS:
+            raise ValueError(f"未知门禁预设 preset: {preset}；可用: {', '.join(PRESET_PROSE_BANDS)}")
+        merged.update(PRESET_PROSE_BANDS[preset])
+    bands = raw.get("prose_bands")
+    if bands is False:
+        return {}, None
+    if bands is None:
+        if not merged:
+            return {}, None
+    else:
+        if not isinstance(bands, dict):
+            raise ValueError("prose_bands 必须是 object 或 false")
+        merged.update(bands)
+    note = merged.get("note")
     if note is not None and not isinstance(note, str):
         raise ValueError("prose_bands.note 必须是字符串")
     result: dict[str, dict[str, Any]] = {}
-    for key, band in bands.items():
+    for key, band in merged.items():
         if key == "note":
             continue
         if key not in BAND_METRICS:

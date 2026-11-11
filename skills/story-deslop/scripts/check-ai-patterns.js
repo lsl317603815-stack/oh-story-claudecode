@@ -1762,13 +1762,14 @@ function rateQuoteSpans(text) {
 function chapterRates(input) {
   const lines = rateLines(input);
   let han = 0;
-  const counts = Object.fromEntries(Object.keys(CHAPTER_RATE_PATTERNS).map((id) => [id, 0]));
+  const compiled = Object.entries(CHAPTER_RATE_PATTERNS).map(([id, pattern]) => [id, new RegExp(pattern.source, 'g')]);
+  const counts = Object.fromEntries(compiled.map(([id]) => [id, 0]));
   for (const line of lines) {
     const hanMatches = line.match(RT_HAN_PATTERN);
     han += hanMatches ? hanMatches.length : 0;
     const spans = rateQuoteSpans(line);
-    for (const [id, pattern] of Object.entries(CHAPTER_RATE_PATTERNS)) {
-      const re = new RegExp(pattern.source, 'g');
+    for (const [id, re] of compiled) {
+      re.lastIndex = 0;
       let match;
       while ((match = re.exec(line)) !== null) {
         if (NARRATION_ONLY_RULES.has(id) && insideRanges(match.index, spans)) continue;

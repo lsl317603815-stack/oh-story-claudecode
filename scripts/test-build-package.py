@@ -218,6 +218,7 @@ class BuildPackageTests(unittest.TestCase):
                 "dist/old.zip",
                 "node_modules/pkg/index.js",
                 "scripts/__pycache__/tool.pyc",
+                "scripts/test-regression.py",
                 "test-results/dashboard/out.json",
                 "playwright-report/index.html",
                 ".env",

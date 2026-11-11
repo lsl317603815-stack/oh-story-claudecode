@@ -78,6 +78,11 @@ python3 scripts/test-deploy-model-routing.py
 python3 scripts/test-story-audiobook.py
 python3 scripts/test-voice-profile.py
 python3 scripts/test-cold-read-ledger.py
+python3 scripts/test-chapter-shape.py
+python3 scripts/test-revision-guard.py
+python3 scripts/test-revision-codex-gate.py
+node scripts/test-revision-hook-gate.js
+python3 scripts/test-m3-optimizations.py
 python3 scripts/test-copy-path-safety.py
 bash scripts/check-story-setup-deployment.sh
 
@@ -94,6 +99,9 @@ python3 scripts/check-workbuddy-adapter.py
 python3 scripts/test-trae-core-ownership.py
 bash scripts/check-reasonix-adapter.sh
 bash scripts/check-antigravity-adapter.sh
+python3 scripts/test-antigravity-hook-merge.py
+python3 scripts/test-antigravity-skills-deploy.py
+node scripts/test-antigravity-hooks.mjs
 bash scripts/test-codex-hooks.sh
 bash scripts/test-zcode-hooks.sh
 bash scripts/test-trae-hooks.sh

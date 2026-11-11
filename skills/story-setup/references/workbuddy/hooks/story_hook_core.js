@@ -20,6 +20,7 @@ function existingDir(value) {
 function safeRelative(root, target) {
   try {
     const rel = path.relative(path.resolve(root), path.resolve(target))
+    if (rel === "") return "."
     return rel && !rel.startsWith("..") ? rel.split(path.sep).join("/") : String(target)
   } catch {
     return String(target)
@@ -221,6 +222,20 @@ function foreshadowScheduleFinding(book) {
   return message
 }
 
+function openProseOnlyPolishId(book) {
+  const manifestPath = path.join(book, "追踪", "修改影响", "active.json")
+  try {
+    const manifestBytes = fs.readFileSync(manifestPath)
+    const manifest = JSON.parse(manifestBytes.toString("utf8"))
+    if (!manifest || manifest.schema_version !== 1 || manifest.mode !== "prose_only" || typeof manifest.change_id !== "string") {
+      return null
+    }
+    return revisionApprovalStatus(manifestPath, manifest, manifestBytes) === "pending" ? manifest.change_id : null
+  } catch {
+    return null
+  }
+}
+
 function continuityFindings(root) {
   const messages = []
   for (const book of discoverAllBooks(root)) {
@@ -242,8 +257,13 @@ function continuityFindings(root) {
         const newest = Math.max(...chapters.map((file) => fs.statSync(file).mtimeMs))
         const contextTime = fs.statSync(context).mtimeMs
         if (newest > contextTime + 1000) {
-          const latest = chapters.reduce((left, right) => fs.statSync(left).mtimeMs > fs.statSync(right).mtimeMs ? left : right)
-          messages.push(`[continuity] ${safeRelative(root, book)}：正文已更新到「${path.basename(latest)}」但续写状态卡更早——为该章提交 tracking_commit.py 事务、check 通过后再续写，禁止分别手改 上下文.md/伏笔.md。`)
+          const polishId = openProseOnlyPolishId(book)
+          if (polishId) {
+            messages.push(`[continuity] ${safeRelative(root, book)}：纯润色事务 ${polishId} 进行中——改完后运行 revision_guard.py finish-polish 自动跑门禁并同步回执与文风画像，无需提交 tracking_commit.py 事务。`)
+          } else {
+            const latest = chapters.reduce((left, right) => fs.statSync(left).mtimeMs > fs.statSync(right).mtimeMs ? left : right)
+            messages.push(`[continuity] ${safeRelative(root, book)}：正文已更新到「${path.basename(latest)}」但续写状态卡更早——为该章提交 tracking_commit.py 事务、check 通过后再续写，禁止分别手改 上下文.md/伏笔.md。`)
+          }
         }
       } catch {}
     }
@@ -739,7 +759,8 @@ function revisionSourceInfo(root, absolute) {
   if (!relative || path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`)) return null
   const parts = relative.split(path.sep)
   const sourceIndex = parts.findIndex((part) => ["正文", "大纲", "设定"].includes(part))
-  if (sourceIndex < 1 || parts.length <= sourceIndex + 1 || !parts[parts.length - 1].endsWith(".md")) return null
+  if (sourceIndex < 0 || parts.length <= sourceIndex + 1 || !parts[parts.length - 1].endsWith(".md")) return null
+  if (parts.slice(0, sourceIndex).some((part) => isHistoricalCopySegment(part) || part === "拆文库" || part.startsWith("."))) return null
   if (parts.slice(sourceIndex + 1, -1).some((part) => part.includes("备份") || ["归档", "archive", "archives"].includes(part) || part.startsWith("."))) return null
   const book = path.join(path.resolve(root), ...parts.slice(0, sourceIndex))
   const statePath = path.join(book, "追踪", "_tracking-state.json")

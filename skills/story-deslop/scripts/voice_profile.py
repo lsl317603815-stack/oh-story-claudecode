@@ -240,9 +240,14 @@ def prose_by_chapter(project: Path) -> dict[int, Path]:
     return {number: paths[0] for number, paths in matches.items()}
 
 
-def committed_receipts(project: Path) -> dict[int, dict[str, Any]]:
+def committed_receipts(
+    project: Path,
+    *,
+    ignore_mismatch_chapters: set[int] | None = None,
+) -> dict[int, dict[str, Any]]:
     root = project / "追踪" / "章节提交"
     output: dict[int, dict[str, Any]] = {}
+    ignored = ignore_mismatch_chapters or set()
     if not root.is_dir():
         return output
     for receipt_path in sorted(root.glob("第*章.json")):
@@ -259,7 +264,7 @@ def committed_receipts(project: Path) -> dict[int, dict[str, Any]]:
             raise VoiceProfileError(f"接纳回执目标不在正文目录: {receipt_path}")
         expected = receipt.get("accepted_prose_sha256")
         actual = sha256_file(target)
-        if not isinstance(expected, str) or actual != expected:
+        if not isinstance(expected, str) or (actual != expected and chapter not in ignored):
             raise VoiceProfileError(f"第 {chapter} 章正文与接纳回执摘要不一致")
         output[chapter] = {
             "chapter": chapter,
@@ -271,8 +276,13 @@ def committed_receipts(project: Path) -> dict[int, dict[str, Any]]:
     return output
 
 
-def collect_sources(project: Path, legacy_approved_through: int | None) -> list[dict[str, Any]]:
-    sources = committed_receipts(project)
+def collect_sources(
+    project: Path,
+    legacy_approved_through: int | None,
+    *,
+    ignore_mismatch_chapters: set[int] | None = None,
+) -> list[dict[str, Any]]:
+    sources = committed_receipts(project, ignore_mismatch_chapters=ignore_mismatch_chapters)
     if legacy_approved_through is not None:
         if legacy_approved_through <= 0:
             raise VoiceProfileError("legacy-approved-through 必须大于 0")
@@ -499,12 +509,31 @@ def load_golden_profile(project: Path) -> dict[str, Any] | None:
     return profile
 
 
-def current_source_status(project: Path, profile: dict[str, Any]) -> dict[str, Any]:
+def parse_polish_chapters(raw: str | None) -> set[int]:
+    if not raw:
+        return set()
+    chapters: set[int] = set()
+    for token in re.split(r"[,，\s]+", raw.strip()):
+        if not token:
+            continue
+        if not token.isdigit() or int(token) <= 0:
+            raise VoiceProfileError(f"润色章号无效: {token}")
+        chapters.add(int(token))
+    return chapters
+
+
+def current_source_status(
+    project: Path,
+    profile: dict[str, Any],
+    *,
+    polish_chapters: set[int] | None = None,
+) -> dict[str, Any]:
+    ignored = polish_chapters or set()
     policy = profile.get("policy") if isinstance(profile.get("policy"), dict) else {}
     legacy = policy.get("legacy_approved_through")
     if legacy is not None and not isinstance(legacy, int):
         raise VoiceProfileError("声音画像 legacy_approved_through 无效")
-    current = collect_sources(project, legacy)
+    current = collect_sources(project, legacy, ignore_mismatch_chapters=ignored)
     recorded = profile.get("sources")
     if not isinstance(recorded, list):
         raise VoiceProfileError("声音画像缺少 sources")
@@ -529,10 +558,10 @@ def current_source_status(project: Path, profile: dict[str, Any]) -> dict[str, A
             changes.append({"chapter": chapter, "reason": "newly_accepted"})
         elif new is None:
             changes.append({"chapter": chapter, "reason": "accepted_source_missing"})
-        elif old != new:
+        elif old != new and chapter not in ignored:
             changes.append({"chapter": chapter, "reason": "accepted_source_changed", "path": new.get("path")})
     digest = source_digest(current)
-    if digest != profile.get("source_digest") and not changes:
+    if digest != profile.get("source_digest") and not changes and not ignored:
         changes.append({"reason": "source_digest_changed"})
     return {
         "status": "stale" if changes else "fresh",
@@ -703,10 +732,16 @@ def cmd_golden_verify(args: argparse.Namespace) -> int:
     return 2 if result["status"] == "stale" else 0
 
 
-def exact_overlap(profile: dict[str, Any], sentences: list[str]) -> list[dict[str, Any]]:
+def exact_overlap(
+    profile: dict[str, Any],
+    sentences: list[str],
+    *,
+    self_polished: bool = False,
+) -> list[dict[str, Any]]:
     accepted = profile.get("accepted_sentence_hashes")
     if not isinstance(accepted, dict):
         return []
+    min_occurrences = 2 if self_polished else 1
     output: list[dict[str, Any]] = []
     seen: set[str] = set()
     for sentence in sentences:
@@ -714,13 +749,14 @@ def exact_overlap(profile: dict[str, Any], sentences: list[str]) -> list[dict[st
         if len(normalized) < 12:
             continue
         digest = sha256_bytes(normalized.encode("utf-8"))
-        if digest in accepted and digest not in seen:
+        count = int(accepted.get(digest, 0)) if digest in accepted else 0
+        if count >= min_occurrences and digest not in seen:
             seen.add(digest)
             output.append(
                 {
                     "code": "accepted-sentence-overlap",
                     "sentence": sentence[:80],
-                    "accepted_occurrences": accepted[digest],
+                    "accepted_occurrences": count,
                     "message": "候选句与已接纳正文存在原句级重合；固定口头禅可保留，非刻意复现需复核。",
                 }
             )
@@ -756,9 +792,12 @@ def cmd_update(args: argparse.Namespace) -> int:
         return 0
     policy = profile.get("policy") if isinstance(profile.get("policy"), dict) else {}
     legacy = policy.get("legacy_approved_through")
+    allow_legacy = parse_polish_chapters(getattr(args, "allow_legacy_chapters", None))
     if legacy is not None:
         for source in profile.get("sources", []):
             if not isinstance(source, dict) or source.get("provenance") != "explicit_legacy_approval":
+                continue
+            if source.get("chapter") in allow_legacy:
                 continue
             path = project / str(source.get("path", ""))
             if not path.is_file() or sha256_file(path) != source.get("sha256"):
@@ -789,6 +828,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     project = project_root(args.project)
     candidate, candidate_relative = resolve_inside(project, args.candidate, label="候选正文")
+    polish_chapters = parse_polish_chapters(getattr(args, "polish_chapters", None))
     profile = load_profile(project)
     if profile is None:
         print(
@@ -804,13 +844,15 @@ def cmd_check(args: argparse.Namespace) -> int:
             )
         )
         return 0
-    freshness = current_source_status(project, profile)
+    freshness = current_source_status(project, profile, polish_chapters=polish_chapters)
     if freshness["status"] != "fresh":
         print(json.dumps({"status": "stale", "severity": "blocking", "candidate": candidate_relative, **freshness}, ensure_ascii=False, indent=2))
         return 2
     metrics, sentences, character_count = prose_metrics(candidate)
     advisories = compare_candidate(profile, metrics)
-    overlaps = exact_overlap(profile, sentences)
+    candidate_chap = chapter_number(candidate)
+    self_polished = bool(candidate_chap is not None and candidate_chap in polish_chapters)
+    overlaps = exact_overlap(profile, sentences, self_polished=self_polished)
     golden = load_golden_profile(project)
     golden_result: dict[str, Any] = {"status": "not_configured"}
     golden_advisories: list[dict[str, Any]] = []
@@ -960,6 +1002,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     update = subparsers.add_parser("update", help="在新接纳回执闭环后更新画像")
     update.add_argument("--project", required=True)
+    update.add_argument("--allow-legacy-chapters", help="纯润色闭环时允许同步更新的旧章章号（逗号分隔）")
     update.set_defaults(func=cmd_update)
 
     verify = subparsers.add_parser("verify", help="检查画像是否仍绑定当前接纳正文")
@@ -969,6 +1012,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="对候选正文做双向 advisory 漂移检查")
     check.add_argument("--project", required=True)
     check.add_argument("--candidate", required=True)
+    check.add_argument("--polish-chapters", help="纯润色模式正在改写的已接纳章号（逗号分隔）")
     check.set_defaults(func=cmd_check)
 
     blind = subparsers.add_parser("blind", help="生成不暴露来源标签的 A/B 冷读包")

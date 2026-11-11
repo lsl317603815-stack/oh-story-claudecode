@@ -165,7 +165,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 - `delta.result` ≤360 字节（约 120 个汉字）：它会原样成为 `上下文.md` 近章速记里的本章一行，与 `recent_chapters[].summary` 同上限。
 - `commit` 事务里所有超长字段一次报全，并换算成「现 N 字、上限约 M 字、至少删 K 字」；逐章记录超过 4096 字节时列出最长几项。一次改完再提交。含义明确的写法照收：纯数字字符串章号（`"12"`）、`action` 同义词（add/new/update→upsert，remove/删除→delete；resolve/回收 缺省补 `status=已回收`，advance/推进 补 `已埋`，与 status 矛盾则拒绝）、少数同义字段名（如 `planned_chapter`、`time`），以及快照单句字段写成列表、列表字段只写一句。
 - `context` 的允许字段随子命令不同：`init` 收 `position`、`long_term_constraints`、`active_character_names`、`continuity_risks`、`recent_chapters`、`next_chapter_commitments` 六项；`commit` 只收前四项。`recent_chapters` 与 `next_chapter_commitments` 在 commit 时由工具从当前视图和本章 `delta` 派生，手填会在任何写入前被拒（`context contains unsupported fields: ...`，exit 2）。照 init 示例套 commit 事务是最容易踩的一处。
-- `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。
+- `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。对已有快照的核心角色，快照对象支持 `"action": "patch"`（增量合并：仅填写本章变化的字段如 `state`、`location`、`knowledge`，未填写字段自动继承库内当前值；若 `location` 或 `abilities_resources` 变化仍受下方跨章连续性守卫约束）。
 - 角色快照的四个列表不限制条数，只限制单项长度和最终文件总字节：目标 ≤4096 字节，超过警告；硬上限 8192 字节，超过则在任何写入前拒绝。
 - 没有快照的角色变化视为临时角色，不建立状态文件；`context.active_character_names` 是下一章的活跃角色，不是核心角色总数或主角数：最多 20 人且必须已有当前快照，只列下一章出场或被直接牵动的核心角色，其余核心角色保留快照，需要时读 `追踪/角色状态/{名}.md`。
 - `context.long_term_constraints` 和 `context.continuity_risks` 是整份提交的当前值。凡是上一版有、本次没有的条目，必须逐条列进 `delta.retired_context_items`，否则工具在任何写入前拒绝——漏写不会被当成删除。实际退役的条目由工具写进本章逐章记录的 `## 本章退役登记`，随后仍可回查；之后修订这一章时工具会把这份登记原样带过来。仍留在 context 里的条目不能同时列进 `retired_context_items`。
@@ -194,9 +194,9 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 
 - 不再复用的核心角色写进 `delta.retired_characters`：工具删除其当前快照与 `角色状态/{角色名}.md`，并在逐章记录留档。同一事务里不能既退役又提交快照，也不能退役仍列在 `context.active_character_names` 的角色。角色阵亡/退场这一章，把变化照写进 `character_changes` 即可，本章退役的角色不必再交一份马上要删的快照，逐章记录仍按核心角色标注。退役只表示不再进入热上下文，正文与逐章记录不受影响。
 - 两类退役都只能在 `mode=append` 提交。退役表示「从此刻起离开当前状态」，而修订事务的逐章记录属于被改写的旧章，落在那里会谎报退役发生的章节；`mode=revision` 必须原样重交当前全部上下文条目，需要退役就放到下一次 append。
-- `伏笔.md` 只呈现已经埋设过的当前状态。未来规划仍留在大纲。
-- `timeline_events.action` 可为 `upsert/delete`。`未揭示` 的 `reveal_chapter` 必须为 `null`；部分/完全揭示只能填写已经发生的实际章节。
-- `fact_changes.action` 可为 `upsert/delete`。事实 ID 用 `K001` 或 `R001`；类别覆盖身份/血缘/亲属/婚姻/别名/传承/从属/合作/敌对/所有权/规则/权限/不可逆状态/历史因果。每条必须带 `evidence`；关系类必须带 `related_entities`；单值槽位 `cardinality=one` 不得同时存在两个不同 object。未揭示的作者真相不会出现在读者视图，但会在作者用事实档案中保留。
+- `伏笔.md` 只呈现已经埋设过的当前状态（`foreshadow_changes.action` 可为 `upsert/patch/delete`，`patch` 对已有伏笔按字段增量合并）。未来规划仍留在大纲。
+- `timeline_events.action` 可为 `upsert/patch/delete`（`patch` 对已有事件按字段增量合并）。`未揭示` 的 `reveal_chapter` 必须为 `null`；部分/完全揭示只能填写已经发生的实际章节。
+- `fact_changes.action` 可为 `upsert/patch/delete`（`patch` 对已有事实按字段增量合并）。事实 ID 用 `K001` 或 `R001`；类别覆盖身份/血缘/亲属/婚姻/别名/传承/从属/合作/敌对/所有权/规则/权限/不可逆状态/历史因果。每条必须带 `evidence`；关系类必须带 `related_entities`；单值槽位 `cardinality=one` 不得同时存在两个不同 object。未揭示的作者真相不会出现在读者视图，但会在作者用事实档案中保留。
 - `mode=revision` 时，逐章记录必须重算为修订后该章仍然成立的完整连续性记录（只交改动会把原有条目整节清空，工具会打 WARNING 列出被清空的小节）；当前角色、伏笔、时间线和上下文则提交受影响对象截至最新已写章的当前值。
 - 长期事实与关系的完整收录边界、召回路径和跨总纲/卷纲/细纲/正文的修订要求见当前写作流程的“跨产物修订与长期事实”协议。
 - 修订导入截止章内的正文时，会新增或覆盖该章的逐章记录；`imported_through_chapter` 不变。
