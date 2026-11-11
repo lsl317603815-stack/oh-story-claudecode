@@ -5,7 +5,7 @@ trigger: always_on
 <!-- oh-story-managed: antigravity-rule -->
 # oh-story 网文写作项目规则（Antigravity）
 
-本工作区部署了 oh-story 网文写作 skills，位置是 `.agents/skills/`。先读所选 skill 的 `SKILL.md`，再按它的指引加载 references 和脚本。
+本工作区部署了 oh-story 网文写作 skills，位置是 `.agents/skills/`。先读所选 skill 的 `SKILL.md`，再按它的指引加载 references 和脚本。若工作区根目录同时存在供 Codex 或通用环境使用的 `AGENTS.md`，在 Antigravity 内一律以本文件及 `.agents/` 下的 skills、agents、hooks 为准，忽略 `AGENTS.md` 中的无 hook 自锁、solo 降级与根目录 `skills/` 路径说明。
 
 ## 路由
 

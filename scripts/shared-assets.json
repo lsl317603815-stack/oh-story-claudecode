@@ -299,6 +299,451 @@
       "targets": [
         "skills/story-setup/references/agent-references/cross-book-recall.md"
       ]
+    },
+    {
+      "name": "reference-anti-ai-writing",
+      "source": "skills/story-deslop/references/anti-ai-writing.md",
+      "targets": [
+        "skills/story-long-write/references/anti-ai-writing.md",
+        "skills/story-review/references/anti-ai-writing.md",
+        "skills/story-setup/references/agent-references/anti-ai-writing.md",
+        "skills/story-short-analyze/references/anti-ai-writing.md"
+      ]
+    },
+    {
+      "name": "reference-author-memory",
+      "source": "skills/story-long-write/references/author-memory.md",
+      "targets": [
+        "skills/story-short-write/references/author-memory.md"
+      ]
+    },
+    {
+      "name": "reference-banned-words",
+      "source": "skills/story-deslop/references/banned-words.md",
+      "targets": [
+        "skills/story-long-write/references/banned-words.md",
+        "skills/story-review/references/banned-words.md",
+        "skills/story-setup/references/agent-references/banned-words.md",
+        "skills/story-short-analyze/references/banned-words.md",
+        "skills/story-short-write/references/banned-words.md"
+      ]
+    },
+    {
+      "name": "reference-character-basics",
+      "source": "skills/story-long-write/references/character-basics.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/character-basics.md"
+      ]
+    },
+    {
+      "name": "reference-character-design-methods",
+      "source": "skills/story-long-write/references/character-design-methods.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/character-design-methods.md"
+      ]
+    },
+    {
+      "name": "reference-character-relations",
+      "source": "skills/story-long-write/references/character-relations.md",
+      "targets": [
+        "skills/story-review/references/character-relations.md",
+        "skills/story-setup/references/agent-references/character-relations.md"
+      ]
+    },
+    {
+      "name": "reference-dialogue-mastery",
+      "source": "skills/story-long-write/references/dialogue-mastery.md",
+      "targets": [
+        "skills/story-review/references/dialogue-mastery.md",
+        "skills/story-setup/references/agent-references/dialogue-mastery.md",
+        "skills/story-short-write/references/dialogue-mastery.md"
+      ]
+    },
+    {
+      "name": "reference-emotional-arc-design",
+      "source": "skills/story-long-write/references/emotional-arc-design.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/emotional-arc-design.md"
+      ]
+    },
+    {
+      "name": "reference-emotional-methods",
+      "source": "skills/story-short-write/references/emotional-methods.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/emotional-methods.md"
+      ]
+    },
+    {
+      "name": "reference-format-and-structure",
+      "source": "skills/story-long-write/references/format-and-structure.md",
+      "targets": [
+        "skills/story-import/references/format-and-structure.md",
+        "skills/story-setup/references/agent-references/format-and-structure.md"
+      ]
+    },
+    {
+      "name": "reference-genre-core-mechanics",
+      "source": "skills/story-long-write/references/genre-core-mechanics.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-core-mechanics.md"
+      ]
+    },
+    {
+      "name": "reference-genre-readers",
+      "source": "skills/story-long-write/references/genre-readers.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-readers.md"
+      ]
+    },
+    {
+      "name": "reference-genre-writing-formulas",
+      "source": "skills/story-long-write/references/genre-writing-formulas.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-writing-formulas.md",
+        "skills/story-short-write/references/genre-writing-formulas.md"
+      ]
+    },
+    {
+      "name": "reference-hooks-paragraph",
+      "source": "skills/story-long-write/references/hooks-paragraph.md",
+      "targets": [
+        "skills/story-short-analyze/references/hooks-paragraph.md",
+        "skills/story-short-write/references/hooks-paragraph.md"
+      ]
+    },
+    {
+      "name": "reference-opening-design",
+      "source": "skills/story-long-write/references/opening-design.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/opening-design.md"
+      ]
+    },
+    {
+      "name": "reference-outline-conflict",
+      "source": "skills/story-long-write/references/outline-conflict.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/outline-conflict.md"
+      ]
+    },
+    {
+      "name": "reference-outline-methods",
+      "source": "skills/story-long-write/references/outline-methods.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/outline-methods.md"
+      ]
+    },
+    {
+      "name": "reference-outline-rhythm",
+      "source": "skills/story-long-write/references/outline-rhythm.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/outline-rhythm.md"
+      ]
+    },
+    {
+      "name": "reference-output-contract",
+      "source": "skills/story-short-write/references/output-contract.md",
+      "targets": [
+        "skills/story-short-analyze/references/output-contract.md"
+      ]
+    },
+    {
+      "name": "reference-quality-checklist",
+      "source": "skills/story-review/references/quality-checklist.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/quality-checklist.md"
+      ]
+    },
+    {
+      "name": "reference-real-market-data",
+      "source": "skills/story-short-analyze/references/real-market-data.md",
+      "targets": [
+        "skills/story-short-scan/references/real-market-data.md"
+      ]
+    },
+    {
+      "name": "reference-reversal-toolkit",
+      "source": "skills/story-long-write/references/reversal-toolkit.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/reversal-toolkit.md",
+        "skills/story-short-write/references/reversal-toolkit.md"
+      ]
+    },
+    {
+      "name": "reference-state-tracking",
+      "source": "skills/story-long-write/references/state-tracking.md",
+      "targets": [
+        "skills/story-import/references/state-tracking.md"
+      ]
+    },
+    {
+      "name": "reference-style-combat-face",
+      "source": "skills/story-long-write/references/style-combat-face.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/style-combat-face.md"
+      ]
+    },
+    {
+      "name": "reference-style-genre-modules",
+      "source": "skills/story-long-write/references/style-genre-modules.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/style-genre-modules.md"
+      ]
+    },
+    {
+      "name": "reference-writing-craft",
+      "source": "skills/story-long-write/references/writing-craft.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/writing-craft.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-东方仙侠",
+      "source": "skills/story-long-write/references/genre-prose-cards/东方仙侠.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/东方仙侠.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-传统玄幻",
+      "source": "skills/story-long-write/references/genre-prose-cards/传统玄幻.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/传统玄幻.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-历史古代",
+      "source": "skills/story-long-write/references/genre-prose-cards/历史古代.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/历史古代.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-历史脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/历史脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/历史脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-双男主",
+      "source": "skills/story-long-write/references/genre-prose-cards/双男主.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/双男主.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-古言脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/古言脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/古言脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-古风世情",
+      "source": "skills/story-long-write/references/genre-prose-cards/古风世情.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/古风世情.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-女频悬疑",
+      "source": "skills/story-long-write/references/genre-prose-cards/女频悬疑.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/女频悬疑.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-女频种田",
+      "source": "skills/story-long-write/references/genre-prose-cards/女频种田.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/女频种田.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-宫斗宅斗",
+      "source": "skills/story-long-write/references/genre-prose-cards/宫斗宅斗.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/宫斗宅斗.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-年代",
+      "source": "skills/story-long-write/references/genre-prose-cards/年代.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/年代.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-快穿",
+      "source": "skills/story-long-write/references/genre-prose-cards/快穿.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/快穿.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-悬疑灵异",
+      "source": "skills/story-long-write/references/genre-prose-cards/悬疑灵异.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/悬疑灵异.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-悬疑脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/悬疑脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/悬疑脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-战神赘婿",
+      "source": "skills/story-long-write/references/genre-prose-cards/战神赘婿.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/战神赘婿.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-抗战谍战",
+      "source": "skills/story-long-write/references/genre-prose-cards/抗战谍战.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/抗战谍战.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-星光璀璨",
+      "source": "skills/story-long-write/references/genre-prose-cards/星光璀璨.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/星光璀璨.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-民国言情",
+      "source": "skills/story-long-write/references/genre-prose-cards/民国言情.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/民国言情.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-游戏体育",
+      "source": "skills/story-long-write/references/genre-prose-cards/游戏体育.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/游戏体育.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-玄幻脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/玄幻脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/玄幻脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-玄幻言情",
+      "source": "skills/story-long-write/references/genre-prose-cards/玄幻言情.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/玄幻言情.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-现言脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/现言脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/现言脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-科幻末世",
+      "source": "skills/story-long-write/references/genre-prose-cards/科幻末世.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/科幻末世.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-职场婚恋",
+      "source": "skills/story-long-write/references/genre-prose-cards/职场婚恋.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/职场婚恋.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-西方奇幻",
+      "source": "skills/story-long-write/references/genre-prose-cards/西方奇幻.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/西方奇幻.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-豪门总裁",
+      "source": "skills/story-long-write/references/genre-prose-cards/豪门总裁.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/豪门总裁.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-都市修真",
+      "source": "skills/story-long-write/references/genre-prose-cards/都市修真.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/都市修真.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-都市日常",
+      "source": "skills/story-long-write/references/genre-prose-cards/都市日常.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/都市日常.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-都市种田",
+      "source": "skills/story-long-write/references/genre-prose-cards/都市种田.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/都市种田.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-都市脑洞",
+      "source": "skills/story-long-write/references/genre-prose-cards/都市脑洞.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/都市脑洞.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-都市高武",
+      "source": "skills/story-long-write/references/genre-prose-cards/都市高武.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/都市高武.md"
+      ]
+    },
+    {
+      "name": "reference-genre-card-青春甜宠",
+      "source": "skills/story-long-write/references/genre-prose-cards/青春甜宠.md",
+      "targets": [
+        "skills/story-setup/references/agent-references/genre-prose-cards/青春甜宠.md"
+      ]
     }
+  ],
+  "intentionally_divergent": [
+    "skills/story-long-analyze/references/material-decomposition.md",
+    "skills/story-long-analyze/references/output-templates.md",
+    "skills/story-long-write/references/cross-book-recall.md",
+    "skills/story-long-write/references/emotional-methods.md",
+    "skills/story-long-write/references/genre-catalog.md",
+    "skills/story-long-write/references/genre-prose-cards.md",
+    "skills/story-long-write/references/quality-checklist.md",
+    "skills/story-setup/references/agent-references/genre-catalog.md",
+    "skills/story-setup/references/agent-references/genre-prose-cards.md",
+    "skills/story-short-analyze/references/character-basics.md",
+    "skills/story-short-analyze/references/character-design-methods.md",
+    "skills/story-short-analyze/references/character-relations.md",
+    "skills/story-short-analyze/references/genre-catalog.md",
+    "skills/story-short-analyze/references/genre-core-mechanics.md",
+    "skills/story-short-analyze/references/genre-readers.md",
+    "skills/story-short-analyze/references/genre-writing-formulas.md",
+    "skills/story-short-analyze/references/genre-writing-techniques.md",
+    "skills/story-short-analyze/references/material-decomposition.md",
+    "skills/story-short-analyze/references/output-templates.md",
+    "skills/story-short-analyze/references/quality-checklist.md",
+    "skills/story-short-write/references/genre-styles/双男主.md",
+    "skills/story-short-write/references/genre-writing-techniques.md",
+    "skills/story-short-write/references/quality-checklist.md"
   ]
 }

@@ -272,6 +272,7 @@ function normalizePausePunctuationPass(line, lineNo, commentSpans) {
   const findings = [];
   const original = line;
   const pattern = /…+|\.{3,}|——|—|--+/g;
+  const quotes = quoteSpans(original);
   let output = '';
   let lastIndex = 0;
   let match;
@@ -281,6 +282,18 @@ function normalizePausePunctuationPass(line, lineNo, commentSpans) {
     // HTML 注释不属于交付正文，会被独立语言门阻断。这里仍保持格式化器的
     // 非破坏性：`<!--`/`-->` 里的 `--` 不是停顿标点，不应被正常化拆坏。
     if (insideSpans(match.index, match.index + token.length, commentSpans)) continue;
+    // 引号里的省略号是人物说话的犹豫、打断和拖音（真人正文每千字约 0.8 个），保留，
+    // 只统一成全角六点；紧挨着的几段（`...……`）并成一个。破折号不在此列。
+    if (getPauseType(token) === 'ellipsis' && insideSpans(match.index, match.index + token.length, quotes)) {
+      const merged = lastIndex === match.index && output.endsWith('……');
+      const replacement = merged ? '' : '……';
+      output += original.slice(lastIndex, match.index) + replacement;
+      lastIndex = match.index + token.length;
+      if (replacement !== token) {
+        findings.push({ line: lineNo, column: match.index + 1, type: 'ellipsis', message: '引号内的省略号统一为「……」。' });
+      }
+      continue;
+    }
     output += original.slice(lastIndex, match.index);
     const replacement = choosePauseReplacement(original, match.index, token.length);
     output += replacement;
@@ -323,6 +336,27 @@ function htmlCommentSpans(line, openBefore) {
   }
 
   return { spans, open };
+}
+
+// 行内引号区间（不含引号本身）。“「『 开、”」』 关，可嵌套；半角 " 成对开关。
+// 一段对话通常在同一行内收口；没收口的引号算到行尾（多段连说的台词每段只开不关）。
+function quoteSpans(line) {
+  const spans = [];
+  const stack = [];
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"' && stack.length && stack[stack.length - 1].ch === '"') {
+      const open = stack.pop();
+      if (!stack.length) spans.push([open.at + 1, i]);
+    } else if (ch === '"' || ch === '“' || ch === '「' || ch === '『') {
+      stack.push({ ch, at: i });
+    } else if ((ch === '”' || ch === '」' || ch === '』') && stack.length) {
+      const open = stack.pop();
+      if (!stack.length) spans.push([open.at + 1, i]);
+    }
+  }
+  if (stack.length) spans.push([stack[0].at + 1, line.length]);
+  return spans;
 }
 
 function insideSpans(start, end, spans) {

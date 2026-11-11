@@ -228,6 +228,54 @@ with tempfile.TemporaryDirectory(prefix="shared-assets-") as tmp:
     assert "FAIL: synchronization incomplete" in missing_source_sync.stdout
     assert "OK:" not in missing_source_sync.stdout
 
+    # Test unmanaged duplicate references detection and intentionally_divergent exemption
+    source.write_text("canonical\n", encoding="utf-8")
+    source.chmod(0o755)
+    ref_a = root / "skills" / "one" / "references" / "shared-ref.md"
+    ref_b = root / "skills" / "two" / "references" / "shared-ref.md"
+    ref_c = root / "skills" / "story-setup" / "references" / "agent-references" / "shared-ref.md"
+    for ref in (ref_a, ref_b, ref_c):
+        ref.parent.mkdir(parents=True, exist_ok=True)
+    ref_a.write_text("same\n", encoding="utf-8")
+    ref_b.write_text("same\n", encoding="utf-8")
+    ref_c.write_text("different\n", encoding="utf-8")
+
+    unmanaged_ref = run(root, manifest, "check")
+    assert unmanaged_ref.returncode == 2, unmanaged_ref.stderr + unmanaged_ref.stdout
+    assert "UNMANAGED DUPLICATE REFERENCE [shared-ref.md]" in unmanaged_ref.stdout
+
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "groups": [
+                    {
+                        "name": "tool",
+                        "source": "src/tool.js",
+                        "targets": ["skills/one/scripts/tool.js"],
+                    },
+                    {
+                        "name": "ref-shared",
+                        "source": "skills/one/references/shared-ref.md",
+                        "targets": ["skills/two/references/shared-ref.md"],
+                    },
+                ],
+                "intentionally_divergent": [
+                    "skills/story-setup/references/agent-references/shared-ref.md"
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    managed_ref = run(root, manifest, "check")
+    assert managed_ref.returncode == 0, managed_ref.stderr + managed_ref.stdout
+    assert "1 explicit divergent exemption(s)" in managed_ref.stdout
+
+    ref_c.unlink()
+    missing_div = run(root, manifest, "check")
+    assert missing_div.returncode == 2, missing_div.stderr + missing_div.stdout
+    assert "MISSING DIVERGENT" in missing_div.stdout
+
 
 with tempfile.TemporaryDirectory(prefix="python-store-stub-") as tmp:
     stub_dir = Path(tmp)

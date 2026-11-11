@@ -226,7 +226,9 @@ assert_empty "$out" "non-commit command"
 echo "  OK commit advisory"
 
 out="$(printf 'not-json' | ZCODE_PROJECT_DIR="$ROOT" node "$HOOK" pre-tool-prose-guard)"
-assert_empty "$out" "malformed input fail-open"
+assert_denied "$out" "malformed input fail-closed on pre-tool-prose-guard"
+out="$(printf 'not-json' | ZCODE_PROJECT_DIR="$ROOT" node "$HOOK" post-tool-prose-check)"
+assert_empty "$out" "malformed input fail-open on advisory post-tool-prose-check"
 
 printf '%s\n' "$OUTLINE_FIXTURE" > "$ROOT/book/大纲/细纲_第8章.md"
 write_clean_state "$ROOT/book" 7

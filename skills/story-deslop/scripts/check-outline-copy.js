@@ -55,8 +55,8 @@ function extractAnchors(outlineText) {
   let headingMode = false;
 
   for (const line of lines) {
-    const heading = line.match(/^\s*#{1,6}\s*复沓锚句\s*$/);
-    const field = line.match(/^\s*(?:[-*+]\s*)?复沓锚句\s*[：:]\s*(.*)$/);
+    const heading = line.match(/^\s*#{1,6}\s*(?:原样出现的原话|复沓锚句)\s*$/);
+    const field = line.match(/^\s*(?:[-*+]\s*)?(?:原样出现的原话|复沓锚句)\s*[：:]\s*(.*)$/);
     if (heading) {
       collecting = true;
       headingMode = true;

@@ -2,7 +2,7 @@
 """Check or synchronize intentionally duplicated, skill-local runtime assets.
 
 Runtime skills remain self-contained after deployment, while this manifest gives the
-repository a single maintenance source for each duplicated executable.
+repository a single maintenance source for each duplicated executable and reference doc.
 """
 
 from __future__ import annotations
@@ -32,9 +32,8 @@ class ManifestError(ValueError):
     pass
 
 
-# 递归枚举 skills/*/scripts/ 时要跳过的非运行时目录：开发机上的构建缓存
-# （__pycache__、node_modules）不是需要登记的重复脚本。
-IGNORED_SCRIPT_DIRS = frozenset({".git", "__pycache__", "node_modules", ".venv"})
+# 递归枚举 skills/*/scripts/ 与 skills/*/references/ 时要跳过的非运行时目录
+IGNORED_ASSET_DIRS = frozenset({".git", "__pycache__", "node_modules", ".venv"})
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,7 +59,7 @@ def inside_root(root: Path, raw: object, field: str) -> Path:
     return resolved
 
 
-def load_groups(root: Path, manifest_path: Path) -> list[Group]:
+def load_manifest(root: Path, manifest_path: Path) -> tuple[list[Group], set[Path]]:
     try:
         data: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -123,10 +122,6 @@ def load_groups(root: Path, manifest_path: Path) -> list[Group]:
             target_owners[target] = name
         groups.append(Group(name=name, source=source, targets=targets))
 
-    # Sources are immutable canonical inputs. A path managed as a target may not
-    # become a source in another group: allowing that makes sync results depend on
-    # manifest order and permits copy chains or cycles. Validate after parsing all
-    # groups so the rule is independent of which group appears first.
     source_targets = sorted(source_owners.keys() & target_owners.keys())
     if source_targets:
         path = source_targets[0]
@@ -135,9 +130,6 @@ def load_groups(root: Path, manifest_path: Path) -> list[Group]:
             f"{source_owners[path]} and target for {target_owners[path]}"
         )
 
-    # A duplicated runtime basename has exactly one canonical owner. Validate
-    # this after source/target overlap so copy chains and cycles keep the more
-    # actionable order-independence error.
     basename_owners: dict[str, str] = {}
     for group in groups:
         previous = basename_owners.get(group.source.name)
@@ -147,7 +139,25 @@ def load_groups(root: Path, manifest_path: Path) -> list[Group]:
                 f"{previous} and {group.name}; use one canonical group"
             )
         basename_owners[group.source.name] = group.name
-    return groups
+
+    raw_divergent = data.get("intentionally_divergent", [])
+    if not isinstance(raw_divergent, list):
+        raise ManifestError("intentionally_divergent must be an array when present")
+    divergent_paths: set[Path] = set()
+    managed_all = set(source_owners.keys()) | set(target_owners.keys())
+    for idx, raw_path in enumerate(raw_divergent):
+        resolved = inside_root(root, raw_path, f"intentionally_divergent[{idx}]")
+        if resolved in divergent_paths:
+            raise ManifestError(
+                f"duplicate intentionally_divergent path: {resolved.relative_to(root)}"
+            )
+        if resolved in managed_all:
+            raise ManifestError(
+                f"intentionally_divergent path {resolved.relative_to(root)} is also managed in groups"
+            )
+        divergent_paths.add(resolved)
+
+    return groups, divergent_paths
 
 
 def digest(path: Path) -> str:
@@ -175,8 +185,6 @@ def unmanaged_duplicate_scripts(root: Path, groups: list[Group]) -> list[tuple[s
     scripts_by_name: dict[str, list[Path]] = defaultdict(list)
     skills_dir = root / "skills"
     if skills_dir.is_dir():
-        # 必须递归：共享 helper 常放在 skills/<skill>/scripts/lib/ 这类子目录，
-        # 单层 glob 会让这些更深的重复副本绕过守卫、各自漂移后直接发给用户。
         for scripts_dir in sorted(skills_dir.glob("*/scripts")):
             if not scripts_dir.is_dir():
                 continue
@@ -184,7 +192,7 @@ def unmanaged_duplicate_scripts(root: Path, groups: list[Group]) -> list[tuple[s
                 if not path.is_file():
                     continue
                 if any(
-                    part in IGNORED_SCRIPT_DIRS
+                    part in IGNORED_ASSET_DIRS
                     for part in path.relative_to(scripts_dir).parts[:-1]
                 ):
                     continue
@@ -201,7 +209,55 @@ def unmanaged_duplicate_scripts(root: Path, groups: list[Group]) -> list[tuple[s
     ]
 
 
-def run(command: str, root: Path, groups: list[Group]) -> int:
+def unmanaged_duplicate_references(
+    root: Path,
+    groups: list[Group],
+    divergent_paths: set[Path],
+) -> list[tuple[str, list[Path]]]:
+    refs_by_name: dict[str, list[Path]] = defaultdict(list)
+    skills_dir = root / "skills"
+    if skills_dir.is_dir():
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            refs_root = (
+                skill_dir / "references" / "agent-references"
+                if skill_dir.name == "story-setup"
+                else skill_dir / "references"
+            )
+            if not refs_root.is_dir():
+                continue
+            for path in sorted(refs_root.rglob("*")):
+                if not path.is_file() or path.name == ".gitkeep":
+                    continue
+                if any(
+                    part in IGNORED_ASSET_DIRS
+                    for part in path.relative_to(refs_root).parts[:-1]
+                ):
+                    continue
+                resolved = path.resolve()
+                if resolved in divergent_paths:
+                    continue
+                refs_by_name[path.name].append(resolved)
+    managed = {
+        path.resolve()
+        for group in groups
+        for path in (group.source, *group.targets)
+    }
+    return [
+        (name, sorted(paths))
+        for name, paths in sorted(refs_by_name.items())
+        if len(paths) > 1 and any(path not in managed for path in paths)
+    ]
+
+
+def run(command: str, root: Path, groups: list[Group], divergent_paths: set[Path]) -> int:
+    for path in sorted(divergent_paths):
+        if not path.is_file():
+            print(f"MISSING DIVERGENT [{path.name}] {path.relative_to(root)}")
+            print("ERROR: intentionally_divergent entry does not exist on disk", file=sys.stderr)
+            return 2
+
     unmanaged = unmanaged_duplicate_scripts(root, groups)
     if unmanaged:
         for name, paths in unmanaged:
@@ -209,6 +265,19 @@ def run(command: str, root: Path, groups: list[Group]) -> int:
             for path in paths:
                 print(f"  {path.relative_to(root)}")
         print("ERROR: register intentional duplicate scripts in scripts/shared-assets.json", file=sys.stderr)
+        return 2
+
+    unmanaged_refs = unmanaged_duplicate_references(root, groups, divergent_paths)
+    if unmanaged_refs:
+        for name, paths in unmanaged_refs:
+            print(f"UNMANAGED DUPLICATE REFERENCE [{name}]")
+            for path in paths:
+                print(f"  {path.relative_to(root)}")
+        print(
+            "ERROR: register duplicate references in scripts/shared-assets.json "
+            "(groups or intentionally_divergent)",
+            file=sys.stderr,
+        )
         return 2
 
     issues = 0
@@ -275,7 +344,10 @@ def run(command: str, root: Path, groups: list[Group]) -> int:
             print(f"FAIL: {issues} managed shared asset(s) are missing or stale")
             return 1
         managed_count = sum(len(group.targets) for group in groups)
-        print(f"OK: {len(groups)} canonical groups manage {managed_count} synchronized copies")
+        print(
+            f"OK: {len(groups)} canonical groups manage {managed_count} synchronized copies "
+            f"({len(divergent_paths)} explicit divergent exemption(s))"
+        )
         return 0
 
     if issues:
@@ -290,11 +362,11 @@ def main() -> int:
     root = args.root.resolve()
     manifest = args.manifest.resolve()
     try:
-        groups = load_groups(root, manifest)
+        groups, divergent_paths = load_manifest(root, manifest)
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    return run(args.command, root, groups)
+    return run(args.command, root, groups, divergent_paths)
 
 
 if __name__ == "__main__":

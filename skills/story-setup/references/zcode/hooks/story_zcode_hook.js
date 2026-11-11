@@ -34,14 +34,19 @@ const {
 } = core
 
 let hookInput = {}
+let hookInputError = null
 try {
   const raw = fs.readFileSync(0, "utf8")
   if (raw.trim()) {
     const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) hookInput = parsed
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("hook input root must be a JSON object")
+    }
+    hookInput = parsed
   }
-} catch {
+} catch (error) {
   hookInput = {}
+  hookInputError = error instanceof Error ? error : new Error(String(error))
 }
 
 function emit(value) {
@@ -192,6 +197,7 @@ function postToolProseCheck() {
 function main() {
   const event = process.argv[2] || ""
   try {
+    if (hookInputError && event === "pre-tool-prose-guard") throw hookInputError
     if (event === "session-start") sessionStart()
     else if (event === "pre-tool-prose-guard") preToolProseGuard()
     else if (event === "pre-tool-commit-advisory") preToolCommitAdvisory()
@@ -201,9 +207,17 @@ function main() {
       process.exitCode = 2
     }
   } catch (error) {
-    // Hook checks are defensive guardrails. Unexpected parse/filesystem failures
-    // fail open and are diagnosable without corrupting strict stdout JSON.
-    process.stderr.write(`[oh-story zcode hook] ${error instanceof Error ? error.message : String(error)}\n`)
+    const detail = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`[oh-story zcode hook] ${detail}\n`)
+    if (event === "pre-tool-prose-guard") {
+      emit({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: "oh-story ZCode PreToolUse 机械门意外失败；为避免受保护写入绕过，已按 fail-closed 拒绝。请检查 hook stderr 并重新运行 $story-setup。",
+        },
+      })
+    }
   }
 }
 
