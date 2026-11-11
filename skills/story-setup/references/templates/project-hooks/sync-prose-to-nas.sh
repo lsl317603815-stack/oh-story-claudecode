@@ -53,11 +53,11 @@ fi
 
 NAS_PARENT="$(dirname "$DEST")"
 if [ ! -d "$NAS_ROOT" ] || { [ ! -d "$NAS_PARENT" ] && [ ! -w "$NAS_ROOT" ]; }; then
-  echo "[nas-sync] NAS 未挂载（$NAS_ROOT），正文本轮未同步" >&2
+  echo "[nas-sync] NAS 未挂载（${NAS_ROOT}），正文本轮未同步" >&2
   exit 0
 fi
 
-mkdir -p "$DEST" || { echo "[nas-sync] 无法创建 $DEST" >&2; exit 0; }
+mkdir -p "$DEST" || { echo "[nas-sync] 无法创建 ${DEST}" >&2; exit 0; }
 
 tmp_dir=$(mktemp -d -t story-nas-prose.XXXXXX) || exit 0
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -107,5 +107,5 @@ if [ "$failed" -eq 0 ]; then
   printf '%s\n' "$fingerprint" > "$STAMP"
 fi
 
-echo "[nas-sync] 正文已同步到 $NAS_SUBDIR：更新 $copied 章，移除 $removed 个文件，失败 $failed 项；$epub" >&2
+echo "[nas-sync] 正文已同步到 ${NAS_SUBDIR}：更新 ${copied} 章，移除 ${removed} 个文件，失败 ${failed} 项；${epub}" >&2
 exit 0

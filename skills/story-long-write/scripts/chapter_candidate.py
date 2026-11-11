@@ -2122,6 +2122,8 @@ def run_project_hooks(project: Path, event: str, extra_env: dict[str, str] | Non
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=120,
                     check=False,
                 )

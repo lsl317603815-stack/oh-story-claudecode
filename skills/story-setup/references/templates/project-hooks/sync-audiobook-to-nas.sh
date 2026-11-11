@@ -75,12 +75,12 @@ elif [ -n "$SHARE" ]; then
       exit 0
     fi
     if command -v nc >/dev/null 2>&1 && ! nc -z -G 2 "$HOST" 445 >/dev/null 2>&1; then
-      echo "[audiobook-sync] NAS 连不上（$HOST），有声书本轮未同步" >&2
+      echo "[audiobook-sync] NAS 连不上（${HOST}），有声书本轮未同步" >&2
       exit 0
     fi
     mkdir -p "$MOUNT_POINT"
     if [ -n "$(ls -A "$MOUNT_POINT" 2>/dev/null)" ]; then
-      echo "[audiobook-sync] 挂载点 $MOUNT_POINT 非空，跳过自动挂载" >&2
+      echo "[audiobook-sync] 挂载点 ${MOUNT_POINT} 非空，跳过自动挂载" >&2
       exit 0
     fi
     if command -v mount_smbfs >/dev/null 2>&1; then
@@ -88,7 +88,7 @@ elif [ -n "$SHARE" ]; then
     fi
     ROOT="$(find_mount)"
     if [ -z "$ROOT" ]; then
-      echo "[audiobook-sync] 共享「$SHARE」挂载失败，有声书本轮未同步" >&2
+      echo "[audiobook-sync] 共享「${SHARE}」挂载失败，有声书本轮未同步" >&2
       exit 0
     fi
   fi
@@ -96,7 +96,7 @@ fi
 
 [ -n "$ROOT" ] || exit 0
 DEST="$ROOT/$NAS_DIR"
-mkdir -p "$DEST" || { echo "[audiobook-sync] 无法创建 $DEST" >&2; exit 0; }
+mkdir -p "$DEST" || { echo "[audiobook-sync] 无法创建 ${DEST}" >&2; exit 0; }
 
 first_run=0
 [ -f "$STATE" ] || first_run=1
@@ -128,12 +128,12 @@ mkdir -p "$(dirname "$STATE")"
 printf '%s' "$new_state" > "$STATE"
 
 [ ${#uploaded[@]} -eq 0 ] && [ "$kept" -eq 0 ] && [ "$failed" -eq 0 ] && exit 0
-msg="[audiobook-sync] 有声书 → $NAS_DIR：上传 ${#uploaded[@]} 章"
+msg="[audiobook-sync] 有声书 → ${NAS_DIR}：上传 ${#uploaded[@]} 章"
 if [ ${#uploaded[@]} -gt 0 ]; then
-  list=""; for u in "${uploaded[@]}"; do list+="${list:+、}$u"; done
-  msg+="（$list）"
+  list=""; for u in "${uploaded[@]}"; do list+="${list:+、}${u}"; done
+  msg+="（${list}）"
 fi
-[ "$kept" -gt 0 ] && msg+="，NAS 已有未覆盖 $kept 章"
-[ "$failed" -gt 0 ] && msg+="，失败 $failed 章（下轮重试）"
+[ "$kept" -gt 0 ] && msg+="，NAS 已有未覆盖 ${kept} 章"
+[ "$failed" -gt 0 ] && msg+="，失败 ${failed} 章（下轮重试）"
 echo "$msg" >&2
 exit 0
