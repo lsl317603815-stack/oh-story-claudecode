@@ -475,7 +475,7 @@ def test_historical_copy_discovery(project: Path) -> None:
         (old / "正文").mkdir(parents=True)
         (old / "正文/第1章.md").write_text("历史副本。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 49\nsetup_skill_version: 1.8.1\n"
+        "agents_version: 49\nsetup_skill_version: 1.9.0\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -501,7 +501,7 @@ def test_tracking_advisories(project: Path) -> None:
     (book / "正文").mkdir(parents=True)
     (book / "正文/第1章.md").write_text("正文。\n", encoding="utf-8")
     (project / ".story-deployed").write_text(
-        "agents_version: 49\nsetup_skill_version: 1.8.1\n"
+        "agents_version: 49\nsetup_skill_version: 1.9.0\n"
         "target_cli: workbuddy\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: .codebuddy/skills/story-setup/references/agent-references\n",
         encoding="utf-8",
@@ -566,7 +566,7 @@ def test_removed_target_runner_gate(project: Path) -> None:
     shutil.copy2(RUNNER, runner)
     shutil.copy2(WB / "hooks/story_hook_core.js", hook_dir / "story_hook_core.js")
     (project / ".story-deployed").write_text(
-        "agents_version: 49\nsetup_skill_version: 1.8.1\n"
+        "agents_version: 49\nsetup_skill_version: 1.9.0\n"
         "target_cli: generic\nresolver_strategy: project-local-skill-reference\n"
         "references_dir: skills/story-setup/references/agent-references\n",
         encoding="utf-8",

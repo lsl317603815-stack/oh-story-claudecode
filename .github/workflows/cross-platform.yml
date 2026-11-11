@@ -106,6 +106,8 @@ jobs:
         run: python3 scripts/test-workbuddy-runtime.py
       - name: Check Reasonix adapter
         run: bash scripts/check-reasonix-adapter.sh
+      - name: Check Antigravity adapter
+        run: bash scripts/check-antigravity-adapter.sh
       - name: Test Codex hook adapter
         run: bash scripts/test-codex-hooks.sh
       - name: Test ZCode hook adapter

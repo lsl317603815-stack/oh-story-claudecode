@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 未发布
+
+### 新增 Google Antigravity 宿主
+
+- story-setup 新增目标端 `antigravity`（Google Antigravity IDE 与交互式 `agy`），移植自原仓库 zenstory-ai #377 / #396 并按本线改造：21 个 Skill 物化到 `.agents/skills/`，8 个专业 agent（含 `revision-governor`）由 Claude agent 卡生成到 `.agents/agents/<名>/agent.md`，Always-On Rule `.agents/rules/oh-story.md`，hooks `.agents/hooks.json` 与 `.agents/hooks/`。部署说明在 `story-setup/references/antigravity/deploy.md`。
+- Hook 写前先查修订门禁再查正文前置门（与 Claude / ZCode 同一判据），写后检测经会话 artifact 在下一轮注入；共享 hook 核登记到 `shared-assets.json`，与其他端字节一致。
+- 在 Antigravity 里正文由 Gemini 直接写：生成原生 `narrative-writer`，Rule 禁止在 Antigravity 里再调用 `agy` 写手转发器；启用模型分工去味审查的项目由主会话直接运行 `.claude/models/run-deslop-review.py`。
+- 部署契约升至 `setup_skill_version: 1.9.0` / `agents_version: 49`；新增 `check-antigravity-adapter.sh`（含 hook 契约、hooks 合并、skill 物化三组测试），接入质量门禁与 CI。
+
 ## v0.15.0（Dev 候选 · 2026-10-27）
 
 吸收原仓库 zenstory-ai/oh-story-claudecode 自 v0.7.0 以来（至其 v0.9.0 及 #498）的修复，以本线为底：写法规则不再默认把情绪转成身体反应、短篇去掉每节固定配额；新增可选的跨书灵感库与跨会话作者记忆；ZCode 改由 oh-story 插件注册专业角色；OpenCode 只支持 2.x。部署契约升至 `setup_skill_version: 1.8.0` / `agents_version: 48`，升级后需在每个项目重跑 `/story-setup` 并新开会话。
