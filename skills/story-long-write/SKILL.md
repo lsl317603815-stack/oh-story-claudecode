@@ -48,7 +48,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 作者记忆保存作者**明确说出口**、可跨会话复用的创作习惯（如「以后对话都用直角引号」「这本书少用破折号」）。小说事实仍写设定与追踪，不进作者记忆。
 
-- **管理**：作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（整理、超编、迁移、单书布局按其中指路读 [references/author-memory-maintenance.md](references/author-memory-maintenance.md)）。只管理习惯时做完即停，不建书、不写正文。一次性要求只照做、不记录；作者没开口的偏好不推断、不记录。
+- **管理**：作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（含整理、超编、迁移与单书布局）。只管理习惯时做完即停，不建书、不写正文。一次性要求只照做、不记录；作者没开口的偏好不推断、不记录。
 - **工作区**：`--workspace` 取书目录及其祖先中最近一层带 `.active-book`、`长篇/`、`短篇/`、`拆文库/` 或已有项目级作者记忆的目录；书目录自带 `拆文库/` 时，书目录本身就是工作区，按维护文件「单书布局」存放。`--book-root` 恒为当前书目录。认不出时按 author-memory.md「存放与路由」先定好，不拿用户主目录兜底。
 - **查询**（state 不存在时返回空、零写入，照常创作）：
   - 设定 / 大纲 / 细纲：`{PYTHON} {skill 根}/scripts/author_memory_commit.py query --workspace {工作区} --book-root {书目录} --kind story_design --kind workflow --kind interaction`，结果只给主会话，不传正文 agent。

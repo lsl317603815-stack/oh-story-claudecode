@@ -38,7 +38,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ## 作者记忆管理
 
-作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（整理、超编、迁移、单书布局按其中指路读 [references/author-memory-maintenance.md](references/author-memory-maintenance.md)）。仅管理习惯时完成即停，不建书、不写正文；一次性要求只照做不记录，作者没开口的偏好不推断。`--workspace` 取项目目录及其祖先中最近一层带 `.active-book`、`长篇/`、`短篇/`、`拆文库/` 或已有项目级作者记忆的目录，`--book-root` 是本篇项目目录。
+作者说「记住 / 确认 / 换成 / 忘掉 / 整理作者记忆」时，完整读取 [references/author-memory.md](references/author-memory.md) 照做（含整理、超编、迁移与单书布局）。仅管理习惯时完成即停，不建书、不写正文；一次性要求只照做不记录，作者没开口的偏好不推断。`--workspace` 取项目目录及其祖先中最近一层带 `.active-book`、`长篇/`、`短篇/`、`拆文库/` 或已有项目级作者记忆的目录，`--book-root` 是本篇项目目录。
 
 ## 核心方法
 
