@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """模型分工的方舟客户端：经火山方舟 Agent Plan / Coding Plan（OpenAI 兼容）调用豆包、GLM、DeepSeek、Kimi 等模型出文本。
 
-由 story-setup 在启用模型分工时部署到项目 .claude/models/，供去AI味审查与读者审读调用。
+由 story-setup 在启用模型分工时部署到项目 .story/models/，供去AI味审查与读者审读调用。
 
 套餐由 --plan 或环境变量 ARK_PLAN 选择，默认 agent：
   agent   https://ark.cn-beijing.volces.com/api/plan/v3    key 条目 ARK_AGENT_PLAN_API_KEY

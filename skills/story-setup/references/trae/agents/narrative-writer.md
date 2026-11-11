@@ -43,20 +43,20 @@ disallowedTools: Bash
 
 ## 参考文件体系
 
-你拥有以下参考文件。**逐行独立判定，命中任一条件即必读**（不是要同时满足），不得因「手头材料已够」跳过；未命中的行不要预加载。
-| 参考文件 | 必读条件 |
+本文件下方已内置高密度创作底线、7 Gate 去味清单与对话 9 条准则。**常规章节直接按下方内置准则与本书文风写作，无需每章重复加载长篇方法论**；仅在命中以下特定场景时按需读取对应文件：
+| 参考文件 | 读取条件（按需，未命中不预加载） |
 |---|---|
-| `story-setup/references/agent-references/writing-craft.md` | **产出正文全程**（首稿/重写/补写，落笔前必读）：场景推进、情绪落地、物件三次出现、疏密分配、小节密度 |
-| `story-setup/references/agent-references/banned-words.md` | **产出或修改正文时**（Gate A 候选词复核） |
-| `story-setup/references/agent-references/opening-design.md` | **开新书、或写前 3 章时**（落笔前） |
-| `story-setup/references/agent-references/anti-ai-writing.md` | **正文写作后做去AI味自检或改写时**（7 Gate、三遍去AI法、Show Don't Tell） |
-| `story-setup/references/agent-references/emotional-arc-design.md` | **prompt 给了目标情绪、情绪弧线或 selected_emotion_module 时** |
-| `story-setup/references/agent-references/dialogue-mastery.md` | **本章有对话或台词时**（信息嵌入、潜台词、权力博弈、逐句情绪反馈、场合语气） |
-| `story-setup/references/agent-references/genre-prose-cards.md` | **prompt 给了题材名或 genre_prose_card 时**：题材已知直接读 `story-setup/references/agent-references/genre-prose-cards/{题材}.md` 单卡，题材未知先读本索引；卡片只内部校准题材味，正文里不出现卡片文字或合规自评 |
-| `story-setup/references/agent-references/style-genre-modules.md` | **genre-prose-cards 索引无匹配题材单卡时**（通用流派兜底） |
-| `story-setup/references/agent-references/style-hygiene.md` | **prompt 传入文风卫生策略，或正文含表情、颜文字、火星文、聊天体、标点堆砌时**；读取项目 `设定/文风.md` 的卫生策略 |
-| `story-setup/references/agent-references/quality-checklist.md` | **审查/评分任务时**（五维评分、9项检查） |
-| `文风路径`（绝对路径由 prompt 传入：自定义文风模式为 `设定/文风.md`，否则对标 `文风.md`） | prompt 含 `文风路径` 时**写作前必读**；`设定/文风.md` 为权威风格基（句长 / 标点 / 对话潜台词 / 情绪交替）。随机标点堆砌、英文点号投机和项目/平台明确禁用项仍由格式 Gate 处理；有功能的 `……` / `——` 先按本书声线与场景复核 |
+| `文风路径`（由 prompt 传入：自定义文风模式为 `设定/文风.md`，否则对标 `文风.md`） | prompt 含 `文风路径` 时**写作前必读**；`设定/文风.md` 为权威风格基（句长 / 标点 / 对话潜台词 / 情绪交替）。随机标点堆砌、英文点号投机和项目/平台明确禁用项仍由格式 Gate 处理；有功能的 `……` / `——` 先按本书声线与场景复核 |
+| `story-setup/references/agent-references/opening-design.md` | **开新书、或写前 3 章时**（落笔前必读） |
+| `story-setup/references/agent-references/genre-prose-cards.md` | **仅当 prompt 未内联 `genre_prose_card` 摘要且缺少 `设定/题材正文提示卡.md` 时**：题材已知直接读 `story-setup/references/agent-references/genre-prose-cards/{题材}.md` 单卡，题材未知先读本索引；卡片只内部校准题材味，正文里不出现卡片文字或合规自评 |
+| `story-setup/references/agent-references/style-genre-modules.md` | **genre-prose-cards 索引无匹配题材单卡且无内联题材卡时**（通用流派兜底） |
+| `story-setup/references/agent-references/style-hygiene.md` | **正文启用聊天体/对白弹性策略，或需核对表情、颜文字、标点堆砌边界时** |
+| `story-setup/references/agent-references/quality-checklist.md` | **独立审查/评分任务时**（五维评分、9项检查） |
+| `story-setup/references/agent-references/writing-craft.md` | **按需查阅**：大跨度场景转场、复杂疏密分配或卡文需要扩写范例时 |
+| `story-setup/references/agent-references/emotional-arc-design.md` | **按需查阅**：prompt 未给 `selected_emotion_module` 且需设计复杂多折情绪曲线时 |
+| `story-setup/references/agent-references/dialogue-mastery.md` | **按需查阅**：多人高强度权力博弈对白或专项修对话三症状时 |
+| `story-setup/references/agent-references/anti-ai-writing.md` | **按需查阅**：执行全章深度去AI味大修（`aggressive`）或核对长范例时 |
+| `story-setup/references/agent-references/banned-words.md` | **按需查阅**：核对语料验证规则表完整候选词历史状态时 |
 
 ---
 

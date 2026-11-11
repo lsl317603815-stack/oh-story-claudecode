@@ -16,7 +16,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 ---
 
-> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：白话告诉作者「这次由我直接改」，`Fallback: project custom agents unavailable -> solo` 原文只进报告最后一行「技术备注：」。ZCode 查当前已启用的 oh-story 插件注册的同名角色，用 `Agent` 工具按其实际 schema 派发，不要求 `.zcode/agents/`；角色缺失、调用失败或返回 unknown agent 时才降级，并提示先启用/更新 ZCode 插件；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。
+> Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，Antigravity 为 `.agents/agents/agent-name/agent.md`（`agent-name` 为角色名），OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。Antigravity 使用 `invoke_subagent` 加同名 `TypeName` 调用；TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：白话告诉作者「这次由我直接改」，`Fallback: project custom agents unavailable -> solo` 原文只进报告最后一行「技术备注：」。ZCode 查当前已启用的 oh-story 插件注册的同名角色，用 `Agent` 工具按其实际 schema 派发，不要求 `.zcode/agents/`；角色缺失、调用失败或返回 unknown agent 时才降级，并提示先启用/更新 ZCode 插件；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。
 >
 > Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 50` 不一致时（标记缺失、字段缺失/非整数、小于或大于 50）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 50）` 原文写进技术备注行；大于 50 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
@@ -123,7 +123,7 @@ AI味不按语法错误处理，也不需要"修正"。它属于风格问题：�
 - 只有用户明确要求大改、回炉，或结构问题无法局部修复时，才使用 `aggressive + structural`。
 - 命中数量多只能提高 `issue_density`，不能自动扩大 `edit_scope`。
 
-长篇章节在作者接纳前的去味审查不走下面的文件模式：由 story-long-write 的 `chapter_candidate.py review-packet --kind deslop` 发审查包，工作副本在该章候选运行目录里，审完用 `attest` 写回并重跑全部门禁（见 story-long-write 的章节候选协议）。本文件模式用于作者自己的已成稿和独立去味请求。
+长篇章节在作者接纳前的去味审查不走下面的文件模式：由 story-long-write 的 `chapter_candidate.py run-deslop`（启用模型分工时）或 `review-packet --kind deslop` + `attest` 执行，工作副本在该章候选运行目录里，写回后重跑全部门禁（见 story-long-write 的章节候选协议）。本文件模式用于作者自己的已成稿和独立去味请求。
 
 文件模式必须先创建候选运行：
 
@@ -245,7 +245,7 @@ Pass F 未通过时禁止进入 Pass R；保真优先级高于去味彻底度。
 「证据分层与处置决策」完成后，按以下顺序选择执行路径：
 
 1. **已在 narrative-writer 子代理内**：按选定的 Gate 范围 inline 执行，不再 spawn（嵌套 spawn 会被静默降级）。
-2. **未在子代理内且当前运行时对应定义/registry 存在 narrative-writer**（Claude `.claude/agents/narrative-writer.md`、OpenCode `.opencode/agents/narrative-writer.md`、TRAE Code `.trae/agents/narrative-writer.md`、WorkBuddy 项目模式 `.codebuddy/agents/narrative-writer.md`、Codex `.codex/agents/narrative-writer.toml`）：调用同名 agent。TRAE Code 使用内置 `Agent` 选择 `narrative-writer` 并把下列 prompt 作为任务正文；Claude/OpenCode 可使用等价 `subagent_type`，Codex 使用 `agent_type`。WorkBuddy 项目模式用 `Agent(subagent_type: "narrative-writer", ...)`；plugin-only 模式只有在当前 registry 真实返回 `oh-story:narrative-writer` 时才使用该精确值，否则转第 3 条：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n作者偏好：{调用方已有的作者习惯 lines；无则写无}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n针线活与认知对齐：优先做词或短语级微创，不把单句当孤立考题整句推倒重来，保留句首“以旧带新”的承接搭扣；高密度抽象名词堆解压回“具体人物主语+日常动作动词”微句，主谓长隔断归位，无生命/抽象主语不配活人感知或意志动词；远距重提旧物/旧事时顺手带两三个字具体状态锚点搭台阶；多句段落保持主核（核心推进）与卫星（环境/微反应）的主次落差。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
+2. **未在子代理内且按顶部「Agent 兼容性」确认当前宿主存在 `narrative-writer`**：按当前宿主的调用方式派发同名 agent（WorkBuddy plugin-only 未返回 `oh-story:narrative-writer` 时转第 3 条），任务正文为：`项目目录：{dir}\n任务描述：去AI味\n检查范围：{待处理的正文文件}\n问题分布：{issue_density}\n改写力度：{rewrite_intensity}\n修改范围：{edit_scope}\nGate 范围：{实际选定的 Gate；用户指定的范围优先，只在此范围内改}\n作者偏好：{调用方已有的作者习惯 lines；无则写无}\n检查分工：你负责本次语义去味与 Pass F/Pass R；确定性复扫由主会话对最终落盘文件执行，不在子代理内重复\n证据层：{确定性硬门/局部语境/跨章结构发现}\n删除优先：每条问题先判能否删除——删后不丢伏笔/钩子/角色/情节/人物记忆/情绪承接/因果锚点/必要信息/必要转折的直接删，会丢才进 Gate 润色；看似解释/评价但承担小连贯的句子，压成白话承接、动作或物件锚点，不机械删除；已有任务/手续/物件/证据缺口可以压成角色当下要处理的具体卡点，但不新增原文没有的事件链；删除服从本轮改写力度上限与字数下限，跌破下限改降AI重写。\n针线活与认知对齐：优先做词或短语级微创，不把单句当孤立考题整句推倒重来，保留句首“以旧带新”的承接搭扣；高密度抽象名词堆解压回“具体人物主语+日常动作动词”微句，主谓长隔断归位，无生命/抽象主语不配活人感知或意志动词；远距重提旧物/旧事时顺手带两三个字具体状态锚点搭台阶；多句段落保持主核（核心推进）与卫星（环境/微反应）的主次落差。\n模式处理：按 references/anti-ai-writing.md 的问题模式目录执行；模式 8（解释腔/上帝视角/安排感）归入 Gate G；结构信号只输出证据，不自动重排。相邻段重复表达同一信息/动作/情绪时，按 Gate C/D 合并去重；如改后明显变薄，恢复原文中有功能的信息或重表达既有信息，不新增原文没有的情节、设定、关系或时间线。`
 3. **agent 不存在或 spawn 失败**：主线程按同一 Gate 范围 inline 执行。
 
 无论哪条路径，主会话最后都对最终落盘文件跑「确定性收尾」的复扫，不因执行者已自检而跳过。
@@ -471,7 +471,7 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 ### 修改统计
 - 总修改数：{N} 处
 - 候选词改写：{N} 处
-- 句式调整：{N} 处（含否定翻转句式 {N}、"，带着..." {N}、声音描写 {N}）
+- 句式调整：{N} 处（含排比否定/口癖句式 {N}、"，带着..." {N}、声音描写 {N}）
 - 修饰词清扫：{N} 处
 - 情绪落地与重复说明清理：{N} 处
 - 重复描写合并：{N} 处
@@ -564,22 +564,7 @@ node scripts/normalize-punctuation.js --pause-mode normalize <正文文件...>
 - 跟随用户的语言回复，用户用什么语言就用什么语言回复
 - 中文回复遵循《中文文案排版指北》
 
-## 中文正文语言验收 Gate（强制）
+## 语言、卫生与声线门禁补充索引
 
-正文初稿完成后，第一关按 `references/language-gate-loop.md` 运行 `scripts/language_gate.js`。发现中英文混杂或 HTML 标记时，必须把行号、原片段和所在行退回原正文写作者；修改后重新检查。只有 Gate 返回码为零，才可继续其他检测、去味、追踪提交或下一章。Gate 不自动翻译、不自动添加白名单；确需逐字保留的其他外语须由用户单独确认后精确登记。
-
-## 中文正文文风卫生 Gate（强制）
-
-语言门返回零后，按 [正文文风卫生门](references/style-hygiene.md) 运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`。默认出版级策略阻断表情符号、颜文字、火星文、重复装饰标点和不可见字符；`？！`、`……` 等有功能的小说标点不在默认阻断范围。作者可在本书 `设定/文风.md` 选择对白弹性或逐类策略，工具不得替作者偷偷放宽；逐字例外只写入 `.style-hygiene-whitelist`，且不影响语言门。
-
-## 适度对白技巧与退化检查（强制）
-
-重要对白场景写作前先按 `references/dialogue-craft-moderate.md` 形成轻量对白卡，结构参考 `references/dialogue-scene-card.schema.json`。正文混用无标签对白、简单“说/问”、有效动作和叙述反应，不追求零标签或句句潜台词。中文语言 Gate 通过后运行 `scripts/dialogue_drift_gate.js`（输入文件名不带章号时，例如本 skill 的 `.story-deslop/runs/` 候选稿，加 `--chapter N --project {项目根}` 才有跨章基线）：连续逐句报幕等明确退化可阻断，标签密度、动词集中和跨章偏移只作预警并进入语义审查。语义审查确认人物声线可区分、动作有独立价值、潜台词适量且多人场景清楚后，才可继续后续验收。
-
-## 本书声音画像 Gate（有足量接纳样本时）
-
-完整协议见 [已接纳正文声音画像](references/accepted-voice-profile.md)。新项目只从 `committed` 章节回执取样；无回执旧项目必须由作者显式批准连续旧章范围。已接纳基线与作者精选黄金样本分开维护，候选检查分别输出双向 advisory，并可生成隐藏来源标签的盲测包。新章回执闭环后只更新已接纳基线；黄金集合不得自动吸收新章。任一画像哈希过期时不得继续使用旧数据。
-
-## 近章结构指纹 Gate（长篇有至少三章历史时）
-
-按 [近章结构指纹与语义冷读](references/cross-chapter-shape.md) 运行 `scripts/chapter_shape_gate.py`。脚本相似度、问答对和收尾类型都只提供证据；主 Agent 必须回答五问并指出具体章节/段落。结构性同构不能自动改写，若需要重排已接纳正文必须转入修订治理。
+- **中文正文语言与卫生 Gate**：第一关按 `references/language-gate-loop.md` 运行 `scripts/language_gate.js`（中英混杂或 HTML 标记必须退回修改至返回零，确需保留的其他外语须由用户单独确认后在 `.deslop-whitelist` 精确登记）；随后按 [正文文风卫生门](references/style-hygiene.md) 运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`（默认出版级，聊天体策略以 `设定/文风.md` 为准，逐字例外记入 `.style-hygiene-whitelist`）。
+- **对白、声音画像与近章结构 Gate**：重要对白按 `references/dialogue-craft-moderate.md` 与 `references/dialogue-scene-card.schema.json` 准备对白卡，语言门通过后跑 `scripts/dialogue_drift_gate.js`（参考 `references/dialogue-attribution-drift.md`，候选稿无章号时传 `--chapter N --project {项目根}`）；满五章可信样本按 [已接纳正文声音画像](references/accepted-voice-profile.md) 维护双向 advisory（画像过期阻断使用）；满三章长篇按 [近章结构指纹与语义冷读](references/cross-chapter-shape.md) 运行 `scripts/chapter_shape_gate.py` 回答五问（重排旧章须转修订治理）。

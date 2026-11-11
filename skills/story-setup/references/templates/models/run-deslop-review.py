@@ -1,69 +1,75 @@
 #!/usr/bin/env python3
 """deslop-reviewer 转发：用方舟上的模型（默认豆包）对候选章做去AI味独立审查。
 
-由 story-setup 在启用模型分工的“去AI味审查”角色时部署到项目 .claude/models/；
-模型与思考档位读 .claude/models/config.json 的 deslop 段。
+由 story-setup 在启用模型分工的“去AI味审查”角色时部署到项目 .story/models/（兼容回退 .claude/models/）；
+模型与思考档位读 .story/models/config.json 的 deslop 段。
 
 用法：
   run-deslop-review.py start <审查任务文件>   启动一次审查，最多等待 WAIT 秒
   run-deslop-review.py audit <审查任务文件>   /审查（story-review）的文字质量审查：只审不改
   run-deslop-review.py wait  <运行ID>         继续等待尚未结束的审查
 
-start 的审查任务文件就是 `chapter_candidate.py review-packet --kind deslop` 输出的 prompt 原文；
+start 的审查任务文件就是 `chapter_candidate.py review-packet --kind deslop` 输出的 prompt 原文
+（也可直接通过 `chapter_candidate.py run-deslop --run <候选目录>` 一键发包、调用本脚本并登记回执）；
 audit 的任务文件是 story-review 发给文字审查员的 prompt 原文，脚本从中取出“项目路径”和正文文件路径，
 把正文内联后交给豆包，回复原样交回（VERDICT / FINDINGS / RECOMMENDATIONS）。
 
 流程：解析任务里的项目目录与工作副本 → 找到同目录的 deslop.packet.json，核对校验码与原稿指纹
-→ 内联去味规范、细纲与工作副本调用豆包 → 逐条套用替换清单到工作副本 → 校验报告引文
-→ 标准输出末尾给出 json 报告块，由主会话原样存为报告后 attest。
+→ 内联精简去味规范、本书《文风》《题材正文提示卡》《上下文》动态摘要、细纲与工作副本调用豆包
+→ 逐条套用替换清单到工作副本 → 校验报告引文 → 标准输出末尾给出 json 报告块。
 
 结束时退出码 0 表示审查完成；超过等待时间仍在运行时输出 “RUNNING <运行ID>”，退出码 75。
 
 环境变量（覆盖 config.json）：
-  DESLOP_REVIEWER_MODEL   默认 doubao-seed-2-1-pro-260915
-  DESLOP_REVIEWER_EFFORT  思考档位 low|medium|high，默认 high
-  DESLOP_REVIEWER_WAIT    单次等待秒数，默认 540（低于 Bash 工具 600 秒上限）
+  DESLOP_REVIEWER_MODEL     默认 doubao-seed-2-1-pro-260915
+  DESLOP_REVIEWER_EFFORT    思考档位 low|medium|high，默认 medium
+  DESLOP_REVIEWER_WAIT      单次等待秒数，默认 540（低于 Bash 工具 600 秒上限）
+  STORY_MODELS_KEEP_RUNS    已完成运行目录保留上限，默认 30
 """
 import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-ARK_DIR = ROOT / ".claude" / "models"
-RUNS = ARK_DIR / "runs"
-ARK = ARK_DIR / "ark_client.py"
-_CFG = json.loads((ARK_DIR / "config.json").read_text(encoding="utf-8")).get("deslop", {}) \
-    if (ARK_DIR / "config.json").exists() else {}
+MODELS_DIR = Path(__file__).resolve().parent
+ROOT = MODELS_DIR.parents[1]
+RUNS = MODELS_DIR / "runs"
+ARK = MODELS_DIR / "ark_client.py"
+
+
+def _load_deslop_config():
+    for candidate in (
+        MODELS_DIR / "config.json",
+        ROOT / ".story" / "models" / "config.json",
+        ROOT / ".claude" / "models" / "config.json",
+    ):
+        if candidate.is_file():
+            try:
+                return json.loads(candidate.read_text(encoding="utf-8")).get("deslop", {})
+            except (OSError, ValueError):
+                return {}
+    return {}
+
+
+_CFG = _load_deslop_config()
 MODEL = os.environ.get("DESLOP_REVIEWER_MODEL", _CFG.get("model", "doubao-seed-2-1-pro-260915"))
-EFFORT = os.environ.get("DESLOP_REVIEWER_EFFORT", _CFG.get("effort", "high"))
+EFFORT = os.environ.get("DESLOP_REVIEWER_EFFORT", _CFG.get("effort", "medium"))
 WAIT = int(os.environ.get("DESLOP_REVIEWER_WAIT", "540"))
+KEEP_RUNS = int(os.environ.get("STORY_MODELS_KEEP_RUNS", "30"))
 
-# 去味规范按顺序找：项目内的 story-deslop 副本（generic/openclaw 部署才有），
-# 否则用 story-setup 部署给每个 Claude 项目的 agent-references 副本；找不到的跳过。
-REFERENCE_NAMES = ["SKILL.md", "anti-ai-writing.md", "fiction-protection-ledger.md", "pattern-governance.md",
-                   "structural-audit.md", "banned-words.md", "dialogue-craft-moderate.md"]
-
-
-def reference_files(project):
-    deslop = project / "skills" / "story-deslop"
-    shared = project / ".claude" / "skills" / "story-setup" / "references" / "agent-references"
-    found = []
-    for name in REFERENCE_NAMES:
-        for candidate in (deslop / name, deslop / "references" / name, shared / name):
-            if name != "SKILL.md" and candidate == deslop / name:
-                continue
-            if candidate.is_file():
-                found.append(candidate)
-                break
-    card = project / "设定" / "题材正文提示卡.md"
-    if card.is_file():
-        found.append(card)
-    return found
+# 精简语义审查规范优先；仅当精简规范缺失时才按最小语义参考回退（绝不注入交互向的 SKILL.md）
+RUBRIC_NAME = "deslop-reviewer-rubric.md"
+FALLBACK_REFERENCES = ("fiction-protection-ledger.md", "pattern-governance.md", "structural-audit.md")
+BOOK_CONTEXT_BUDGETS = (
+    ("设定/题材正文提示卡.md", 1900),
+    ("设定/文风.md", 1900),
+    ("追踪/上下文.md", 3600),
+)
 MIN_QUOTE = 4
 LATIN = re.compile(r"[A-Za-z]")
 
@@ -80,6 +86,80 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def clip_utf8(text, max_bytes):
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    clipped = encoded[:max_bytes].decode("utf-8", errors="ignore").rstrip()
+    return clipped + "\n…（篇幅截断，以上为最新核心摘要）\n"
+
+
+def prune_runs(runs_dir=RUNS, keep=KEEP_RUNS):
+    if keep < 1 or not runs_dir.is_dir():
+        return
+    completed = []
+    for entry in runs_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        marker = entry / "exit_code"
+        if marker.is_file():
+            try:
+                completed.append((marker.stat().st_mtime, entry))
+            except OSError:
+                continue
+    completed.sort(key=lambda item: item[0], reverse=True)
+    for _, old_dir in completed[keep:]:
+        shutil.rmtree(old_dir, ignore_errors=True)
+
+
+def find_rubric(project):
+    roots = [project, ROOT]
+    for base in roots:
+        for candidate in (
+            MODELS_DIR / RUBRIC_NAME,
+            base / ".story" / "models" / RUBRIC_NAME,
+            base / ".claude" / "models" / RUBRIC_NAME,
+            base / ".agents" / "skills" / "story-setup" / "references" / "templates" / "models" / RUBRIC_NAME,
+            base / ".claude" / "skills" / "story-setup" / "references" / "templates" / "models" / RUBRIC_NAME,
+            base / "skills" / "story-setup" / "references" / "templates" / "models" / RUBRIC_NAME,
+        ):
+            if candidate.is_file():
+                return [candidate]
+    # 极端回退：仅加载紧凑语义账本，绝不注入 SKILL.md
+    found = []
+    search_dirs = [
+        project / ".agents" / "skills" / "story-setup" / "references" / "agent-references",
+        project / ".claude" / "skills" / "story-setup" / "references" / "agent-references",
+        project / "skills" / "story-deslop" / "references",
+        ROOT / ".agents" / "skills" / "story-setup" / "references" / "agent-references",
+        ROOT / ".claude" / "skills" / "story-setup" / "references" / "agent-references",
+        ROOT / "skills" / "story-deslop" / "references",
+    ]
+    for name in FALLBACK_REFERENCES:
+        for folder in search_dirs:
+            candidate = folder / name
+            if candidate.is_file():
+                found.append(candidate)
+                break
+    return found
+
+
+def book_context_sections(project):
+    sections = []
+    for rel, max_bytes in BOOK_CONTEXT_BUDGETS:
+        path = project / rel
+        if not path.is_file():
+            continue
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            continue
+        if rel == "追踪/上下文.md":
+            # 去味审查只需当前位置、长期约束、角色最新状态、活跃伏笔、下章承诺与连贯性风险；剔除近章剧情速记以省 Token
+            content = re.sub(r"\n## 近章速记\n.*?(?=\n## |\Z)", "\n", content, flags=re.S).strip()
+        sections.append((rel, clip_utf8(content, max_bytes)))
+    return sections
+
+
 def field(task, name):
     match = re.search(rf"^{name}：(.+)$", task, re.M)
     if not match:
@@ -88,10 +168,12 @@ def field(task, name):
 
 
 def build_system(project, intro="deslop-reviewer.system.md"):
-    parts = [(ARK_DIR / intro).read_text(encoding="utf-8"), "\n\n# 内联规范\n"]
-    for ref in reference_files(project):
+    parts = [(MODELS_DIR / intro).read_text(encoding="utf-8"), "\n\n# 内联语义审查规范与本书上下文\n"]
+    for ref in find_rubric(project):
         rel = ref.relative_to(project).as_posix() if ref.is_relative_to(project) else ref.name
-        parts.append(f"\n\n---\n\n## 文件：{rel}\n\n{ref.read_text(encoding='utf-8')}")
+        parts.append(f"\n\n---\n\n## 规范：{rel}\n\n{ref.read_text(encoding='utf-8')}")
+    for rel, content in book_context_sections(project):
+        parts.append(f"\n\n---\n\n## 本书上下文：{rel}\n\n{content}")
     return "".join(parts)
 
 
@@ -250,6 +332,17 @@ def review(run):
 
 
 AUDIT_MAX_CHARS = 300_000
+IGNORED_AUDIT_PREFIXES = (
+    "skills/",
+    ".claude/",
+    ".codex/",
+    ".agents/",
+    ".story/",
+    ".opencode/",
+    ".trae/",
+    ".zcode/",
+    ".codebuddy/",
+)
 
 
 def audit(run):
@@ -263,8 +356,8 @@ def audit(run):
         if not path.is_file() or not path.is_relative_to(project):
             continue
         rel = path.relative_to(project).as_posix()
-        if rel.startswith(("skills/", ".claude/", ".codex/")):
-            continue  # 参考文件已由系统提示内联，不当作审查对象
+        if rel.startswith(IGNORED_AUDIT_PREFIXES):
+            continue  # 参考文件与框架目录不当作审查对象
         text = path.read_text(encoding="utf-8")
         total += len(text)
         if total > AUDIT_MAX_CHARS:
@@ -293,6 +386,7 @@ def worker(run):
     tmp = run / "exit_code.tmp"
     tmp.write_text(str(code))
     tmp.rename(run / "exit_code")
+    prune_runs()
 
 
 def await_run(run_id):

@@ -566,6 +566,76 @@ class ChapterCandidateTests(unittest.TestCase):
         self.assertEqual(len(fresh["commands"]), 1)
         self.assertIn("读者审读结果见", fresh["why"])
 
+    def test_story_models_native_run_deslop_and_async_wait_attest(self) -> None:
+        self.init()
+        self.candidate.write_text(PROSE, encoding="utf-8")
+        self.check()
+
+        models = self.project / ".story" / "models"
+        write_json(models / "config.json", {"deslop": {"enabled": True}, "reader": {"enabled": True}})
+        (models / "run-reader-review.py").write_text("# 占位\n", encoding="utf-8")
+        mock_deslop = models / "run-deslop-review.py"
+        mock_deslop.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, re, sys\n"
+            "from pathlib import Path\n"
+            "mode, arg = sys.argv[1], sys.argv[2]\n"
+            "root = Path(__file__).resolve().parents[2]\n"
+            "state = Path(__file__).resolve().parent / 'mock_state.json'\n"
+            "if mode == 'start':\n"
+            "    task = Path(arg).read_text(encoding='utf-8')\n"
+            "    work_rel = re.search(r'^工作副本：(.+)$', task, re.M).group(1).split('（')[0].strip()\n"
+            "    state.write_text(json.dumps({'work': work_rel}), encoding='utf-8')\n"
+            "    print('RUNNING deslop-mock-001')\n"
+            "    sys.exit(75)\n"
+            "if mode == 'wait' and arg == 'deslop-mock-001':\n"
+            "    info = json.loads(state.read_text(encoding='utf-8'))\n"
+            "    work = root / info['work']\n"
+            "    packet = json.loads((work.parent.parent / 'deslop.packet.json').read_text(encoding='utf-8'))\n"
+            "    original = work.read_text(encoding='utf-8')\n"
+            "    work.write_text(original.replace('推开木门', '推开旧门'), encoding='utf-8')\n"
+            "    report = {\n"
+            "        'kind': 'deslop',\n"
+            "        'nonce': packet['nonce'],\n"
+            "        'candidate_sha256': packet['candidate_sha256'],\n"
+            "        'scope': packet['scope'],\n"
+            "        'verdict': 'PASS',\n"
+            "        'findings': [{'severity': 'S3', 'category': 'prose', 'quote': '林川推开木门，雨水顺着青石缝流进院里。', 'issue': '微调质感', 'action': 'edited'}],\n"
+            "        'coverage': ['林川', '母亲', '药包'],\n"
+            "        'summary': '完成一处微调',\n"
+            "    }\n"
+            "    print('```json\\n' + json.dumps(report, ensure_ascii=False) + '\\n```')\n"
+            "    sys.exit(0)\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+
+        step1 = self.next()
+        self.assertEqual(step1["step"], "review")
+        self.assertIn("run-deslop", step1["commands"][0])
+
+        pending = run(CANDIDATE, "run-deslop", "--run", str(self.run_dir), expected=75)
+        pending_payload = json.loads(pending.stdout)
+        self.assertEqual(pending_payload["status"], "running")
+        self.assertEqual(pending_payload["run_id"], "deslop-mock-001")
+
+        step_wait = self.next()
+        self.assertIn("--wait-run deslop-mock-001", step_wait["commands"][0])
+
+        done = run(CANDIDATE, "run-deslop", "--run", str(self.run_dir), "--wait-run", "deslop-mock-001", expected=0)
+        done_payload = json.loads(done.stdout)
+        self.assertEqual(done_payload["kind"], "deslop")
+        self.assertEqual(done_payload["verdict"], "PASS")
+        self.assertIn("推开旧门", self.candidate.read_text(encoding="utf-8"))
+        self.assertEqual(self.manifest()["reviews"]["deslop"]["agent"], "deslop-reviewer")
+        self.assertNotIn("deslop", self.manifest()["packets"])
+
+        self.check()
+        self.consistency()
+        waiting = self.next()
+        self.assertEqual(waiting["step"], "await-author")
+        self.assertIn(".story/models/run-reader-review.py", waiting["commands"][0].replace("\\", "/"))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

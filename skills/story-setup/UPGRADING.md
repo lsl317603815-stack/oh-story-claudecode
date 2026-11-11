@@ -16,6 +16,7 @@
   2. `scripts/shared-assets.json` + `scripts/sync-shared-assets.py` 全量纳管跨 Skill 同名脚本与 `references/`（共 94 组主源、155 份同步副本、23 份显式 `intentionally_divergent` 豁免），修复 `agent-references/quality-checklist.md` 资料漂移；`scripts/check-shared-files.sh` 统一委托 `sync-shared-assets.py check`。
   3. 消除多端共存规则冲突：`generic/AGENTS.md.tmpl` 与 `.agents/rules/oh-story.md` 明确原生宿主规则优先于通用回退段；`templates/rules/story-format.md` 的空行与对白标签规则明确服从 `{书名}/设定/文风.md` 与 `设定/门禁配置.json`。
   4. 修复 ZCode `story_zcode_hook.js` 在 stdin 为损坏 JSON 时对 `pre-tool-prose-guard` 误放行（fail-open）的漏洞，改为写前门禁严格 fail-closed（`deny`）。
+  5. 模型分工迁至宿主中立的 `.story/models/`（兼容回退 `.claude/models/`，重跑 `/story-setup` 自动继承旧 `config.json`）：`chapter_candidate.py` 新增 `run-deslop` 原生驱动去味审查并自动写回回执；`run-deslop-review.py` 改用精简语义规范 `deslop-reviewer-rubric.md` + 动态 `追踪/上下文.md`（单次系统提示词从 133 KB 压至 ≤22 KB，默认 `effort: medium`），`runs/` 自动滚动保留最近 30 条；修复 `run-narrative-writer.sh` 标准输入传参与安全超时、`run-reader-review.py` 全通道报错捕获与默认 3 章前文窗口。
 
 升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在项目里重新运行 `/story-setup` 并新开会话。
 

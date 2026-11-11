@@ -24,23 +24,23 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 - `/story-review reader`（别名 `/读者审读`、`/审查 读者`，口令「读者审读」「读者视角」「多读者」「读者团」）→ 读者视角审读，只作建议、不卡定稿；按下方「读者审读模式」执行，不走 Phase 0-4。
 - 未指定 → 默认 full，并在报告开头用一句话说明这次实际是怎么审的（执行模式原文写进技术备注行）。
 
-> AI味 / 文字自然度这一维度只有文字审查员审（默认 `narrative-writer`；项目启用模型分工的 deslop 角色、即 `.claude/models/config.json` 里 `deslop.enabled` 为 true 且存在 `.claude/agents/deslop-reviewer.md` 时，Claude Code 改用 `deslop-reviewer`，避免写手模型自审），仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
+> AI味 / 文字自然度这一维度只有文字审查员审（默认 `narrative-writer`；项目启用模型分工的 deslop 角色、即 `.story/models/config.json` 或旧 `.claude/models/config.json` 里 `deslop.enabled` 为 true 时，Claude Code 改用 `.claude/agents/deslop-reviewer.md`，避免写手模型自审），仅 full 模式覆盖。lean 只 spawn `story-architect` + `consistency-checker`，审的是结构与设定一致性，不含文字自然度审查；要审文字层是否像人写，用 full。
 
 ---
 
 ## 读者审读模式（reader）
 
-让模型扮演目标平台读者，从第一章顺读到指定章，写读感并打十分制追读分。读者只读书名、标签、读者画像、已接纳前文和本章正文，不读细纲、设定和追踪文件；本模式不改任何正文、大纲、设定或追踪文件。它依赖 story-setup 第 8 步「可选模型分工」的 `reader` 角色（仅 Claude Code）。
+让模型扮演目标平台读者，从第一章顺读到指定章，写读感并打十分制追读分。读者只读书名、标签、读者画像、已接纳前文（默认最近 3 章）和本章正文，不读细纲、设定和追踪文件；本模式不改任何正文、大纲、设定或追踪文件。它依赖 story-setup 第 8 步「可选模型分工」的 `reader` 角色（Claude Code / Antigravity）。
 
-1. **确认已启用**：从项目根找 `.claude/models/run-reader-review.py`，并读 `.claude/models/config.json` 的 `reader.enabled`。脚本不存在或未启用时停止，告诉作者重跑 `/story-setup`，在第 8 步勾选「读者审读」后新开会话；不要用当前会话自己扮演读者代替。
+1. **确认已启用**：从项目根找 `.story/models/run-reader-review.py`（不存在则回退找旧 `.claude/models/run-reader-review.py`），并读同目录 `config.json` 的 `reader.enabled`。脚本不存在或未启用时停止，告诉作者重跑 `/story-setup`，在第 8 步勾选「读者审读」后新开会话；不要用当前会话自己扮演读者代替。
 2. **确定章号**：作者点名的章优先；否则取 `追踪/候选章/` 下最新一个仍在进行中的候选章（未 promote、未 abandon）；都没有就取 `正文/` 里最后一章。脚本按章号自动选文本：有正式正文读正文，否则读最新候选稿。
 3. **选单车道还是读者团**：
    - 作者没提多读者、也没点名车道 → 单车道，默认 `opus`（Opus 5.5），用核心读者画像。作者点名了一条车道就用那条。
-   - 作者说「多读者」「多视角」「读者团」，或点名了两条以上车道 → 读者团。没点名车道时，先运行 `{PYTHON} .claude/models/run-reader-review.py lanes` 列出可选车道（含已分配的读者身份），再让作者多选至少两条（有结构化提问组件时用多选题，没有时列编号让作者回复编号）；作者要换掉已有读者身份时加 `--reassign`。
+   - 作者说「多读者」「多视角」「读者团」，或点名了两条以上车道 → 读者团。没点名车道时，先运行 `{PYTHON} {该run-reader-review.py路径} lanes` 列出可选车道（含已分配的读者身份），再让作者多选至少两条（有结构化提问组件时用多选题，没有时列编号让作者回复编号）；作者要换掉已有读者身份时加 `--reassign`。
 4. **运行**（`{PYTHON}` 先按平台探测可用的 Python 3 解释器；Bash `timeout` 设为 600000）：
-   - 单车道：`{PYTHON} .claude/models/run-reader-review.py start {章号} [--lane 车道]`
-   - 读者团：`{PYTHON} .claude/models/run-reader-review.py panel {章号} --readers 车道1,车道2[,…] [--reassign]`
-   - 输出最后一行是 `RUNNING {运行ID}` 时运行 `{PYTHON} .claude/models/run-reader-review.py wait {运行ID}` 续等，直到结束；不要重复启动。
+   - 单车道：`{PYTHON} {该run-reader-review.py路径} start {章号} [--lane 车道]`
+   - 读者团：`{PYTHON} {该run-reader-review.py路径} panel {章号} --readers 车道1,车道2[,…] [--reassign]`
+   - 输出最后一行是 `RUNNING {运行ID}` 时运行 `{PYTHON} {该run-reader-review.py路径} wait {运行ID}` 续等，直到结束；不要重复启动。
 5. **汇报**：结果在 `读者审读/第NNN章.md`（读者团时是汇总，每位读者原文在 `读者审读/第NNN章/`）。向作者转述追读分（读者团给平均分和各读者分数）、想跳过/出戏/想划走的段落、章尾感受和优先意见，并给出文件路径。只转述，不替读者加意见；要不要按意见改稿由作者决定。脚本报错时原样转述错误，常见原因是缺少方舟 key、`codex` 或 `claude` 命令行，或方舟套餐不支持某个模型。
 
 ---
@@ -50,12 +50,13 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 1. **确定请求模式**：解析用户输入中的 `full`、`lean`、`solo`、`reader`；`reader` 直接按上方「读者审读模式」执行，不进入本流程；其余未指定时目标模式为 `full`。
 2. **确认是否允许 spawn**：如果当前已经在子代理/Agent 内执行，不再递归 spawn，直接降级为 `solo`。
 3. **识别当前宿主的角色来源**：ZCode 支持插件子代理，检查当前已启用的 oh-story 插件注册的同名角色（不要求 `.zcode/agents/`，不拿项目文件存在性代替运行时注册），用 `Agent` 工具按当前 schema 派发；所需角色缺失、定义不可解析或调用失败时才降级 `solo`，白话建议启用/更新 oh-story 插件后新开会话，技术备注行写 `Fallback: project custom agents unavailable -> solo`。不要因为磁盘上存在其他端的 agent 文件就尝试同名 spawn。反过来，当前运行时是 WorkBuddy 或其他端时，项目中仅并存 `.zcode/` 不得强制 solo。
-4. **检查核心 Agent 部署状态**（先识别当前运行时，只检查对应目录/registry；无法识别运行时才按 Claude → OpenCode → TRAE Code → WorkBuddy → Codex 的顺序探测，禁止拿其他端残留文件冒充已注册 agent）：
-   - Claude Code 使用 `.claude/agents/`，OpenCode 使用 `.opencode/agents/`，TRAE Code 使用 `.trae/agents/`，WorkBuddy（CodeBuddy Code）项目模式使用 `.codebuddy/agents/`，Codex 使用 `.codex/agents/`。WorkBuddy plugin-only 模式不要求项目 `.codebuddy/agents/`：只有当前 Agent registry 真实返回所需的 `oh-story:{agent}` 才视为可用。
-    - full 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`character-designer.md`、`narrative-writer.md`、`consistency-checker.md`；WorkBuddy plugin-only 模式为 registry 中对应的 4 个 `oh-story:*`；Codex 为同名 `.toml`
-    - lean 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`consistency-checker.md`；WorkBuddy plugin-only 模式为 registry 中对应的 2 个 `oh-story:*`；Codex 为同名 `.toml`
+4. **检查核心 Agent 部署状态**（先识别当前运行时，只检查对应目录/registry；无法识别运行时才按 Claude → Antigravity → OpenCode → TRAE Code → WorkBuddy → Codex 的顺序探测，禁止拿其他端残留文件冒充已注册 agent）：
+   - Claude Code 使用 `.claude/agents/`，Antigravity 使用 `.agents/agents/agent-name/agent.md`（`agent-name` 为角色名），OpenCode 使用 `.opencode/agents/`，TRAE Code 使用 `.trae/agents/`，WorkBuddy（CodeBuddy Code）项目模式使用 `.codebuddy/agents/`，Codex 使用 `.codex/agents/`。WorkBuddy plugin-only 模式不要求项目 `.codebuddy/agents/`：只有当前 Agent registry 真实返回所需的 `oh-story:{agent}` 才视为可用。
+    - full 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`character-designer.md`、`narrative-writer.md`、`consistency-checker.md`；Antigravity 为对应 `.agents/agents/agent-name/agent.md`；WorkBuddy plugin-only 模式为 registry 中对应的 4 个 `oh-story:*`；Codex 为同名 `.toml`
+    - lean 必需：Claude/OpenCode/TRAE Code/WorkBuddy 项目模式为 `story-architect.md`、`consistency-checker.md`；Antigravity 为对应 `.agents/agents/agent-name/agent.md`；WorkBuddy plugin-only 模式为 registry 中对应的 2 个 `oh-story:*`；Codex 为同名 `.toml`
     - 对每个必需 Agent 文件：
       - **Claude Code agent（`.claude/agents/`）**：读取 frontmatter，确认 `name:` 与 subagent_type 完全一致；frontmatter 缺失、不可解析或 name 不匹配时视为 malformed agent。
+      - **Antigravity agent（`.agents/agents/agent-name/agent.md`）**：读取 frontmatter，确认 `subagent: true` 且文件存在可解析，使用 `invoke_subagent` 加同名 `TypeName` 调用。
       - **OpenCode agent（`.opencode/agents/`）**：文件名即 agent 名（OpenCode 不要求在 frontmatter 中写 `name:`），读取 frontmatter 确认 `mode: subagent` 和权限字段存在且可解析即可（2.x 用复数 `permissions:` 规则列表，旧版用单数 `permission:` 映射，两种都认）；frontmatter 缺失或不可解析视为 malformed。
       - **TRAE Code agent（`.trae/agents/`）**：读取 YAML frontmatter，确认 `name`、`description` 存在，`name` 与文件名完全一致；`tools` / `disallowedTools` 如存在必须是逗号分隔字符串，不能沿用 Claude/OpenCode 的 YAML 数组或不受支持的模型名。frontmatter 缺失、不可解析或字段不匹配时视为 malformed。
       - **WorkBuddy 项目 agent（`.codebuddy/agents/`）**：读取 YAML frontmatter，确认 `name`、`description` 存在且 `name` 与文件名完全一致；`tools` / `disallowedTools` 如存在必须为逗号分隔字符串。项目模式调用内置 `Agent` 时传原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式不用项目文件代替 registry 检查，只传 registry 真实列出的 `oh-story:{agent}`。
@@ -208,7 +209,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
    - 默认 `--quote-mode keep`，不把知乎盐言短篇的 `「」` 当作问题；只有项目明确指定引号风格时才检查对应转换建议。
    - 这些脚本都是 `story-review` 的本地副本，不引用其他 skill 的文件。
 
-**story-explorer 预查询（可选）**。仅当 `Effective Mode` 仍为 `full`/`lean`、当前允许 spawn 且子 Agent 工具可用时，才可按当前运行时检查 story-explorer（Claude `.claude/agents/story-explorer.md`、OpenCode `.opencode/agents/story-explorer.md`、TRAE Code `.trae/agents/story-explorer.md`、WorkBuddy 项目模式 `.codebuddy/agents/story-explorer.md`、Codex `.codex/agents/story-explorer.toml`）并调用它预查设定摘要。WorkBuddy 项目模式用 `Agent(subagent_type: "story-explorer", ...)`；plugin-only 模式只在 registry 真实返回 `oh-story:story-explorer` 时使用该值。`solo` 或子代理递归保护场景下不得 spawn，只能直接 Read/Grep。Prompt 示例：
+**story-explorer 预查询（可选）**。仅当 `Effective Mode` 仍为 `full`/`lean`、当前允许 spawn 且子 Agent 工具可用时，按 Phase 0 宿主规则检查并调用当前运行时的 `story-explorer` 预查设定摘要。`solo` 或子代理递归保护场景下不得 spawn，只能直接 Read/Grep。Prompt 示例：
 
 ```text
 项目目录：{dir}
@@ -384,7 +385,7 @@ full/lean 模式下，主会话必须把“审查基准包摘要”直接写进�
 
 1. 收集实际执行的 reviewer VERDICT 和 FINDINGS。
 2. 合并去重：按 `severity` 排序（S1 > S2 > S3 > S4），同级内按影响范围排序。
-3. **可选事实核查**：如果审查内容涉及需要验证的外部事实（历史年代、地理方位、职业细节等），只有在 `Effective Mode` 仍为 `full`/`lean`、当前不是子 Agent、子 Agent 工具可用且当前运行时已部署 story-researcher（Claude `.claude/agents/story-researcher.md`、OpenCode `.opencode/agents/story-researcher.md`、TRAE Code `.trae/agents/story-researcher.md`、WorkBuddy 项目模式 `.codebuddy/agents/story-researcher.md`、Codex `.codex/agents/story-researcher.toml`）时，才可额外调用 `story-researcher` 搜索验证。TRAE Code 使用内置 `Agent` 按 `.trae/agents/story-researcher.md` 的名称选择该 Subagent，不传 `subagent_type`；WorkBuddy 项目模式用 `Agent(subagent_type: "story-researcher", ...)`，plugin-only 模式只在 registry 真实返回 `oh-story:story-researcher` 时使用该值。使用当前平台联网能力；若无联网工具，可转交只读 `browser-cdp` 流程，不调用不存在的 `WebFetch`。`solo`、missing/malformed/spawn failed 降级或子代理递归保护场景下不得 spawn，只能在报告中标记“需人工事实核查”。单纯 `agents_version` 不匹配不是本条的降级原因。
+3. **可选事实核查**：如果审查内容涉及需要验证的外部事实（历史年代、地理方位、职业细节等），只有在 `Effective Mode` 仍为 `full`/`lean`、当前不是子 Agent、子 Agent 工具可用且按 Phase 0 宿主规则确认已部署 `story-researcher` 时，才可额外调用 `story-researcher` 搜索验证（使用当前平台联网能力；若无联网工具，可转交只读 `browser-cdp` 流程，不调用不存在的 `WebFetch`）。`solo`、missing/malformed/spawn failed 降级或子代理递归保护场景下不得 spawn，只能在报告中标记“需人工事实核查”。单纯 `agents_version` 不匹配不是本条的降级原因。
 4. **分歧呈现**：如果 reviewer 间有冲突意见，明确呈现分歧让用户裁决；不要自动妥协。
 5. 按「报告面向作者」输出综合审查报告：开头说明审查方式与范围，证据不足项写成作者能补的材料，reviewer 间分歧写进「需要你决定」，实际模式、fallback 原因、rubric 与 Rubric Source 只进技术备注行。
 
@@ -534,18 +535,8 @@ solo 同样按「报告面向作者」写；基础检查的逐项结果合并成
 
 ---
 
-## 去味语义模式治理 v1.1
+## 语义模式、语言卫生与对白审查底线
 
-审查 [候选语义模式契约](references/pattern-contracts.json) 时，默认按 advisory/S3 输出，必须同时给出文本证据、可能功能和排除条件。单次命中不得证明文本由 AI 生成，也不得直接升级为 blocking/S2。只有现有确定性脚本已经判 blocking，或项目明示规则被破坏时，才按原严重度流程处理。人物声线趋同、全文节拍同构、动作后解释和跨章反应循环属于语义审计，不自动改正文。
-
-## 中文正文英文零容忍审查
-
-中文作品中任何未精确授权的拉丁字母 token 均按语言泄漏处理，不因位于台词、词很短、首字母大写或全大写而降为 advisory。URL、邮箱、路径、文件名和代码只机械保护明确非叙事结构；其他外语只有在用户单独确认后才可通过 `.deslop-whitelist` 精确登记。HTML 标签、注释和实体一律阻断。审查前首先运行 `node scripts/language_gate.js "{正文文件}"`；返回非零或其他检测脚本报告 `language-leak blocking` 时一律阻止通过，不计入 AI 味轻中重分档。
-
-## 中文正文文风卫生审查
-
-语言门通过后运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`。默认只阻断高置信的表情符号、颜文字、火星文、标点堆砌与不可见字符；有功能的 `？！`、`……` 不报。项目若配置 `设定/文风.md`，按 [正文文风卫生门](references/style-hygiene.md) 读取策略；审查者不得把允许项自行升级为 blocking，也不得用宽松配置豁免未授权外语。
-
-## 适度对白语义审查
-
-审查对白时必须读取 [适度对白技巧](references/dialogue-craft-moderate.md) 与 [对白归属标记漂移](references/dialogue-attribution-drift.md)，需要核对卡片字段时使用 [对白卡 schema](references/dialogue-scene-card.schema.json)。先运行 `node scripts/dialogue_drift_gate.js --current "{正文文件}" --history-dir "{正文目录}"`；机械 Gate 返回非零时本章不得通过，只有预警时继续语义判断，不得按密度直接退回。重点检查人物是否在采取不同语言策略、主要人物语言能否互换、动作是否只是标签替身、潜台词是否过密、多人场景是否清楚。允许必要的简单“说/问”，禁止机械换成华丽标签或空动作。
+- **去味语义模式治理 v1.1**：审查 [候选语义模式契约](references/pattern-contracts.json) 时默认按 advisory/S3 输出并附文本证据、可能功能与排除条件；单次命中不升为 blocking/S2，只有确定性脚本判 blocking 或违反项目明示规则才升级；声线趋同、节拍同构、动作后解释与跨章反应循环只做语义审计，不自动改文。
+- **中文正文语言与文风卫生审查**：审查前首跑 `node scripts/language_gate.js "{正文文件}"`（未授权拉丁字母 token 均按 `language-leak blocking` 阻止通过、不计入 AI 味分档；仅机械保护非叙事 URL/邮箱/路径/文件名/代码，其他外语须用户单独确认并在 `.deslop-whitelist` 精确登记，HTML 标记一律阻断）；通过后跑 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`（按 [正文文风卫生门](references/style-hygiene.md) 与 `设定/文风.md` 审查，有功能的 `？！`/`……` 不报）。
+- **适度对白语义审查**：参照 [适度对白技巧](references/dialogue-craft-moderate.md)、[对白归属标记漂移](references/dialogue-attribution-drift.md) 与 [对白卡 schema](references/dialogue-scene-card.schema.json)，先跑 `node scripts/dialogue_drift_gate.js --current "{正文文件}" --history-dir "{正文目录}"`（机械 Gate 非零不得通过，预警进入语义审查：核对人物语言策略差异、动作独立价值、潜台词尺度与多人场景清晰度，允许简单“说/问”）。

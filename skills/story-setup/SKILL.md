@@ -112,11 +112,11 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | `skills/story-setup/references/agent-references/*.md` | `.claude/skills/story-setup/references/agent-references/*.md` | story-setup managed | replace | every `story-setup/references/agent-references/*.md` reference resolves |
 | `skills/story-setup/references/templates/settings-hooks.json` | `.claude/settings.local.json` | user+managed | replace managed registrations by stable hook identity | hook JSON valid；旧 matcher 注册已迁移、当前模板命令各一份、用户 hook 保留 |
 | `skills/story-setup/scripts/merge-claude-settings.py` | 部署时执行，不复制到项目 | story-setup helper | execute | 替换已知 story hook 注册、保留用户 hooks/顶层字段，历史 matcher 迁移与重复执行幂等 |
-| `skills/story-setup/references/templates/models/`（除 `agents/` 与 `config.default.json`） | `.claude/models/` | story-setup managed | replace managed files（`config.json`、`runs/` 不动） | 启用任一模型分工角色时由 `scripts/deploy-model-routing.py` 写入 | target_cli 含 claude-code 且启用模型分工 |
-| `skills/story-setup/references/templates/models/config.default.json` | `.claude/models/config.json` | user state | create only if absent；之后只改各角色 `enabled` | JSON 可解析，含 `writer` / `deslop` / `reader` | 同上 |
-| `skills/story-setup/references/templates/models/agents/narrative-writer-forwarder.md` | `.claude/agents/narrative-writer.md` | story-setup managed | 启用 `writer` 时覆盖 Step 5 的标准版，关闭时写回标准版 | 转发器与 `.claude/models/narrative-writer-prompt.md` 同时存在 | 同上 |
-| `skills/story-setup/references/templates/models/agents/deslop-reviewer.md` | `.claude/agents/deslop-reviewer.md` | story-setup managed by `oh-story-managed` marker | 启用 `deslop` 时写入，关闭时移除 | 文件含 `name: deslop-reviewer` | 同上 |
-| `skills/story-setup/scripts/deploy-model-routing.py` | 部署时执行，不复制到项目 | story-setup helper | execute | `check` 只读；`deploy` 幂等 | target_cli 含 claude-code |
+| `skills/story-setup/references/templates/models/`（除 `agents/` 与 `config.default.json`） | `.story/models/` | story-setup managed | replace managed files（`config.json`、`runs/` 不动） | 启用任一模型分工角色时由 `scripts/deploy-model-routing.py` 写入 | target_cli 含 claude-code 或 antigravity 且启用模型分工 |
+| `skills/story-setup/references/templates/models/config.default.json` | `.story/models/config.json` | user state | create only if absent（首次迁移继承旧 `.claude/models/config.json`）；之后只改各角色 `enabled` | JSON 可解析，含 `writer` / `deslop` / `reader` | 同上 |
+| `skills/story-setup/references/templates/models/agents/narrative-writer-forwarder.md` | `.claude/agents/narrative-writer.md` | story-setup managed | 启用 `writer` 时覆盖 Step 5 的标准版，关闭时写回标准版 | 转发器与 `.story/models/narrative-writer-prompt.md` 同时存在 | target_cli 含 claude-code |
+| `skills/story-setup/references/templates/models/agents/deslop-reviewer.md` | `.claude/agents/deslop-reviewer.md` | story-setup managed by `oh-story-managed` marker | 启用 `deslop` 时写入，关闭时移除 | 文件含 `name: deslop-reviewer` | target_cli 含 claude-code |
+| `skills/story-setup/scripts/deploy-model-routing.py` | 部署时执行，不复制到项目 | story-setup helper | execute | `check` 只读；`deploy` 幂等 | target_cli 含 claude-code 或 antigravity |
 | `skills/story-setup/references/templates/质检进度.md.tmpl` | `{书名}/追踪/质检进度.md` | user state | create only if absent | never overwrite existing progress table |
 | generated sentinel | `.story-deployed` | story-setup managed | replace | contains `agents_version`, `setup_skill_version`, `target_cli`, `resolver_strategy`, `references_dir` |
 | `skills/story-setup/references/opencode/AGENTS.md.tmpl` | `AGENTS.md` | user+managed | marker/section merge | contains story skill routing sections | target_cli 含 opencode |
@@ -503,21 +503,21 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
 4. `.story-deployed` 的 `target_cli` 写入 `generic` 或多端组合；`references_dir` 对 generic 写 `skills/story-setup/references/agent-references`。
 5. 安装报告提示项见 Phase 3 第 13 步。
 
-### Step 8：可选部署模型分工（target_cli 含 claude-code 时）
+### Step 8：可选部署模型分工（target_cli 含 claude-code 或 antigravity 时）
 
-模型分工按项目开关，默认关闭；关闭时项目与原流程完全一致。三个角色可以分别开关：
+模型分工按项目开关，默认关闭；关闭时项目与原流程完全一致。受管配置与运行器统一落在宿主中立的 `.story/models/`（兼容继承旧 `.claude/models/config.json`）。三个角色可以分别开关：
 
 | 角色 | 作用 | 依赖 |
 |---|---|---|
-| `writer` | `narrative-writer` 改成转发器，正文写作交给 agy（Antigravity CLI）上的模型（默认 `gemini-4-argon-medium`） | 已登录的 `agy` |
-| `deslop` | 新增 `deslop-reviewer`：接纳前去AI味审查（改工作副本）与 `/story-review` 的文字审查（只审不改）交给方舟上的模型（默认豆包 `doubao-seed-2-1-pro-260915`），与写手分开模型族 | 方舟 Agent Plan（或 Coding Plan）key 存在钥匙串 `ARK_AGENT_PLAN_API_KEY`（或 `ARK_API_KEY`）或同名环境变量 |
+| `writer` | （仅 Claude Code）`narrative-writer` 改成转发器，正文写作交给 agy（Antigravity CLI）上的模型（默认 `gemini-4-argon-medium`）；Antigravity 宿主下正文由 Gemini 直接写，不走转发器 | 已登录的 `agy` |
+| `deslop` | 接纳前去AI味审查（改工作副本）与 `/story-review` 的文字审查（只审不改）交给方舟上的模型（默认豆包 `doubao-seed-2-1-pro-260915`），与写手分开模型族；候选章可通过 `chapter_candidate.py run-deslop` 原生调用，Claude Code 另同步 `.claude/agents/deslop-reviewer.md` | 方舟 Agent Plan（或 Coding Plan）key 存在钥匙串 `ARK_AGENT_PLAN_API_KEY`（或 `ARK_API_KEY`）或同名环境变量 |
 | `reader` | 逐章读者审读：单车道默认 Opus 5.5；多读者时作者选车道（opus、gpt、doubao、kimi、glm、deepseek），总控分配读者身份并汇总十分制平均分与综合意见；只作建议，不卡定稿 | `claude` 命令行；gpt 车道需要 `codex`，其余车道需要方舟 key |
 
-1. 本步在 Step 5 之后执行（它会覆盖或恢复 `narrative-writer.md`）。`target_cli` 不含 claude-code 时跳过本步。
+1. 本步在 Step 5 之后执行（当含 `claude-code` 时，它会覆盖或恢复 `.claude/agents/narrative-writer.md`）。`target_cli` 不含 `claude-code` 且不含 `antigravity` 时跳过本步。
 2. 用 Step 7 探测到的 `$PYBIN` 运行 `"$PYBIN" "{story-setup skill目录}/scripts/deploy-model-routing.py" check`，只读检查依赖（只查钥匙串条目是否存在，不读取 key）。
-3. 读取项目现有 `.claude/models/config.json`（如有）里各角色的 `enabled` 作为默认勾选，用 AskUserQuestion 多选询问要开启哪些角色；每个选项写明作用与依赖，`check` 里依赖未就绪的角色标明“本机缺少依赖，开启后该角色会失败”。用户一个都不选即全部关闭。
-4. 运行 `"$PYBIN" "{story-setup skill目录}/scripts/deploy-model-routing.py" deploy --project "{项目}" --roles "{逗号分隔的角色，全部关闭时为空字符串}"`。它把受管脚本与提示词写入 `.claude/models/`，只在不存在时创建 `config.json`（之后只改 `enabled`，保留作者改过的模型与车道），按 `writer` 覆盖或恢复 `narrative-writer.md`（转发器所用写作规范由标准模板生成），按 `deslop` 部署或移除带 `oh-story-managed` 标记的 `.claude/agents/deslop-reviewer.md`。重复执行结果一致。
-5. 安装报告列出开启的角色、各自模型与 `.claude/models/config.json` 路径，并提醒：改模型或车道直接编辑该文件；开关角色重跑本步即可。
+3. 读取项目现有 `.story/models/config.json`（不存在则回退读旧 `.claude/models/config.json`）里各角色的 `enabled` 作为默认勾选，用 AskUserQuestion 多选询问要开启哪些角色（仅 Antigravity 时不勾 `writer`）；每个选项写明作用与依赖，`check` 里依赖未就绪的角色标明“本机缺少依赖，开启后该角色会失败”。用户一个都不选即全部关闭。
+4. 运行 `"$PYBIN" "{story-setup skill目录}/scripts/deploy-model-routing.py" deploy --project "{项目}" --roles "{逗号分隔的角色，全部关闭时为空字符串}"`。它把受管脚本、精简去味规范与提示词写入 `.story/models/`，只在不存在时创建 `config.json`（首次迁移继承旧 `.claude/models/config.json`，之后只改 `enabled`，保留作者改过的模型与车道）；当 `.claude/agents/` 存在时，按 `writer` 覆盖或恢复 `narrative-writer.md`（转发器所用写作规范由标准模板生成），按 `deslop` 部署或移除带 `oh-story-managed` 标记的 `.claude/agents/deslop-reviewer.md`。重复执行结果一致。
+5. 安装报告列出开启的角色、各自模型与 `.story/models/config.json` 路径，并提醒：改模型或车道直接编辑该文件；开关角色重跑本步即可。
 
 ### Step 9：创建部署标记
 
@@ -545,7 +545,7 @@ Reasonix（DeepSeek-Reasonix CLI）当前只部署 skills 与 `AGENTS.md`，不�
    - 检查 `.claude/rules/` 下的规则文件是否存在且包含 `paths` frontmatter
 3. 验证 agents：
    - 检查 `.claude/agents/` 下的 8 个 agent 定义文件是否存在
-   - 启用模型分工时：`writer` 开启则 `narrative-writer.md` 是转发器且 `.claude/models/narrative-writer-prompt.md` 存在；`deslop` 开启则存在 `.claude/agents/deslop-reviewer.md`；`.claude/models/config.json` 的 `enabled` 与用户勾选一致
+   - 启用模型分工时：`.story/models/config.json` 的 `enabled` 与用户勾选一致；含 `claude-code` 时，`writer` 开启则 `.claude/agents/narrative-writer.md` 是转发器且 `.story/models/narrative-writer-prompt.md` 存在，`deslop` 开启则存在 `.claude/agents/deslop-reviewer.md`
 4. 验证 agent reference bundle：
    - 检查 `.claude/skills/story-setup/references/agent-references/` 下 reference 文件完整
    - 检查所有 `story-setup/references/agent-references/<file>.md` 都能解析到 deployed bundle

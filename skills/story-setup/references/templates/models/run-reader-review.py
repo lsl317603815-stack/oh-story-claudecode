@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """逐章读者审读：让模型扮演目标平台读者顺读到本章，给出读感。只作建议，不卡定稿。
 
-由 story-setup 在启用模型分工的“读者审读”角色时部署到项目 .claude/models/；车道、总控与书城信息读
-.claude/models/config.json 的 reader 段。书名、标签、平台留空时从 设定/题材定位.md 读取。
+由 story-setup 在启用模型分工的“读者审读”角色时部署到项目 .story/models/（兼容回退 .claude/models/）；
+车道、总控与书城信息读 .story/models/config.json 的 reader 段。书名、标签、平台留空时从 设定/题材定位.md 读取。
 
-读者只看得到：书名、标签、读者画像、已接纳的前文正文、本章正文，以及这位读者上一章留下的读书笔记。
-不给细纲、设定、追踪文件；外部命令行都在项目外的临时空目录里运行，不加载项目说明和钩子。
+读者只看得到：书名、标签、读者画像、已接纳的最近前文正文（默认 3 章，更早章节靠读书笔记衔接）、本章正文，
+以及这位读者上一章留下的读书笔记。不给细纲、设定、追踪文件；外部命令行都在项目外的临时空目录里运行，不加载项目说明和钩子。
 
 用法：
   run-reader-review.py lanes                                   列出可选读者车道
@@ -39,16 +39,30 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-ARK_DIR = ROOT / ".claude" / "models"
-RUNS = ARK_DIR / "runs"
-ARK = ARK_DIR / "ark_client.py"
-CONFIG = json.loads((ARK_DIR / "config.json").read_text(encoding="utf-8"))["reader"]
-EXAMPLE_PERSONA = ARK_DIR / "reader-persona.example.md"
+MODELS_DIR = Path(__file__).resolve().parent
+ROOT = MODELS_DIR.parents[1]
+RUNS = MODELS_DIR / "runs"
+ARK = MODELS_DIR / "ark_client.py"
+
+
+def _load_reader_config():
+    for candidate in (
+        MODELS_DIR / "config.json",
+        ROOT / ".story" / "models" / "config.json",
+        ROOT / ".claude" / "models" / "config.json",
+    ):
+        if candidate.is_file():
+            return json.loads(candidate.read_text(encoding="utf-8"))["reader"]
+    raise SystemExit("错误：找不到 .story/models/config.json（请先运行 story-setup 配置模型分工）")
+
+
+CONFIG = _load_reader_config()
+EXAMPLE_PERSONA = MODELS_DIR / "reader-persona.example.md"
 LANES = CONFIG["lanes"]
 CONTROLLER = CONFIG["controller"]
 WAIT = int(os.environ.get("READER_REVIEW_WAIT", "540"))
-FULL_PRIOR = int(CONFIG.get("full_prior_chapters", 10))
+KEEP_RUNS = int(os.environ.get("STORY_MODELS_KEEP_RUNS", "30"))
+FULL_PRIOR = int(CONFIG.get("full_prior_chapters", 3))
 MIN_QUOTE = 6
 LIST_KEYS = ("enjoyed", "skimmed", "confused_or_pulled_out", "drop_risk")
 PANEL_FILE = "读者团.json"
@@ -56,6 +70,24 @@ PANEL_FILE = "读者团.json"
 
 class ReviewError(Exception):
     pass
+
+
+def prune_runs(runs_dir=RUNS, keep=KEEP_RUNS):
+    if keep < 1 or not runs_dir.is_dir():
+        return
+    completed = []
+    for entry in runs_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        marker = entry / "exit_code"
+        if marker.is_file():
+            try:
+                completed.append((marker.stat().st_mtime, entry))
+            except OSError:
+                continue
+    completed.sort(key=lambda item: item[0], reverse=True)
+    for _, old_dir in completed[keep:]:
+        shutil.rmtree(old_dir, ignore_errors=True)
 
 
 def book_root():
@@ -153,13 +185,16 @@ def call(cfg, system, prompt, workdir, name):
         raise ReviewError(f"{cfg.get('label', model)} 调用超时")
     finally:
         shutil.rmtree(isolated, ignore_errors=True)
-    if provider == "claude" and proc.returncode == 0:
+    combined = "\n".join(part.strip() for part in (proc.stdout, proc.stderr) if part and part.strip())
+    if provider == "claude" and proc.returncode == 0 and proc.stdout.strip():
         out.write_text(proc.stdout, encoding="utf-8")
-    log = (proc.stdout + proc.stderr if provider == "ark" else proc.stderr).strip()[-1500:] or "（无日志输出）"
+        log = (proc.stderr or "").strip()[-1500:] or "（完成）"
+    else:
+        log = combined[-1500:] or "（无日志输出）"
     with open(workdir / "log.txt", "a", encoding="utf-8") as f:
         f.write(f"[{name}，{round(time.time() - started)} 秒] {log}\n")
     if proc.returncode != 0 or not out.exists():
-        raise ReviewError(f"{cfg.get('label', model)} 调用失败：{log}")
+        raise ReviewError(f"{cfg.get('label', model)} 调用失败（退出码 {proc.returncode}）：{log}")
     return out.read_text(encoding="utf-8")
 
 
@@ -213,7 +248,7 @@ def reader_prompt(book, n, text, reader_id):
 
 def run_reader(book, n, text, lane, reader_id, persona_name, persona, workdir):
     cfg = LANES[lane]
-    system = (ARK_DIR / "reader-review.system.md").read_text(encoding="utf-8") + "\n\n---\n\n" + persona
+    system = (MODELS_DIR / "reader-review.system.md").read_text(encoding="utf-8") + "\n\n---\n\n" + persona
     prompt = reader_prompt(book, n, text, reader_id)
     data, feedback = None, ""
     for attempt in (1, 2):
@@ -486,6 +521,7 @@ def worker(run):
     tmp = run / "exit_code.tmp"
     tmp.write_text(str(code))
     tmp.rename(run / "exit_code")
+    prune_runs()
 
 
 def await_run(run_id):

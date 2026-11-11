@@ -35,8 +35,8 @@ trigger: always_on
 
 - 子代理只看 `.agents/agents/agent-name/agent.md`（`agent-name` 为子代理名），用 `invoke_subagent` 加同名 `TypeName` 调用。skill 正文里提到的 `.claude/agents/`、`.opencode/agents/`、`.codex/agents/` 是其他宿主的目录，在 Antigravity 里不要拿它们判断是否已部署。
 - 运行时不能启动子代理、返回未知 agent 或子代理失败时，按 skill 写明的 solo/direct 降级执行，并在回复里说明降级了。
-- 不要在 Antigravity 里再调用 `agy` 或 `.claude/models/run-narrative-writer.sh`：那是 Claude Code 宿主把写手转给 Gemini 的转发器，在这里调用会自己调用自己。在 Antigravity 里，正文由主会话或 `narrative-writer` 子代理直接写。
-- 项目启用了模型分工里的“去 AI 味审查”（`.claude/models/config.json` 中 `deslop.enabled` 为 true）时，`chapter_candidate.py review-packet --kind deslop` 生成的任务要交给方舟审查模型：由主会话把任务原文写进 `.claude/models/runs/inbox-<时间戳>.md`，再运行 `for PYBIN in python3 python py; do "$PYBIN" -c "" 2>/dev/null && break; done; "$PYBIN" .claude/models/run-deslop-review.py start <该文件>`；输出 `RUNNING <运行ID>` 时用 `wait <运行ID>` 继续等，结果原样交回流程。不要自己替它审稿。
+- 不要在 Antigravity 里再调用 `agy` 或 `.story/models/run-narrative-writer.sh`（及旧 `.claude/models/run-narrative-writer.sh`）：那是 Claude Code 宿主把写手转给 Gemini 的转发器，在这里调用会自己调用自己。在 Antigravity 里，正文由主会话或 `narrative-writer` 子代理直接写。
+- 项目启用了模型分工里的“去 AI 味审查”（`.story/models/config.json` 或旧 `.claude/models/config.json` 中 `deslop.enabled` 为 true）时，由主会话按 `chapter_candidate.py next` 给出的 `run-deslop --run <候选目录>` 命令运行（底层调用 `.story/models/run-deslop-review.py`）交给方舟审查模型并自动登记回执；输出 `RUNNING <运行ID>` 时加 `--wait-run <运行ID>` 继续等。不要自己替它审稿。
 
 ## 和作者沟通
 

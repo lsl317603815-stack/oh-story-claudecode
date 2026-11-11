@@ -9,12 +9,12 @@
     "enabled": false,
     "provider": "ark",
     "model": "doubao-seed-2-1-pro-260915",
-    "effort": "high"
+    "effort": "medium"
   },
   "reader": {
     "enabled": false,
     "default_lane": "opus",
-    "full_prior_chapters": 10,
+    "full_prior_chapters": 3,
     "book_title": "",
     "tags": [],
     "platform": "",

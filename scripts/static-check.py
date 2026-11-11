@@ -65,6 +65,7 @@ DEPLOYED_RUNTIME_PREFIXES = (
     ".trae/",
     ".codebuddy/",
     ".agents/",
+    ".story/",
 )
 # browser-cdp is the repository's explicit infrastructure skill.  Business
 # skills may reference its launcher; every other cross-skill file path remains

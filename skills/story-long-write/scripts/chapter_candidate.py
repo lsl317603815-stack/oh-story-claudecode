@@ -41,7 +41,7 @@ OPEN_STATUSES = {"draft", "approved", "promoted"}
 REVIEW_KINDS = ("deslop", "consistency")
 REVIEW_LABELS = {"deslop": "去味审查", "consistency": "一致性审查"}
 REVIEW_AGENTS = {"deslop": "narrative-writer", "consistency": "consistency-checker"}
-MODEL_ROUTING_RELATIVE = ".claude/models/config.json"
+MODEL_ROUTING_DIRS = (".story/models", ".claude/models")
 SEVERITIES = ("S1", "S2", "S3", "S4")
 BLOCKING_SEVERITIES = {"S1", "S2"}
 VERDICTS = ("PASS", "CONCERNS", "REJECT")
@@ -413,16 +413,26 @@ def lineage_index(data: dict[str, Any], sha: str | None) -> int | None:
 
 
 def model_routing(project: Path) -> dict[str, Any]:
-    """可选的模型分工配置（story-setup 部署）：从书项目根向上找最近的 .claude/models/config.json。"""
+    """可选的模型分工配置（story-setup 部署）：优先找 .story/models/config.json，回退 .claude/models/config.json。"""
     for base in (project, *project.parents[:2]):
-        path = base / MODEL_ROUTING_RELATIVE
-        if path.is_file():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return {}
-            return data if isinstance(data, dict) else {}
+        for rel_dir in MODEL_ROUTING_DIRS:
+            path = base / rel_dir / "config.json"
+            if path.is_file():
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    return {}
+                return data if isinstance(data, dict) else {}
     return {}
+
+
+def find_model_script(project: Path, script_name: str) -> Path | None:
+    for base in (project, *project.parents[:2]):
+        for rel_dir in MODEL_ROUTING_DIRS:
+            candidate = base / rel_dir / script_name
+            if candidate.is_file():
+                return candidate
+    return None
 
 
 def routing_enabled(project: Path, role: str) -> bool:
@@ -1102,7 +1112,7 @@ def packet_prompt(kind: str, packet: dict[str, Any]) -> str:
             "禁止：写 候选稿本体、正文/、追踪/ 下任何其他文件，或新增细纲没有的剧情。\n"
             "删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色"
             "（删除受比例上限与字数下限约束，跌破下限改降AI重写）。\n"
-            "必须检查：先否定再肯定的翻转句式（含跨段‘不是A/也不是B/只是C’）；对话里的‘至于X不X，怎么X’和同动词"
+            "必须检查：跨段连续否定排比（如跨段‘不是A / 也不是B / 只是C’）或同章反复成口癖的翻转句（单句偶发的‘不是A，而是B’语料已退役，有语义功能时保留）；对话里的‘至于X不X，怎么X’和同动词"
             "‘不V A，不V B’工整清单；正文是否把细纲多个字段里重复的同一要求逐项复述；作者解释总结/意义尾巴；"
             "成片堆叠的比喻；连续的精致戏剧反应（头皮发紧/眼皮一跳/心口一沉/胃里翻涌），跨章复读的同一生理反应词；"
             "场内载体（手机/屏幕/公告/物证）保留为角色看到的文本；任务卡点只在能卡出信息/关系/代价/选择/伏笔变化时使用。\n"
@@ -1122,11 +1132,14 @@ def packet_prompt(kind: str, packet: dict[str, Any]) -> str:
     )
 
 
-def cmd_review_packet(args: argparse.Namespace) -> int:
-    project, manifest_path, data = load_run(args.run)
-    require_gated_draft(data, "review-packet")
+def _issue_review_packet(
+    project: Path,
+    manifest_path: Path,
+    data: dict[str, Any],
+    kind: str,
+    requested_scope: str | None,
+) -> dict[str, Any]:
     run = manifest_path.parent
-    kind = args.kind
     require_fresh(project, data)
     candidate = project / data["candidate"]
     current_sha = record_lineage(run, data, candidate, "edit")
@@ -1139,7 +1152,7 @@ def cmd_review_packet(args: argparse.Namespace) -> int:
         if problem:
             atomic_write_json(manifest_path, data)
             raise CandidateError(f"一致性审查要在去味审查之后：{problem}")
-    scope = args.scope or ("full" if kind == "consistency" or requires_full_deslop(data) else "lean")
+    scope = requested_scope or ("full" if kind == "consistency" or requires_full_deslop(data) else "lean")
     if kind == "consistency" and scope != "full":
         raise CandidateError("一致性审查总是全文")
     if scope == "lean" and requires_full_deslop(data):
@@ -1179,6 +1192,13 @@ def cmd_review_packet(args: argparse.Namespace) -> int:
         "issued_at": packet["issued_at"],
     }
     atomic_write_json(manifest_path, data)
+    return packet
+
+
+def cmd_review_packet(args: argparse.Namespace) -> int:
+    project, manifest_path, data = load_run(args.run)
+    require_gated_draft(data, "review-packet")
+    packet = _issue_review_packet(project, manifest_path, data, args.kind, args.scope)
     emit_json(packet)
     return 0
 
@@ -1274,11 +1294,14 @@ def validate_report(
     return normalized
 
 
-def cmd_attest(args: argparse.Namespace) -> int:
-    project, manifest_path, data = load_run(args.run)
-    require_gated_draft(data, "attest")
+def _attest_report(
+    project: Path,
+    manifest_path: Path,
+    data: dict[str, Any],
+    kind: str,
+    report_path: Path,
+) -> int:
     run = manifest_path.parent
-    kind = args.kind
     packet = data.get("packets", {}).get(kind)
     if not packet:
         raise CandidateError(f"没有未回执的{REVIEW_LABELS[kind]}审查包；先运行 review-packet --kind {kind}")
@@ -1286,7 +1309,7 @@ def cmd_attest(args: argparse.Namespace) -> int:
     current_sha = sha256_file(candidate)
     if current_sha != packet["candidate_sha256"]:
         raise CandidateError("候选稿在发出审查包后被改动；审查结论已不对应当前稿，重新发审查包")
-    report_path = Path(args.report).expanduser().resolve()
+    report_path = report_path.expanduser().resolve()
     report = parse_report(report_path)
     reviewed_text = lineage_text(run, current_sha) or candidate.read_text(encoding="utf-8")
     findings = validate_report(project, kind, packet, report, reviewed_text)
@@ -1343,6 +1366,93 @@ def cmd_attest(args: argparse.Namespace) -> int:
     if report["verdict"] == "REJECT" or receipt.get("open_blocking"):
         print(f"注意：{REVIEW_LABELS[kind]}结论 {report['verdict']}，接纳前必须按报告处理", file=sys.stderr)
     return 0
+
+
+def cmd_attest(args: argparse.Namespace) -> int:
+    project, manifest_path, data = load_run(args.run)
+    require_gated_draft(data, "attest")
+    return _attest_report(project, manifest_path, data, args.kind, Path(args.report))
+
+
+def cmd_run_deslop(args: argparse.Namespace) -> int:
+    project, manifest_path, data = load_run(args.run)
+    require_gated_draft(data, "run-deslop")
+    require_fresh(project, data)
+    run = manifest_path.parent
+    script = find_model_script(project, "run-deslop-review.py")
+    if script is None:
+        raise CandidateError("找不到 run-deslop-review.py（请先通过 story-setup 启用 deslop 模型分工，或使用 review-packet + attest）")
+    candidate = project / data["candidate"]
+    current_sha = record_lineage(run, data, candidate, "edit")
+    gate = data.get("gate_run") or {}
+    if gate.get("candidate_sha256") != current_sha or gate.get("status") != "pass":
+        atomic_write_json(manifest_path, data)
+        raise CandidateError("当前候选稿还没有通过确定性门禁；先运行 check（必要时 fix）再运行 run-deslop")
+
+    existing_packet = data.get("packets", {}).get("deslop")
+    wait_id = (args.wait_run or "").strip() or (
+        existing_packet.get("pending_run_id")
+        if isinstance(existing_packet, dict) and existing_packet.get("candidate_sha256") == current_sha
+        else None
+    )
+    reviews = run / "reviews"
+    packet_file = reviews / "deslop.packet.json"
+    work_file = reviews / "deslop" / "candidate.md"
+
+    if wait_id:
+        if not isinstance(existing_packet, dict) or existing_packet.get("candidate_sha256") != current_sha:
+            raise CandidateError("候选稿在等待去味审查期间已被修改；请重新运行不带 --wait-run 的 run-deslop")
+        proc = subprocess.run(
+            [sys.executable, str(script), "wait", str(wait_id)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    else:
+        reuse = (
+            isinstance(existing_packet, dict)
+            and existing_packet.get("candidate_sha256") == current_sha
+            and (args.scope is None or existing_packet.get("scope") == args.scope)
+            and packet_file.is_file()
+            and work_file.is_file()
+            and sha256_file(work_file) == current_sha
+        )
+        packet = load_json(packet_file, "去味审查包") if reuse else _issue_review_packet(
+            project, manifest_path, data, "deslop", args.scope
+        )
+        task_path = reviews / "deslop.task.md"
+        atomic_write_bytes(task_path, str(packet["prompt"]).encode("utf-8"))
+        proc = subprocess.run(
+            [sys.executable, str(script), "start", str(task_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+
+    if proc.returncode == 75:
+        match = re.search(r"RUNNING\s+(\S+)", proc.stdout or "")
+        run_id = match.group(1) if match else (wait_id or "")
+        if run_id and "deslop" in data.get("packets", {}):
+            data["packets"]["deslop"]["pending_run_id"] = run_id
+            atomic_write_json(manifest_path, data)
+        emit_json(
+            {
+                "status": "running",
+                "run_id": run_id,
+                "next_command": f'chapter_candidate.py run-deslop --run "{run}" --wait-run {run_id}',
+            }
+        )
+        return 75
+
+    if proc.returncode != 0:
+        detail = "\n".join(part.strip() for part in (proc.stdout, proc.stderr) if part and part.strip())
+        raise CandidateError(f"外调去味审查失败（退出码 {proc.returncode}）：{detail}")
+
+    if "deslop" in data.get("packets", {}):
+        data["packets"]["deslop"].pop("pending_run_id", None)
+    raw_report = reviews / "deslop.raw-output.md"
+    atomic_write_bytes(raw_report, (proc.stdout or "").encode("utf-8"))
+    return _attest_report(project, manifest_path, data, "deslop", raw_report)
 
 
 def cmd_waive(args: argparse.Namespace) -> int:
@@ -1903,14 +2013,43 @@ def next_step(project: Path) -> dict[str, Any]:
         if not problem:
             continue
         packet = packets.get(kind)
+        deslop_runner = (
+            find_model_script(project, "run-deslop-review.py")
+            if kind == "deslop" and routing_enabled(project, "deslop")
+            else None
+        )
         if packet and packet.get("candidate_sha256") == current_sha:
+            if deslop_runner is not None and packet.get("pending_run_id"):
+                pending_id = packet["pending_run_id"]
+                return {
+                    **base,
+                    "step": "attest",
+                    "kind": kind,
+                    "commands": [f'{tool} run-deslop --run "{run}" --wait-run {pending_id}'],
+                    "why": f"审查运行中（{pending_id}）：继续等待 {packet.get('agent') or review_agent(project, kind)} 完成并自动登记回执。",
+                }
             report = run / "reviews" / f"{kind}.report.json"
+            attest_cmds = [f'{tool} attest --run "{run}" --kind {kind} --report "{report}"']
+            if deslop_runner is not None:
+                attest_cmds.append(f'{tool} run-deslop --run "{run}"')
             return {
                 **base,
                 "step": "attest",
                 "kind": kind,
-                "commands": [f'{tool} attest --run "{run}" --kind {kind} --report "{report}"'],
+                "commands": attest_cmds,
                 "why": f"审查包已发出：把 {packet.get('agent') or review_agent(project, kind)} 的回复原样存到 {report.name} 后登记回执。",
+            }
+        if deslop_runner is not None:
+            return {
+                **base,
+                "step": "review",
+                "kind": kind,
+                "agent": review_agent(project, kind),
+                "commands": [
+                    f'{tool} run-deslop --run "{run}"',
+                    f'{tool} review-packet --run "{run}" --kind {kind}',
+                ],
+                "why": f"{problem}。可直接运行 run-deslop 一键发包、调用方舟审查并自动登记回执（或发审查包交给 {review_agent(project, kind)}）。",
             }
         return {
             **base,
@@ -1951,8 +2090,7 @@ def reader_review_hint(project: Path, chapter: int, current_sha: str) -> tuple[l
         fresh = False
     if fresh:
         return [], f"读者审读结果见 读者审读/第{chapter:03d}章.md，展示时附上追读分与要点。"
-    script = next((base / ".claude" / "models" / "run-reader-review.py" for base in (project, *project.parents[:2])
-                   if (base / ".claude" / "models" / "run-reader-review.py").is_file()), None)
+    script = find_model_script(project, "run-reader-review.py")
     if script is None:
         return [], ""
     return [f'{{PYTHON}} "{script}" start {chapter}  # 读者审读（建议性，入口 /story-review reader）：单车道默认 opus；作者要多视角时先 lanes 列车道让作者选，再 panel {chapter} --readers 车道1,车道2'], (
@@ -2008,6 +2146,12 @@ def build_parser() -> argparse.ArgumentParser:
     attest.add_argument("--kind", choices=REVIEW_KINDS, required=True)
     attest.add_argument("--report", required=True)
     attest.set_defaults(func=cmd_attest)
+
+    run_deslop = sub.add_parser("run-deslop", help="自动签发去味审查包、调用 .story/models/run-deslop-review.py 并登记回执")
+    run_deslop.add_argument("--run", required=True)
+    run_deslop.add_argument("--scope", choices=REVIEW_SCOPES)
+    run_deslop.add_argument("--wait-run", help="续等上一次返回 RUNNING 的运行 ID")
+    run_deslop.set_defaults(func=cmd_run_deslop)
 
     waive = sub.add_parser("waive", help="review 模式下经作者确认豁免一道启发式门禁的误报")
     waive.add_argument("--run", required=True)
