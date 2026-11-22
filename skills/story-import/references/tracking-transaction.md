@@ -166,7 +166,7 @@ Markdown 只负责给作者和 Agent 阅读，工具不再反向解析 Markdown�
 - `commit` 事务里所有超长字段一次报全，并换算成「现 N 字、上限约 M 字、至少删 K 字」；逐章记录超过 4096 字节时列出最长几项。一次改完再提交。含义明确的写法照收：纯数字字符串章号（`"12"`）、`action` 同义词（add/new/update→upsert，remove/删除→delete；resolve/回收 缺省补 `status=已回收`，advance/推进 补 `已埋`，与 status 矛盾则拒绝）、少数同义字段名（如 `planned_chapter`、`time`），以及快照单句字段写成列表、列表字段只写一句。
 - `context` 的允许字段随子命令不同：`init` 收 `position`、`long_term_constraints`、`active_character_names`、`continuity_risks`、`recent_chapters`、`next_chapter_commitments` 六项；`commit` 只收前四项。`recent_chapters` 与 `next_chapter_commitments` 在 commit 时由工具从当前视图和本章 `delta` 派生，手填会在任何写入前被拒（`context contains unsupported fields: ...`，exit 2）。照 init 示例套 commit 事务是最容易踩的一处。
 - `character_snapshots` 中出现的角色视为核心复用角色，必须同时出现在 `character_changes`；已经建立快照的核心角色再次变化时必须提交新快照。对已有快照的核心角色，快照对象支持 `"action": "patch"`（增量合并：仅填写本章变化的字段如 `state`、`location`、`knowledge`，未填写字段自动继承库内当前值；若 `location` 或 `abilities_resources` 变化仍受下方跨章连续性守卫约束）。
-- 角色快照的四个列表不限制条数，只限制单项长度和最终文件总字节：目标 ≤4096 字节，超过警告；硬上限 8192 字节，超过则在任何写入前拒绝。
+- 角色快照的四个列表不限制条数，只限制单项长度和最终文件总字节：单项 ≤600 字节（约 200 字）；目标 ≤16384 字节，超过只警告；硬上限 65536 字节（64 KiB，约 2.15 万字），超过则在任何写入前拒绝并给出「现 N 字、上限约 M 字、至少精简 K 字」。快照是按需读取的冷视图，不占 `上下文.md` 的 12288 字节热预算。
 - 没有快照的角色变化视为临时角色，不建立状态文件；`context.active_character_names` 是下一章的活跃角色，不是核心角色总数或主角数：最多 20 人且必须已有当前快照，只列下一章出场或被直接牵动的核心角色，其余核心角色保留快照，需要时读 `追踪/角色状态/{名}.md`。
 - `context.long_term_constraints` 和 `context.continuity_risks` 是整份提交的当前值。凡是上一版有、本次没有的条目，必须逐条列进 `delta.retired_context_items`，否则工具在任何写入前拒绝——漏写不会被当成删除。实际退役的条目由工具写进本章逐章记录的 `## 本章退役登记`，随后仍可回查；之后修订这一章时工具会把这份登记原样带过来。仍留在 context 里的条目不能同时列进 `retired_context_items`。
 ### 跨章连续性守卫（位置 / 持有物）

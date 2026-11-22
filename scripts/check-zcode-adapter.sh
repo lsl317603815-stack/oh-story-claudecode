@@ -180,11 +180,13 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-allowed = {'name', 'description', 'model', 'tools', 'disallowedTools', 'maxTurns'}
+# injectAgentsMd: false — ZCode 3.7+ 默认把 AGENTS.md 注入子代理，角色只需各自的 prompt（上游 #528）
+allowed = {'name', 'description', 'model', 'tools', 'disallowedTools', 'maxTurns', 'injectAgentsMd'}
 for path in files:
     meta, body = module.parse_frontmatter(path.read_text(encoding='utf-8'))
     assert set(meta) <= allowed, (path, set(meta) - allowed)
     assert {'name', 'description', 'model', 'tools', 'maxTurns'} <= set(meta), path
+    assert meta.get('injectAgentsMd') == 'false', path
     assert meta['name'] == path.stem
     assert meta['model'] == 'inherit'
     assert module.parse_tool_list(meta['tools'], 'tools'), path

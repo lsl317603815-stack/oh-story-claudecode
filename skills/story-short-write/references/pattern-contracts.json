@@ -37,7 +37,8 @@
       "overcompressed-prose-tic",
       "low-connective-density-tic",
       "quote-emphasis-tic",
-      "sensory-subject-mismatch"
+      "sensory-subject-mismatch",
+      "ellipsis-density-tic"
     ],
     "regenerate": "仓外语料池 网文/_P3/build_p3_tables.py --repo <仓根>；重验证与升版由作者拍板"
   },

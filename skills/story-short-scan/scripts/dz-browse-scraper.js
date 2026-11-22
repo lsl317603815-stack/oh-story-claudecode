@@ -88,17 +88,40 @@ function buildStoriesJS() {
       for(var j=0;j<6;j++){ if(el.parentElement){el=el.parentElement; if((el.innerText||'').indexOf('字')>-1)break;} }
       var card=(el.innerText||'').replace(/\\s+/g,' ');
       var tail=(desc&&card.indexOf(desc)>-1)?card.slice(card.indexOf(desc)+desc.length):card;
-      var meta=tail.match(/([^·]{1,20}?)\\s*·\\s*([^·]{1,20}?)\\s*·\\s*(完结|完本|连载)\\s*·\\s*([0-9]+)\\s*字/);
+      var meta=tail.match(/([^·]{1,20}?)\\s*·\\s*([^·]{1,20}?)\\s*·\\s*(完结|完本|连载(?:中)?)\\s*·\\s*([0-9]+(?:\\.[0-9]+)?\\s*万?)\\s*字/);
       var author=meta?meta[1].trim():'';
       var tag=meta?meta[2].trim():'';
       var status=meta?meta[3]:'';
-      var words=meta?meta[4]+'字':'';
+      var words=meta?meta[4].replace(/\\s+/g,'')+'字':'';
       var um=card.match(/最新章节[:：\\s]*([^·]{1,40})/);
       var update=um?um[1].trim():'';
       out.push({rank:out.length+1,bookId:id,title:title,score:score,author:author,tag:tag,status:status,words:words,update:update,desc:desc.slice(0,200),url:'https://www.ishugui.com/book/'+id});
     });
     return out;
   })())`;
+}
+
+const MAX_SHORT_WORDS = 50000;
+
+function parseDzWords(words) {
+  const m = String(words || "").trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(万)?字$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  if (!Number.isFinite(num)) return null;
+  return m[2] ? Math.round(num * 10000) : Math.round(num);
+}
+
+function filterShortStories(rawStories) {
+  const list = Array.isArray(rawStories) ? rawStories : [];
+  const shortOnly = list.filter((s) => {
+    const n = parseDzWords(s && s.words);
+    return n === null || n <= MAX_SHORT_WORDS;
+  });
+  // 若整页都是长篇（例如站点改了入口分类），保留原列表但如实计长篇数，避免静默变 0 条无法排查
+  if (!shortOnly.length && list.length) {
+    return { stories: list, filteredLong: 0, allLongWarning: list.length };
+  }
+  return { stories: shortOnly, filteredLong: list.length - shortOnly.length, allLongWarning: 0 };
 }
 
 function extractStories(port) {
@@ -122,6 +145,8 @@ function scrapeChannel(port, channelId) {
   console.log(`\n→ 采集 点众${ch.label}短篇...`);
 
   let stories;
+  let filteredLong = 0;
+  let allLongWarning = 0;
   try {
     ab(port, "open", ch.url);
     sleep(3000);
@@ -152,7 +177,11 @@ function scrapeChannel(port, channelId) {
     scrollLoad(port, 8);
     sleep(1000);
 
-    stories = extractStories(port);
+    const rawStories = extractStories(port);
+    const filtered = filterShortStories(rawStories);
+    stories = filtered.stories;
+    filteredLong = filtered.filteredLong;
+    allLongWarning = filtered.allLongWarning;
   } catch (err) {
     console.error(`[dz] ${ch.label} 页面加载或提取出错: ${err.message}`);
     return null;
@@ -174,6 +203,10 @@ function scrapeChannel(port, channelId) {
     console.error(`  ⚠ 书名解析率偏低（${titled}/${stories.length}），结果质量已标注。`);
   }
 
+  const now = new Date().toISOString();
+  const extraMeta = [];
+  if (filteredLong > 0) extraMeta.push(`- 已过滤长篇连载（>5万字）：${filteredLong} 条`);
+  if (allLongWarning > 0) extraMeta.push(`- 篇幅提示：当前页 ${allLongWarning} 条均超过 5 万字，疑似混入长篇书库`);
   const lines = [
     `# 点众 · ${ch.label}短篇`,
     "",
@@ -182,6 +215,7 @@ function scrapeChannel(port, channelId) {
     `- 报告日期（本地）：${RUN_CLOCK.localDate}`,
     `- 条目数：${stories.length}`,
     `- 书名解析：${titled} / ${stories.length}`,
+    ...extraMeta,
     `- 数据质量：${quality}`,
     "",
     "---",
@@ -233,4 +267,4 @@ if (require.main === module) {
   runCli(main, "点众采集");
 }
 
-module.exports = { buildStoriesJS };
+module.exports = { buildStoriesJS, parseDzWords, filterShortStories };

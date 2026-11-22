@@ -87,7 +87,7 @@ class DeployModelRoutingTests(unittest.TestCase):
             agy_writer = proj / ".agents" / "agents" / "narrative-writer" / "agent.md"
             agy_writer.parent.mkdir(parents=True)
             agy_writer.write_text("---\nsubagent: true\n---\n原生 Antigravity 写手\n", encoding="utf-8")
-            (proj / ".story-deployed").write_text("target_cli: antigravity\nagents_version: 50\n", encoding="utf-8")
+            (proj / ".story-deployed").write_text("target_cli: antigravity\nagents_version: 51\n", encoding="utf-8")
             result = deploy(proj, "deslop,reader")
             self.assertEqual(result["enabled"], ["deslop", "reader"])
             self.assertTrue((proj / ".story" / "models" / "run-deslop-review.py").is_file())

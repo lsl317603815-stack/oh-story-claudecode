@@ -177,6 +177,8 @@ try {
   response = invoke("pre-invocation", { invocationNum: 0 }).value
   assert.ok(Array.isArray(response.injectSteps))
   assert.match(response.injectSteps.map((item) => item.ephemeralMessage).join("\n"), /Active book: 长书/)
+  // agy 2.0: later tool steps of the same turn re-fire PreInvocation; session context is injected once.
+  assert.deepEqual(invoke("pre-invocation", { invocationNum: 0, initialNumSteps: 3 }).value, {})
 
   const git = (args) => spawnSync("git", args, { cwd: fixture, encoding: "utf8" })
   assert.equal(git(["init", "-q"]).status, 0)

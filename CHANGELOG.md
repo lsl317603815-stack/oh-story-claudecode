@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## 未发布
 
+### 吸收原仓库 zenstory-ai v0.10.2–v0.11.0（以本线为底）
+
+- 以真正的 merge 合入原仓库 `4212617d..e5a8b986`（#525–#565，含其 0.10.2–0.10.5 与 0.11.0），下次同步只需看 `e5a8b986` 之后的提交。
+- 未采用：核心运行时迁到零依赖 Node.js 与五端统一 Hook 引擎（#559）、「确定性硬底线 + 有摩擦软门禁」重构与 `review_required` / `--ack` / `--allow-gap`（#563）、灵感库退役（#561）、`aggregate-rank.js`、ClawHub 清单、demo、`docs/` 指南文章与 `.agents/notes`、各技能纯润色段落。本线仍用 Python 追踪与候选章脚本、现有门禁和跨书灵感库。
+- 写作参考与写手（#540、#543、#544、#546）：情绪落地改为四条并列通道并新增反动作代偿判据；默认视角第三人称贴身限知；开篇赌注按题材量级立；对话问号、感叹号按语气使用。
+- 去味与退化检测：章尾「她不知道的是」全知预告并入 trailer-ending；新增 advisory `ellipsis-density-tic`（登记为未验证读感提示）；解释链与引号强调去误报；对白内破折号、「剧情节点」、文中节标题、「全文完」不再误报。
+- 追踪（#549）：角色快照目标 16 KiB、硬上限 64 KiB、单项 600 字节，超限报错给出需要精简的字数。
+- Hooks 与适配器：书目发现跳过 `拆文库/`、`对标/`（#562）；Windows 盘符与 8.3 短路径规范化；Antigravity 每轮只注入一次会话上下文、子代理调用补 `Role`/`Prompt` 与异步回报协议（#527）；OpenCode 2.x 会话上下文注入、shell 重定向写后检测与 `git commit` 暂存区提醒，Reasonix Manifest v2 与真机 CI（#528）。
+- 短篇：自检命令改为 `{skill 根}/scripts/…` 加 `{短篇目录}/正文.md`，不依赖当前目录；点众扫榜过滤超过 5 万字的长篇连载。
+- 工作台：Markdown 表格预览、隐藏目录访问边界修复（#538、#562）。
+- 部署契约升至 `setup_skill_version: 1.11.0` / `agents_version: 51`。
+
 ### 新增 Google Antigravity 宿主
 
 - story-setup 新增目标端 `antigravity`（Google Antigravity IDE 与交互式 `agy`），移植自原仓库 zenstory-ai #377 / #396 并按本线改造：21 个 Skill 物化到 `.agents/skills/`，8 个专业 agent（含 `revision-governor`）由 Claude agent 卡生成到 `.agents/agents/<名>/agent.md`，Always-On Rule `.agents/rules/oh-story.md`，hooks `.agents/hooks.json` 与 `.agents/hooks/`。部署说明在 `story-setup/references/antigravity/deploy.md`。

@@ -2,12 +2,23 @@
 
 ## 当前版本
 
-- `setup_skill_version: 1.10.0`
-- `agents_version: 50`
+- `setup_skill_version: 1.11.0`
+- `agents_version: 51`
 
 > **v0.11.0 合流契约：** 本线 v0.10.x（`agents_version` 至 31）与上游 v0.9.0（`agents_version` 至 39）在此合流。两条线各自用过 v30 / v31，同号不同物（见下方「版本变更」），所以合流版直接取 `40`，高于两条线的全部旧值：任一条线部署过的项目都会被判为待更新并重新部署，不会被误当成「项目比本地 story-setup 新」而拦下。
 
-`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `50`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `50`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+`.story-deployed` 缺失任一字段，或 `agents_version` 缺失 / 非整数 / 小于 `51`，都视为待更新部署。直接重新运行 `/story-setup`（Codex / ZCode 用 `$story-setup`，TRAE / WorkBuddy 项目模式用 `/story-setup`，WorkBuddy plugin-only 用 `/oh-story:story-setup`）；不在运行时逐级兼容历史模板。如项目 `agents_version` 大于 `50`，说明本地 story-setup 比项目旧：先更新 oh-story-claudecode，不得用 v39 之前的版本降级覆盖。历史版本改动见仓库根目录 `CHANGELOG.md`。
+
+## v51（吸收上游 zenstory-ai v0.10.2–v0.11.0 的修复与校准）
+
+- `agents_version` 50 → 51、`setup_skill_version` 1.10.0 → 1.11.0：
+  1. 写作参考与写手：情绪落地改为「直写情绪 / 判断算账 / 台词选择 / 有后果的动作」四条并列通道，新增反动作代偿判据；默认视角改为第三人称贴身限知（第一人称与严苛悬疑仍锁死）；开篇赌注按题材量级立。
+  2. 去味与退化检测：章尾「她不知道的是」类全知预告入 trailer-ending；新增 advisory `ellipsis-density-tic`；解释链、引号强调去误报；对白内破折号不再报；「剧情节点」、文中节标题、「全文完」不再误报。
+  3. 追踪：角色快照目标 16 KiB（只警告）、硬上限 64 KiB、单项 600 字节，超限报错给出「至少精简多少字」。
+  4. Hooks：书目发现跳过 `拆文库/`、`对标/`；Windows 盘符与 8.3 短路径规范化；Antigravity 每轮只在第一步注入会话上下文，子代理调用补 `Role`/`Prompt` 与异步回报协议；OpenCode 2.x 会话首轮注入书目上下文、shell 重定向写正文也做写后检测、`git commit` 附暂存区提醒。
+- 不收上游的 Node.js 运行时迁移与「硬底线 + 软门禁」重构：本线仍用 Python 追踪/候选章脚本与现有门禁。
+
+升级动作：先把本机安装的 oh-story skill 包更新到含本项的版本，再在项目里重新运行 `/story-setup` 并新开会话。
 
 ## v50（吸收上游 v0.10.1、共享资产全量托管、模板与宿主优先级消歧、ZCode Hook 写前闭锁）
 
@@ -259,7 +270,7 @@ canonical 中文主包由 18 个扩为 20 个 Skill：上游的 `story-explore`�
 ## 升级步骤
 
 1. 在项目根目录重新运行 story-setup。
-2. 确认 `.story-deployed` 写入 `agents_version: 50` 与 `setup_skill_version: 1.10.0`。
+2. 确认 `.story-deployed` 写入 `agents_version: 51` 与 `setup_skill_version: 1.11.0`。
 3. 确认目标 CLI 的 agents、hooks/rules 和 reference bundle 都通过安装验证。
 4. 新开会话，使 custom agents 与 hooks 按当前文件重新注册。
 5. **长篇在写项目必做**：检查每本书的 `追踪/_tracking-state.json` 是否存在。不存在就是旧追踪结构，按下方「追踪模型迁移」重建，否则写下一章会被拦。存在的，在两章之间运行一次 `tracking_commit.py render --project {书}`，让派生视图按当前版本重建。

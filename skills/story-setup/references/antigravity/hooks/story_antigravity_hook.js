@@ -170,7 +170,8 @@ function postToolUse() {
 }
 
 function sessionContext() {
-  if (hookInput.invocationNum !== 0) return ""
+  // agy 2.0 每个工具步都会触发 PreInvocation；只在本轮第一步注入一次会话上下文（上游 #527）
+  if (hookInput.invocationNum !== 0 || Number(hookInput.initialNumSteps || 0) > 1) return ""
   const root = projectRoot()
   const messages = []
   const sentinel = path.join(root, ".story-deployed")

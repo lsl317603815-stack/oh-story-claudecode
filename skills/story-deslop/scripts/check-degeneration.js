@@ -57,7 +57,8 @@ const PLACEHOLDER_PATTERNS = [
 // 在 101 个正文文件里各 0 次误报，全部收进来。
 // 唯独字母+数字式的旧伏笔 ID（B8/C5/N5）不收——正文里会撞 R66-7 这类材料牌号
 // （本身还是剧情物证），实测 7 处误报。
-const META_TIER1_RE = /细纲|情节点|卷纲|功能标签|目标情绪|字数目标|字数口径|章首钩子|章尾钩子|这章不能说破|本章禁止提前释放|排纲笔记|排纲底稿|节尾停在哪|结尾承接/;
+// 穿书常见词「剧情节点」不收（上游 v0.11 校准）。
+const META_TIER1_RE = /细纲|(?<!剧)情节点|卷纲|功能标签|目标情绪|字数目标|字数口径|章首钩子|章尾钩子|这章不能说破|本章禁止提前释放|排纲笔记|排纲底稿|节尾停在哪|结尾承接/;
 // 规划记号（剧情单元 ID / 结构字段名 / 压力级标记 / 规划文件路径）单列一条，不并进
 // META_TIER1_RE：四端 parity 靠 test-prose-net-parity.sh 逐字锚定那一串，改散了就绕过锚点。
 const META_PLANNING_MARKER_RE = /内容概括|情节安排|这章怎么演|人物与信息差|写手单|预算合计|结尾设定|阶段位置|结构公式|压力级|爽点类型|章节定位|\bV\d+-U\d+\b|\b[FE]\d{3,}\b|(?:追踪|大纲|设定|拆文库)\/[^\s，。）】」]+\.md/;
@@ -80,6 +81,8 @@ const LANGUAGE_PHRASE_MIN_WORDS = 3;
 const LANGUAGE_PHRASE_MIN_LETTERS = 12;
 const META_CHAPTER_REF_RE = /\b(?:ch|chap|chapter)\.?\s?\d{1,4}\b/i;
 const META_TIER2_RE = /第[一二三四五六七八九十百千万两0-9]+章|本章|这一章|上一章|下一章|上章|下章|前一章|后一章|前文|后文|伏笔|读者|任务描述/;
+const CHAPTER_HEADING_RE = /^第[零〇一二三四五六七八九十百千万两0-9]+[章节回](?:$|[\s_：:——\-]+[^\n。；;]{0,28}$)/;
+const END_SIGNOFF_RE = /^[-—~～＜<【\[（(《\s]*(?:全文完|正文完|全书完|本卷完|完结|完|END|The\s+End)[-—~～＞>】\]）)》.。！!\s]*$/i;
 
 const options = { json: false, files: [], failOn: 'all', language: 'auto', skipLanguageLeak: false };
 
@@ -155,6 +158,7 @@ if (options.json) {
 // 用 exitCode 而不是 process.exit()：macOS 上 stdout 写管道是异步的，立刻退出会截断 --json 输出
 if (failed) process.exitCode = 2;
 // --fail-on=blocking 只在出现 blocking finding 时退出 1（advisory 仅报告）；默认 all 沿用「有任何 finding 即 1」。
+// 用 process.exitCode 而非 process.exit(1)，确保 >64KB JSON 管道输出完整刷出后再退出。
 const hasBlocking = allFindings.some((f) => f.severity === 'blocking');
 if (options.failOn === 'blocking' ? hasBlocking : allFindings.length > 0) process.exitCode ||= 1;
 
@@ -294,11 +298,11 @@ function findRepetition(content) {
 }
 
 function findTruncation(content) {
-  const body = content.filter((c) => isContent(c.trimmed));
+  const body = content.filter((c) => isContent(c.trimmed) && !END_SIGNOFF_RE.test(c.trimmed));
   if (body.length === 0) return [];
   const last = body[body.length - 1];
   // a finished chapter ends on terminal/closing punctuation; otherwise it was cut off.
-  if (/[。.！？!?…”"』」）)】]$/.test(last.trimmed)) return [];
+  if (/[。.！？!?…~”"』」）)】]$/.test(last.trimmed)) return [];
   return [{
     line: last.lineNo,
     column: last.trimmed.length,
@@ -346,6 +350,8 @@ function findMetaLeak(content) {
       // 标题行（第N章 章名，无 ## 前缀时也算）属「标题行以外的正文」之外，排除
       if (/^第[一二三四五六七八九十百千万两0-9]+章/.test(trimmed)) continue;
     }
+    // 独立成行的章/节标题（含短篇文中分节标题，无 ## 前缀时也算）属结构标记，不算正文泄漏
+    if (CHAPTER_HEADING_RE.test(trimmed)) continue;
     const quoteRanges = quotedRanges(trimmed);
     let m = preferUnquotedMatch(findAllMatches(trimmed, META_CHAPTER_REF_RE), quoteRanges);
     if (m) {

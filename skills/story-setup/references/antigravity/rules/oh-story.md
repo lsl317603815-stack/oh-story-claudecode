@@ -34,6 +34,7 @@ trigger: always_on
 ## 专业子代理与 Orchestrator 协调模式
 
 - 子代理只看 `.agents/agents/agent-name/agent.md`（`agent-name` 为子代理名），用 `invoke_subagent` 加同名 `TypeName` 调用。除非作者当轮明确指定其他模型，调用时必须显式传 `Model` 锁定档位，不要省略或传 `inherit`（防止 Orchestrator 执行轮的轻量模型向下继承）：`narrative-writer`、`story-architect`、`character-designer`、`consistency-checker`、`revision-governor`、`story-researcher` 传 `Model: "pro"`；`story-explorer`、`chapter-extractor` 传 `Model: "flash"`。skill 正文里提到的 `.claude/agents/`、`.opencode/agents/`、`.codex/agents/` 是其他宿主的目录，在 Antigravity 里不要拿它们判断是否已部署。
+- `invoke_subagent` 除 `TypeName`、`Model` 外带一句简短 `Role` 和完整 `Prompt`；`Prompt` 里写明要读的具体文件路径，`agy` CLI 里只读子代理没有 `find_by_name`/`grep_search` 时可以直接 `read_file`。`invoke_subagent` 在后台异步运行：派出后结束本轮，等子代理用 `send_message` 回报再做依赖它结果的步骤（提交候选、汇总审查），不要在同一轮里假定结果已到。
 - 运行时不能启动子代理、返回未知 agent 或子代理失败时，按 skill 写明的 solo/direct 降级执行，并在回复里说明降级了。
 - 不要在 Antigravity 里再调用 `agy` 或 `.story/models/run-narrative-writer.sh`（及旧 `.claude/models/run-narrative-writer.sh`）：那是 Claude Code 宿主把写手转给 Gemini 的转发器，在这里调用会自己调用自己。在 `narrative-writer` 子代理可用时，长篇候选章初稿、整章重写、短篇正文及大段润色一律派发 `narrative-writer`（`Model: "pro"`）执笔，禁止主会话（尤其是 Orchestrator 执行轮）直接在主会话代写正文；仅在子代理不可用触发 solo 降级，或作者明确只改零星字句时才由主会话直接改稿。
 - 主会话开启 Orchestrator（规划/执行两阶段）时：纯结构讨论、分支推演、采访拍板（未要求落盘）直接留在规划轮回答；需要写章、补纲或回炉时，规划轮只读核清 `追踪/上下文.md`、细纲/卷纲与情绪节奏意图并写清写手单后交棒，执行轮严格按计划建候选、派子代理、跑门禁和提交追踪，遇到细纲欠字数（`outline_underfilled`）、设定硬冲突（S1/S2）或路线分歧时回交规划轮裁决，不得擅自编剧情硬凑。

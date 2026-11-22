@@ -28,8 +28,10 @@ DELTA_TARGET_BYTES = 2560
 DELTA_MAX_BYTES = 4096
 CONTEXT_TARGET_BYTES = 8192
 CONTEXT_MAX_BYTES = 12288
-SNAPSHOT_TARGET_BYTES = 4096
-SNAPSHOT_MAX_BYTES = 8192
+# 角色快照是按需读取的冷视图（不进 上下文.md 热预算）；单文件上限对齐各宿主单次无分页 Read 的边界（上游 #549）。
+SNAPSHOT_TARGET_BYTES = 16384
+SNAPSHOT_MAX_BYTES = 65536
+SNAPSHOT_ITEM_MAX_BYTES = 600
 RECENT_SUMMARY_BYTES = 360
 RECAP_BYTES = 900
 RECENT_CHAPTER_WINDOW = 5
@@ -399,11 +401,19 @@ def normalize_snapshot(value: object, label: str) -> dict[str, Any]:
         "goal": clean_text(snapshot.get("goal"), f"{label}.goal", max_bytes=300),
         "state": clean_text(snapshot.get("state"), f"{label}.state", max_bytes=300),
         "abilities_resources": clean_string_list(
-            snapshot.get("abilities_resources", []), f"{label}.abilities_resources"
+            snapshot.get("abilities_resources", []),
+            f"{label}.abilities_resources",
+            item_max_bytes=SNAPSHOT_ITEM_MAX_BYTES,
         ),
-        "relationships": clean_string_list(snapshot.get("relationships", []), f"{label}.relationships"),
-        "knowledge": clean_string_list(snapshot.get("knowledge", []), f"{label}.knowledge"),
-        "open_threads": clean_string_list(snapshot.get("open_threads", []), f"{label}.open_threads"),
+        "relationships": clean_string_list(
+            snapshot.get("relationships", []), f"{label}.relationships", item_max_bytes=SNAPSHOT_ITEM_MAX_BYTES
+        ),
+        "knowledge": clean_string_list(
+            snapshot.get("knowledge", []), f"{label}.knowledge", item_max_bytes=SNAPSHOT_ITEM_MAX_BYTES
+        ),
+        "open_threads": clean_string_list(
+            snapshot.get("open_threads", []), f"{label}.open_threads", item_max_bytes=SNAPSHOT_ITEM_MAX_BYTES
+        ),
     }
 
 
@@ -470,10 +480,23 @@ def render_snapshot(
     lines.extend(section("已知信息", snapshot["knowledge"]))
     lines.extend(section("未结事项", snapshot["open_threads"]))
     payload = "\n".join(lines).rstrip() + "\n"
-    require(
-        byte_size(payload) <= SNAPSHOT_MAX_BYTES,
-        f"character snapshot {name} exceeds hard cap of {SNAPSHOT_MAX_BYTES} bytes",
-    )
+    size = byte_size(payload)
+    if size > SNAPSHOT_MAX_BYTES:
+        allowed = max(1, SNAPSHOT_MAX_BYTES * len(payload) // size)
+        counts = "、".join(
+            f"{title} {len(values)} 项"
+            for title, values in (
+                ("能力与资源", snapshot["abilities_resources"]),
+                ("关键关系", snapshot["relationships"]),
+                ("已知信息", snapshot["knowledge"]),
+                ("未结事项", snapshot["open_threads"]),
+            )
+        )
+        raise TrackingError(
+            f"character snapshot {name} ({size} bytes) exceeds hard cap of {SNAPSHOT_MAX_BYTES} bytes"
+            f"（现 {len(payload)} 字，上限约 {allowed} 字，至少精简 {len(payload) - allowed} 字；"
+            f"当前：{counts}。逐章经过已留在 逐章记录/，快照只保留截至当前章仍有效的状态与条目）"
+        )
     return payload
 
 
@@ -1860,8 +1883,11 @@ def warn_sizes(views: dict[str, str], delta_payload: str | None = None) -> None:
             continue
         size = byte_size(payload)
         if size > SNAPSHOT_TARGET_BYTES:
+            target_chars = max(1, SNAPSHOT_TARGET_BYTES * len(payload) // size)
             emit(
-                f"WARNING: character snapshot {Path(relative).stem} is {size} bytes; target is <= {SNAPSHOT_TARGET_BYTES}",
+                f"WARNING: character snapshot {Path(relative).stem} is {size} bytes; target is <= {SNAPSHOT_TARGET_BYTES}"
+                f"（现 {len(payload)} 字，建议目标约 {target_chars} 字；不影响本次提交，"
+                "后续更新时可将已了结事项或已被新状态取代的旧阶段归并为当前值）",
                 error=True,
             )
 

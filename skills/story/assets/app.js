@@ -186,6 +186,12 @@ function applyEol(content, eol) {
   return !eol || eol === "\n" ? content : content.replaceAll("\n", eol);
 }
 
+function formatEolLabel(eol) {
+  if (eol === "\r\n") return "UTF-8 · CRLF";
+  if (eol === "\r") return "UTF-8 · CR";
+  return "UTF-8 · LF";
+}
+
 function activeEol() {
   return state.activeFile?.eol || "\n";
 }
@@ -1036,7 +1042,7 @@ function deduceViewForPath(filePath) {
 }
 
 async function openFile(path, { force = false } = {}) {
-  if (state.loadingFile || (!force && !confirmDiscard())) return;
+  if (state.loadingFile || state.deleting || (!force && !confirmDiscard())) return;
   state.loadingFile = true;
   syncActionAvailability();
   elements.fileTree.setAttribute("aria-busy", "true");
@@ -1049,6 +1055,9 @@ async function openFile(path, { force = false } = {}) {
     state.originalContent = normalized;
     elements.editorInput.value = normalized;
     elements.editorTitle.textContent = file.name;
+    if (elements.encodingLabel) {
+      elements.encodingLabel.textContent = formatEolLabel(file.eol);
+    }
     renderBreadcrumbs(file.path);
     setDirty(false);
     expandParentDirs(file.path);
@@ -1082,11 +1091,46 @@ function escapeHtml(value) {
 }
 
 function inlineMarkdown(value) {
-  return value
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
+  const codeSpans = [];
+  let placeholderPrefix = "\u0000CODE";
+  while (value.includes(placeholderPrefix)) {
+    placeholderPrefix += "X";
+  }
+  const masked = value.replace(/`([^`]+)`/g, (_, code) => {
+    const index = codeSpans.push(`<code>${code}</code>`) - 1;
+    return `${placeholderPrefix}${index}\u0000`;
+  });
+  const formatted = masked
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+  return codeSpans.reduce(
+    (result, html, index) => result.replace(`${placeholderPrefix}${index}\u0000`, () => html),
+    formatted,
+  );
+}
+
+function markdownTableCells(line) {
+  const cells = [];
+  let cell = "";
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === "\\" && (line[i + 1] === "\\" || line[i + 1] === "|")) {
+      // 成对反斜线不转义后面的列分隔符；\| 在普通文字和代码中都是单元格内容。
+      cell += line[i + 1] === "|" ? "|" : "\\\\";
+      i++;
+    } else if (char === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  if (!cells.length) return null;
+  cells.push(cell.trim());
+  if (!cells[0] && line.trimStart().startsWith("|")) cells.shift();
+  if (!cells.at(-1) && line.trimEnd().endsWith("|")) cells.pop();
+  return cells;
 }
 
 function markdownToSafeHtml(markdown) {
@@ -1144,7 +1188,29 @@ function markdownToSafeHtml(markdown) {
       output.push(`<blockquote data-line="${lineNum}">${inlineMarkdown(line.slice(5))}</blockquote>`);
     } else if (line.trim()) {
       closeList();
-      output.push(`<p data-line="${lineNum}">${inlineMarkdown(line)}</p>`);
+      const header = markdownTableCells(line);
+      const divider = markdownTableCells(lines[i + 1] ?? "");
+      if (header?.length && header.length === divider?.length
+        && divider.every((cell) => /^:?-+:?$/.test(cell))) {
+        const alignments = divider.map((cell) => cell.endsWith(":")
+          ? (cell.startsWith(":") ? "center" : "right") : "left");
+        const tableRow = (cells, tag, sourceLine) => `<tr>${header.map((_, column) =>
+          `<${tag}${tag === "th" ? ' scope="col"' : ""} data-align="${alignments[column]}"${column === 0 ? ` data-line="${sourceLine}"` : ""}>${inlineMarkdown(cells[column] ?? "")}</${tag}>`,
+        ).join("")}</tr>`;
+        output.push(`<div class="preview-table" tabindex="0" role="region" aria-label="表格"><table><thead>${tableRow(header, "th", lineNum)}</thead><tbody>`);
+        i++; // 分隔行只定义列格式，不显示为数据行。
+        while (i + 1 < lines.length) {
+          const nextLine = lines[i + 1];
+          if (/^\s*(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|&gt;\s|```)/.test(nextLine)) break;
+          const cells = markdownTableCells(nextLine);
+          if (!cells?.length) break;
+          i++;
+          output.push(tableRow(cells, "td", i + 1));
+        }
+        output.push("</tbody></table></div>");
+      } else {
+        output.push(`<p data-line="${lineNum}">${inlineMarkdown(line)}</p>`);
+      }
     } else {
       closeList();
     }
@@ -1234,14 +1300,16 @@ async function deleteFile() {
         expectedVersion: file.version,
       }),
     });
-    state.activeFile = null;
-    state.originalContent = "";
-    elements.editorInput.value = "";
-    elements.editorWorkspace.hidden = true;
-    elements.editorEmpty.hidden = false;
-    document.body.classList.remove("document-open");
-    setDirty(false);
-    syncViewState();
+    if (state.activeFile === file) {
+      state.activeFile = null;
+      state.originalContent = "";
+      elements.editorInput.value = "";
+      elements.editorWorkspace.hidden = true;
+      elements.editorEmpty.hidden = false;
+      document.body.classList.remove("document-open");
+      setDirty(false);
+      syncViewState();
+    }
     await loadWorkspace();
     showToast(`已删除《${file.name}》`);
   } catch (error) {

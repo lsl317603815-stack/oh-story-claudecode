@@ -82,48 +82,26 @@ CHROME_PID_COUNT=3
 
 ## 常用操作
 
-### 打开页面并等待加载
-
 ```bash
+# 打开页面并等待加载
 agent-browser --cdp 9222 open "<URL>"
 agent-browser --cdp 9222 wait 3000
-```
 
-### 提取页面文本
-
-```bash
+# 提取页面文本或 Auth Token（实际存储位置按站点确认）
 agent-browser --cdp 9222 eval 'document.body.innerText.substring(0, 8000)'
-```
-
-### 提取 Auth Token
-
-示例读取 localStorage 的 `token` 项或 JavaScript 可读的 Cookie；实际存放位置按站点确认。
-
-```bash
 agent-browser --cdp 9222 eval 'localStorage.getItem("token") || document.cookie'
-```
 
-### 复杂 JS（含引号 / `$` / 反引号）
+# 页面交互（snapshot 拿交互元素引用）
+agent-browser --cdp 9222 snapshot -i
+agent-browser --cdp 9222 click "<CSS or @e1>"
+agent-browser --cdp 9222 type "<sel>" "<text>"
 
-用 base64 或标准输入传入脚本，避免 shell 转义错误：
-
-```bash
-# 1) base64 包裹
+# 复杂 JS（含引号 / $ / 反引号，用 base64 或 --stdin 防转义错误）
 agent-browser --cdp 9222 eval -b "$(echo -n "document.querySelectorAll('a').length" | base64)"
-
-# 2) heredoc + --stdin
 cat <<'EOF' | agent-browser --cdp 9222 eval --stdin
 const links = document.querySelectorAll('a');
 links.length;
 EOF
-```
-
-### 页面交互（snapshot 拿元素引用）
-
-```bash
-agent-browser --cdp 9222 snapshot -i        # 仅交互元素
-agent-browser --cdp 9222 click "<CSS or @e1>"
-agent-browser --cdp 9222 type "<sel>" "<text>"
 ```
 
 ---
@@ -134,7 +112,7 @@ agent-browser --cdp 9222 type "<sel>" "<text>"
   - macOS / Linux：`pgrep -af chrome-debug-profile`
   - Windows（PowerShell）：`Get-CimInstance Win32_Process | Where-Object CommandLine -like '*chrome-debug-profile*' | Select-Object ProcessId,CommandLine`；没有 PowerShell 的旧系统才用 `wmic process get ProcessId,CommandLine | findstr chrome-debug-profile`
   核验 PID 后用 `kill -9 {PID}` / `taskkill /F /PID {PID}`，无法核验则停止。**手工清理不得按 Chrome 可执行文件名批量结束进程**；启动脚本仍走上述同意流程。
-- 登录态失效：用 `node {SKILL_DIR}/scripts/setup-cdp-chrome.js 9222 --reset` 重新复制来源 profile，按上方「需要结束 Chrome 时」先 dry-run、征得同意再加 `--yes`。
+- 登录态失效：用 `node {SKILL_DIR}/scripts/setup-cdp-chrome.js 9222 --reset` 重新复制来源 profile，按上方「需要结束 Chrome 时」先 dry-run、征得同意再加 `--yes`。Chrome 127+（尤其 Windows 应用绑定加密或 macOS 钥匙串授权隔离）下若 `--reset` 后仍未带出 Cookie，请用户在已启动的 debug Chrome 窗口里手动登录一次——后续不传 `--reset` 时 `~/chrome-debug-profile` 会持久保留该登录态。
 
 ---
 
@@ -182,6 +160,6 @@ timeout 30 agent-browser --cdp 9222 eval "window.location.replace('https://www.q
 | CDP 端口未监听 | `--detect-only` 再确认；端口被占用就换端口，下游命令一起改（见「换端口」） |
 | 页面跳转到登录页 | `snapshot -i` 找登录按钮并操作 |
 | `eval` 返回 `null` | 检查 localStorage key 名；含引号的 JS 用 `eval -b` 或 `--stdin` |
-| 登录态过期 | `setup-cdp-chrome.js 9222 --reset`，按同意流程先 dry-run、同意后加 `--yes` |
+| 登录态过期或 `--reset` 后仍掉登录 | 先按同意流程跑 `setup-cdp-chrome.js 9222 --reset`；若因 Chrome 127+ 应用绑定加密仍未带出 Cookie，直接在弹出的 debug Chrome 窗口登录一次（后续不加 `--reset` 会持久保留） |
 | 有多个 Chrome profile | `--profile "Profile 1"` 指定；显式传 `--profile` 会重建，按同意流程 |
 | Chrome 不会启动（30s 超时） | 检查端口冲突；查看 `~/chrome-debug-profile/` 是否损坏；仍不行再按同意流程试 `--reset` |

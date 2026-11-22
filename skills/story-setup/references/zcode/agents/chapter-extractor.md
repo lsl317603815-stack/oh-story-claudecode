@@ -9,6 +9,7 @@ model: inherit
 tools: [Read, Glob, Grep]
 disallowedTools: [Write, Edit, Bash]
 maxTurns: 12
+injectAgentsMd: false
 ---
 
 # Chapter Extractor — 章节提取员

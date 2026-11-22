@@ -317,6 +317,21 @@ try {
     "unchanged"
   );
 
+  // Shell 重定向写正文的写后兜底（上游 #528）：与 write/edit/patch 一样扫落盘后的目标章
+  fs.writeFileSync(
+    "book/正文/第010章_重定向.md",
+    `${"街灯一盏盏亮起。".repeat(30)}\nTODO 此处待补`,
+    "utf8"
+  );
+  const shellAfterOutput = await after(
+    "shell",
+    { command: "cat draft.md > book/正文/第010章_重定向.md" },
+    "shell write complete"
+  );
+  assert.match(shellAfterOutput, /正文兜底检测（book\/正文\/第010章_重定向\.md）/);
+  assert.match(shellAfterOutput, /占位符/);
+  assert.equal(await after("shell", { command: "ls -la" }, "unchanged"), "unchanged");
+
   // 失败的工具调用不做写后兜底：结果原样保留
   const failed = { tool: "write", input: { path: "book/正文/第001章_开局.md" }, status: "error", error: { message: "x" } };
   await hooks.tool["execute.after"](failed);

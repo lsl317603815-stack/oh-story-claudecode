@@ -254,18 +254,27 @@ class TrackingCommitTests(unittest.TestCase):
     def test_snapshot_target_warns_and_hard_cap_rejects_before_any_write(self) -> None:
         self.init()
         warning = transaction(1, character=True)
-        warning["character_snapshots"]["江晨"] = snapshot(items=12, repeat=2)
+        # 16 KiB 以上只警告（快照是按需读取的冷视图，上游 #549 把硬上限放到 64 KiB）
+        warning["character_snapshots"]["江晨"] = snapshot(items=24, repeat=4)
         completed = self.run_tool("commit", warning)
         self.assertIn("WARNING: character snapshot 江晨", completed.stderr)
+        self.assertIn("建议目标约", completed.stderr)
         self.assertEqual(self.read_state()["state_revision"], 1)
 
         rejected = transaction(2, character=True)
-        rejected["character_snapshots"]["江晨"] = snapshot(items=24, repeat=4)
+        rejected["character_snapshots"]["江晨"] = snapshot(items=40, repeat=9)
         before = json.loads(json.dumps(self.read_state(), ensure_ascii=False))
         completed = self.run_tool("commit", rejected, expect=2)
-        self.assertIn("hard cap of 8192 bytes", completed.stderr)
+        self.assertIn("hard cap of 65536 bytes", completed.stderr)
+        self.assertIn("至少精简", completed.stderr)
         self.assertEqual(self.read_state(), before)
         self.assertFalse((self.project / "追踪/逐章记录/第002章.md").exists())
+
+        too_long_item = transaction(2, character=True)
+        too_long_item["character_snapshots"]["江晨"] = snapshot(items=1, repeat=12)
+        completed = self.run_tool("commit", too_long_item, expect=2)
+        self.assertIn("abilities_resources[0]", completed.stderr)
+        self.assertEqual(self.read_state(), before)
 
     def test_missing_active_snapshot_is_rejected_before_any_write(self) -> None:
         self.init()

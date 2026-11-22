@@ -10,7 +10,9 @@ const { spawnSync } = require("node:child_process")
 function existingDir(value) {
   if (typeof value !== "string" || !value.trim()) return null
   try {
-    const resolved = fs.realpathSync(path.resolve(value))
+    // realpathSync.native 会把 Windows 8.3 短路径（RUNNER~1）展开成长路径，和其他路径比较时口径一致。
+    const realpath = typeof fs.realpathSync.native === "function" ? fs.realpathSync.native : fs.realpathSync
+    const resolved = realpath(path.resolve(value))
     return fs.statSync(resolved).isDirectory() ? resolved : null
   } catch {
     return null
@@ -29,7 +31,10 @@ function safeRelative(root, target) {
 
 function resolveTarget(root, target, base = root) {
   const normalized = String(target || "").replace(/\\/g, "/")
-  return path.isAbsolute(normalized) ? path.resolve(normalized) : path.resolve(base || root, normalized)
+  if (path.isAbsolute(normalized)) return path.resolve(normalized)
+  // POSIX 上收到 Windows 盘符路径（C:/...）时不拼到 base 后面
+  if (/^[A-Za-z]:\//.test(normalized)) return "/" + path.win32.normalize(normalized).replace(/\\/g, "/")
+  return path.resolve(base || root, normalized)
 }
 
 function firstLine(file) {
@@ -45,9 +50,13 @@ function isHistoricalCopySegment(value) {
   return name.includes("备份") || name.includes("归档") || /archives?/i.test(name)
 }
 
+// 拆文库/ 与 对标/ 下的拆解样本也有 正文/、追踪/，不是作者的书（上游 #562）。
+const DISCOVERY_EXCLUDED_DIRS = new Set(["node_modules", "拆文库", "对标"])
+
 function isDiscoveryExcludedEntry(entry) {
   return entry.name.startsWith(".")
-    || entry.name === "node_modules"
+    || (entry.name === "node_modules")
+    || (entry.isDirectory() && DISCOVERY_EXCLUDED_DIRS.has(entry.name))
     || (entry.isDirectory() && isHistoricalCopySegment(entry.name))
 }
 
@@ -1304,8 +1313,11 @@ const HARD_PATTERNS = [
   [/�/, "乱码（替换字符）"],
 ]
 
+// 「全文完 / 正文完 / END」类收尾署名不是截断（与 check-degeneration.js END_SIGNOFF_RE 同语义）。
+const TOXIC_END_SIGNOFF = /^[-—~～＜<【\[（(《\s]*(?:全文完|正文完|全书完|本卷完|完结|完|END|The\s+End)[-—~～＞>】\]）)》.。！!\s]*$/i
+
 function skippableLine(line) {
-  return !line || line.startsWith("#") || line === "---" || /^[-—=*·•\s]+$/.test(line)
+  return !line || line.startsWith("#") || line === "---" || /^[-—=*·•\s]+$/.test(line) || TOXIC_END_SIGNOFF.test(line)
 }
 
 // ── 毒句式（确定性 AI 句式指纹，写后正文网热路径）─────────────────────────────

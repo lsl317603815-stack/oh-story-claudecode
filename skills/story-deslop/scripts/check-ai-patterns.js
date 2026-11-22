@@ -115,15 +115,17 @@ const METAPHOR_DENSITY_MIN_HITS = 7;
 const METAPHOR_DENSITY_PER_KILO = 3;
 
 // 解释链密度：常见“他知道/他明白/这意味着/必须需要”
-// 连续替读者推理，读感像报告。单个判断词可服务推理；高密度聚集才提示回到角色当下证据。
+// 连续替读者推理，读感像报告。单个判断词或领域名词可服务叙事；只有论文推导词/义务情态链成片出现才报。
+// 顺序固定为 connector → modal → mental → abstract，供同一行去重重叠区间（如“必须在规则惩罚前做出判断”只计 1 次 modal）。
 const REASONING_CHAIN_PATTERNS = [
+  { key: 'connector', core: true, pattern: /这意味着|也就是说|换句话说|真正的问题(?:在于)?|问题在于|关键在于|在这种情况下|按照这个逻辑/g },
+  { key: 'modal', core: true, pattern: /(?:(?<!不)(?:必须|需要|应该|只要|就会|可能|无法)|不能)[^。！？!?\n]{0,16}(?:判断|确认|承担|维持|稳住|控制|扩大|失控|带来|造成|默认|核对|筛选|减少|建立|风险|结果|秩序|责任)/g },
   { key: 'mental', core: true, pattern: /(?<![不没未无])(?:他|她|我)?(?:知道|明白|意识到|清楚|判断|确认|分析)/g },
-  { key: 'connector', core: true, pattern: /这意味着|也就是说|换句话说|真正的问题(?:在于)?|问题在于|关键在于|在这种情况下|按照这个逻辑|只有这样|想到这里/g },
-  { key: 'modal', core: true, pattern: /(?:(?<!不)(?:必须|需要|应该|只要|就会|可能|可以|能够|无法)|不能)[^。！？!?\n]{0,16}(?:判断|确认|承担|维持|稳住|控制|扩大|失控|带来|造成|理解|默认|回家|进门|核对|筛选|减少|建立|风险|结果|秩序|责任)/g },
   { key: 'abstract', core: false, pattern: /(?:任务|条件|风险|来源|逻辑|局面|结果|责任|秩序|规则|信息不足|决策能力)/g },
 ];
 const REASONING_CHAIN_MIN_HITS = 8;
 const REASONING_CHAIN_CORE_MIN_HITS = 4;
+const REASONING_CHAIN_MIN_LINKS = 3;
 const REASONING_CHAIN_MIN_BUCKETS = 2;
 const REASONING_CHAIN_PER_KILO = 18;
 
@@ -247,8 +249,9 @@ const REVERSE_NOT_IS_PREV_EXCLUDE = new Set([...COMPACT_EITHER_OR_PREV, '还', '
 // 正文中段的「没人知道」多为普通叙述，不误伤；引号内台词（「没人知道…」）不计。
 // 「正式拉开序幕/帷幕」是场内事件的报幕式陈述（真人语料「钟声再度响起，比赛正式拉开序幕」），
 // 不是叙述者预告，前置 lookbehind 排除。
+// 「他/她/它(们)不知道的是」是全知旁白跳出视角预告后事；必须带「的是」，「她不知道该说什么」这类普通叙述不计。
 // 校准：真人长篇语料 20 章排除「正式拉开序幕」2 处报幕句后 0 命中，历史回归语料前 20 章 0 命中。
-const TRAILER_ENDING_PATTERN = /没人知道|谁也不知道|谁也没想到|殊不知|(?:这)?才刚刚开(?:始|头)|正(?:朝着|向着)[^。！？!?\n]{0,24}(?:压|涌|袭|逼)(?:了?过去|了?过来|来)|(?<!正式)拉开(?:序幕|帷幕)|即将(?:开始|来临|降临)/g;
+const TRAILER_ENDING_PATTERN = /没人知道|谁也不知道|谁也没想到|[他她它]们?不知道的是|殊不知|(?:这)?才刚刚开(?:始|头)|正(?:朝着|向着)[^。！？!?\n]{0,24}(?:压|涌|袭|逼)(?:了?过去|了?过来|来)|(?<!正式)拉开(?:序幕|帷幕)|即将(?:开始|来临|降临)/g;
 const TRAILER_ENDING_WINDOW_CHARS = 600;
 
 // 章尾状态总结体：把细纲「结尾设定/收束状态」原样写成总结句收章（「这一夜注定无人入眠」
@@ -276,7 +279,13 @@ const TRAILER_SUMMARY_PATTERN = /这一(?:夜|天|刻|战|年|局|役)[，,]?[^�
 // “邀战书”等转述载体，真人也这么写），所以该规则只做 advisory，不升 blocking。
 const QUOTE_EMPHASIS_MIN_HITS = 3;
 const QUOTE_EMPHASIS_MAX_VISIBLE = 4;
-const QUOTE_EMPHASIS_SPEECH_VERB_PATTERN = /[说道问喊答念叫回吼骂写读唱嘀咕]/;
+const QUOTE_EMPHASIS_SPEECH_VERB_PATTERN = /[说道问喊答念叫回吼骂写读唱笑叹应哼嗤啐呸嘀咕]|开口|摇头|点头|出声|冷笑|苦笑|轻声|低声|沉声/;
+
+// 叙述旁白省略号密度：真人网文近三分之一章节在自由间接引语和悬念停顿处使用旁白 `……`（番茄 P90 约 3.0/千字），
+// 单处或少量留白正常保留；全章引号与面板外 ≥6 处且 ≥3.5/千字才报 advisory。
+const ELLIPSIS_DENSITY_PATTERN = /…+|\.{3,}|。{3,}/g;
+const ELLIPSIS_DENSITY_MIN_HITS = 6;
+const ELLIPSIS_DENSITY_PER_KILO = 3.5;
 
 // ---- 语料验证规则表（2026-10-06，规则表 v1）----
 // 规则去留来自 references/pattern-contracts.json 的 surface_rules（P2 语料统计＋作者拍板），
@@ -511,7 +520,7 @@ function scanDocument(input, ctx = {}, unclosedOpenings = new Set()) {
   return findings;
 }
 
-// 段落级检测：碎句号（连续短叙述句）、长段落、破折号（按功能改写，非机械替换）。
+// 段落级检测：碎句号（连续短叙述句）、长段落、旁白破折号（按功能改写，对白引号与面板内豁免）。
 function scanProsePatterns(proseLines) {
   const findings = [];
 
@@ -519,9 +528,10 @@ function scanProsePatterns(proseLines) {
     const trimmed = text.trim();
     if (!trimmed || isDivider(trimmed) || isStructural(trimmed)) continue;
 
+    const dashScanText = maskQuotedWithUnclosed(text);
     const dashPattern = /——|—|--+/g;
     let dash;
-    while ((dash = dashPattern.exec(text)) !== null) {
+    while ((dash = dashPattern.exec(dashScanText)) !== null) {
       findings.push({
         line: lineNo,
         column: dash.index + 1,
@@ -562,11 +572,11 @@ function scanProsePatterns(proseLines) {
   findings.push(...findOvercompressedProseTic(proseLines));
   findings.push(...findLowConnectiveDensityTic(proseLines));
   findings.push(...computeDialogueDensity(proseLines));
+  findings.push(...findEllipsisDensityTic(proseLines));
   return findings;
 }
 
-// 音量反差腔（实战漏网 A）：引号外叙述逐处 blocking，位置与摘录取自原文
-// （maskQuoted 等长占位保偏移；命中片段不含问号占位符，故不会落进占位区）。
+// 音量反差腔（实战漏网 A）：引号外叙述逐处命中，去留与告警由规则表决定（位置与摘录取自原文）。
 function findVoiceContrast(proseLines) {
   const findings = [];
 
@@ -582,7 +592,7 @@ function findVoiceContrast(proseLines) {
         column: match.index + 1,
         type: 'voice-contrast',
         severity: 'blocking',
-        message: '音量反差腔：「声音不大/不高…却/但…」是 AI 高频反差模板；删掉音量铺垫，直接写声音落进场子的具体效果（谁停了手、哪排安静了）。',
+        message: '音量反差腔：「声音不大/不高…却/但…」是 AI 高频反差模板；删掉音量铺垫，直接写台词分量、利害后果或在场者的立场反应。',
         excerpt: compact(text.slice(match.index, match.index + match[0].length)),
       });
     }
@@ -835,7 +845,7 @@ function findTrailerEnding(proseLines) {
         column: match.index + 1,
         type: 'trailer-ending',
         severity: 'blocking',
-        message: '预告式总结收尾：「没人知道/才刚刚开始/正朝着…压了过去」是 AI 章尾预告腔；结尾停在具体动作、画面或一句台词上，悬念让事件自己挂住，别替读者预告下一章。',
+        message: '预告式总结收尾：「没人知道/才刚刚开始/正朝着…压了过去」是 AI 章尾预告腔；结尾停在具体决定、动作、画面或一句台词上，悬念让事件自己挂住，别替读者预告下一章。',
         excerpt: compact(text.slice(match.index, match.index + match[0].length)),
       });
     }
@@ -878,10 +888,11 @@ function findQuoteEmphasisTic(proseLines) {
       const inner = text.slice(start + 1, end - 1);
       const visible = visibleLength(inner);
       if (visible < 1 || visible > QUOTE_EMPHASIS_MAX_VISIBLE) continue;
-      if (/[。！？!?…，,；;：:]/.test(inner)) continue; // 含句读的是台词/播报，不是强调
-      const before = text.slice(Math.max(0, start - 6), start);
-      const after = text.slice(end, end + 3);
+      if (/[。！？!?…，,；;：:—]|\.{2,}/.test(inner)) continue; // 含句读/省略/破折的是台词或播报，不是强调
+      const before = text.slice(Math.max(0, start - 8), start);
+      const after = text.slice(end, end + 6);
       if (QUOTE_EMPHASIS_SPEECH_VERB_PATTERN.test(before) || QUOTE_EMPHASIS_SPEECH_VERB_PATTERN.test(after)) continue; // 引语动词邻接=极短台词
+      if (/^(?:的|地)?一?[声下响]/.test(after)) continue; // 「“唰”的一声」类拟声词不是强调滥用
       hits += 1;
       if (firstLine === null) firstLine = lineNo;
       if (samples.length < 6 && !samples.includes(inner)) samples.push(inner);
@@ -895,7 +906,7 @@ function findQuoteEmphasisTic(proseLines) {
     column: 1,
     type: 'quote-emphasis-tic',
     severity: 'advisory',
-    message: `引号强调滥用：叙述里 1-4 字短词加引号强调 ${hits} 处；只留真正反讽/转述必要的一两处，其余去掉引号直接写，或换成具体动作让读者自己品。`,
+    message: `引号强调滥用：叙述里 1-4 字短词加引号强调 ${hits} 处；只留真正反讽/转述必要的一两处，其余去掉引号直写原意，或把话里的反讽直接点明。`,
     excerpt: compact(samples.join(' ')),
   }];
 }
@@ -1003,7 +1014,7 @@ function findClicheDensityTic(proseLines) {
     column: 1,
     type: 'cliche-density-tic',
     severity: 'advisory',
-    message: `套词密度过高：高危 AI 套词 ${hits} 处（${perKilo.toFixed(1)}/千字）；不要同义词轮换，改成角色当下可见的动作、物件、对话和具体后果。`,
+    message: `套词密度过高：高危 AI 套词 ${hits} 处（${perKilo.toFixed(1)}/千字）；不要同义词轮换，直接删或改成直白情绪、角色利害判断、对话或具体后果，别硬塞手眼小动作。`,
     excerpt: compact(samples.join(' ')),
   }];
 }
@@ -1051,16 +1062,17 @@ function findMetaphorDensityTic(proseLines) {
     column: 1,
     type: 'metaphor-density-tic',
     severity: 'advisory',
-    message: `比喻密度过高：像/好像/仿佛/如同等比喻标记 ${hits} 处（${perKilo.toFixed(1)}/千字）；保留最有叙事功能的少数比喻，其余回到具体动作、物件、声音或后果，不要换成新比喻。`,
+    message: `比喻密度过高：像/好像/仿佛/如同等比喻标记 ${hits} 处（${perKilo.toFixed(1)}/千字）；保留最有叙事功能的少数比喻，其余回到直白情绪、角色判断、对话或具体后果，不要换成新比喻或小动作。`,
     excerpt: compact(samples.join(' | ')),
   }];
 }
 
-// 解释链密度：统计引号外叙述中“知道/明白/这意味着/必须需要”等判断链。
-// 全篇只报一条；修法不是补结构虚词，而是把判断落到动作、物件、对话和现场反馈。
+// 解释链密度：统计引号外叙述中“知道/明白/这意味着/必须需要”等论文式推导链。
+// 角色正常算利害、讲因果保留；同一行内去重重叠区间，且至少出现 3 处连接词/情态推导链才报。
 function findReasoningChainTic(proseLines) {
   let hits = 0;
   let coreHits = 0;
+  let linkHits = 0;
   let narrativeChars = 0;
   let firstLine = null;
   const samples = [];
@@ -1071,13 +1083,19 @@ function findReasoningChainTic(proseLines) {
     if (!trimmed || isDivider(trimmed) || isStructural(trimmed)) continue;
     const narrative = stripQuoted(trimmed);
     narrativeChars += visibleLength(narrative);
+    const acceptedSpans = [];
 
     for (const { pattern, key, core } of REASONING_CHAIN_PATTERNS) {
       pattern.lastIndex = 0;
       let match;
       while ((match = pattern.exec(narrative)) !== null) {
+        const start = match.index;
+        const end = start + match[0].length;
+        if (acceptedSpans.some(([a, b]) => start < b && end > a)) continue;
+        acceptedSpans.push([start, end]);
         hits += 1;
         if (core) coreHits += 1;
+        if (key === 'connector' || key === 'modal') linkHits += 1;
         buckets.add(key);
         if (firstLine === null) firstLine = lineNo;
         const sample = compact(match[0]);
@@ -1088,6 +1106,7 @@ function findReasoningChainTic(proseLines) {
 
   if (narrativeChars === 0 || hits < REASONING_CHAIN_MIN_HITS) return [];
   if (coreHits < REASONING_CHAIN_CORE_MIN_HITS || buckets.size < REASONING_CHAIN_MIN_BUCKETS) return [];
+  if (linkHits < REASONING_CHAIN_MIN_LINKS) return [];
   const perKilo = (hits / narrativeChars) * 1000;
   if (perKilo < REASONING_CHAIN_PER_KILO) return [];
 
@@ -1096,7 +1115,7 @@ function findReasoningChainTic(proseLines) {
     column: 1,
     type: 'reasoning-chain-tic',
     severity: 'advisory',
-    message: `解释链密度过高：知道/明白/这意味着/必须/需要等判断链 ${hits} 处（${perKilo.toFixed(1)}/千字）；像逻辑报告时，把判断落到角色当下可见的动作、物件、对话和现场反馈。`,
+    message: `解释链密度过高：知道/明白/这意味着/必须/需要等论文式推导 ${hits} 处（${perKilo.toFixed(1)}/千字）；删掉“这意味着/按照这个逻辑”式公文腔，保留角色自己的利害算账与因果判断，或落到对话与选择后果，别全改成手眼小动作。`,
     excerpt: compact(samples.join(' | ')),
   }];
 }
@@ -1277,7 +1296,7 @@ function findAbstractSummaryTic(proseLines) {
     column: 1,
     type: 'abstract-summary-tic',
     severity: 'advisory',
-    message: `抽象总结复读：命运/棋局/这一刻终于明白/才刚刚开始等作者总结 ${hits} 处（${perKilo.toFixed(1)}/千字）；回到角色当下可见的文件、动作、对话或物理后果，别替读者盖章。`,
+    message: `抽象总结复读：命运/棋局/这一刻终于明白/才刚刚开始等作者总结 ${hits} 处（${perKilo.toFixed(1)}/千字）；删掉作者盖章，回到角色当下的具体处境、利害盘算、对话或实际后果，别拿微动作顶替。`,
     excerpt: compact(samples.join(' | ')),
   }];
 }
@@ -1337,8 +1356,8 @@ function isDivider(trimmed) {
 
 // markdown 结构行（标题/列表/引用/表格）不是叙述正文，长段落/碎句号/破折号检测都跳过。
 function isStructural(trimmed) {
-  return /^(#{1,6}\s|>\s?|[-*+]\s|\d+[.)]\s|\|)/.test(trimmed)
-    || /^第[零一二三四五六七八九十百千万\d]+章(?:\s|_|$)/.test(trimmed);
+  return /^(#{1,6}(?:\s|\d)|>\s?|[-*+]\s|\d+[.)]\s|\|)/.test(trimmed)
+    || /^第[零〇一二三四五六七八九十百千万两\d]+[章节回](?:$|[\s_：:——\-]+[^\n。；;]{0,28}$)/.test(trimmed);
 }
 
 // 去掉成对引号内的片段（台词/系统播报），只留引号外叙述。碎句号判定用：纯对话/弹幕成片短句
@@ -1363,6 +1382,15 @@ function maskQuoted(text) {
   return out;
 }
 
+// 与 normalize-punctuation.js 的 quoteSpans 对齐：闭合引号/面板先等长占位，行末未收口的开引号
+// （如 `他猛地抬头：“你敢——` 或 `"等等——`）算到行尾，同时保留开引号前的旁白文本参与扫描。
+function maskQuotedWithUnclosed(text) {
+  const out = maskQuoted(text);
+  const unclosed = /[“「『"]/.exec(out);
+  if (!unclosed) return out;
+  return out.slice(0, unclosed.index) + '？'.repeat(out.length - unclosed.index);
+}
+
 // 返回引号内片段（含引号本身）的 [start, end) 区间，供 not-is 对比句豁免台词用。
 function quotedRanges(text) {
   const ranges = [];
@@ -1383,6 +1411,42 @@ function splitSentences(trimmed) {
     .split(/[。！？!?]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+// 叙述旁白省略号过密：引号与面板外 …… 成片刷屏才提示（advisory）；单处留白正常。
+function findEllipsisDensityTic(proseLines) {
+  let hits = 0;
+  let narrativeChars = 0;
+  let firstLine = null;
+  const samples = [];
+
+  for (const { text, lineNo } of proseLines) {
+    const trimmed = text.trim();
+    if (!trimmed || isDivider(trimmed) || isStructural(trimmed)) continue;
+    const narrative = stripQuoted(trimmed).replace(/[“「『"][^”」』"]*$/, '');
+    narrativeChars += visibleLength(narrative);
+    ELLIPSIS_DENSITY_PATTERN.lastIndex = 0;
+    let match;
+    while ((match = ELLIPSIS_DENSITY_PATTERN.exec(narrative)) !== null) {
+      hits += 1;
+      if (firstLine === null) firstLine = lineNo;
+      const sample = sentenceAround(narrative, match.index);
+      if (samples.length < 5 && sample && !samples.includes(sample)) samples.push(sample);
+    }
+  }
+
+  if (narrativeChars === 0 || hits < ELLIPSIS_DENSITY_MIN_HITS) return [];
+  const perKilo = (hits / narrativeChars) * 1000;
+  if (perKilo < ELLIPSIS_DENSITY_PER_KILO) return [];
+
+  return [{
+    line: firstLine,
+    column: 1,
+    type: 'ellipsis-density-tic',
+    severity: 'advisory',
+    message: `叙述省略号过密：引号与面板外省略号 ${hits} 处（${perKilo.toFixed(1)}/千字）；保留关键思绪留白，其余改成逗号承接、直白判断或具体动作，别几句一刷。`,
+    excerpt: compact(samples.join(' | ')),
+  }];
 }
 
 function sentenceAround(text, index) {
@@ -1502,7 +1566,7 @@ function findNotIsComparisons(text, getPosition) {
         column: position.column,
         type: 'not-is-comparison',
         severity: 'blocking',
-        message: '高频 AI 对比句式；删掉否定铺垫，直接写后项，或改成动作/细节呈现。',
+        message: '高频 AI 对比句式；删掉否定铺垫，直接写后项（直白情绪、判断、对话或具体细节皆可）。',
         excerpt: compact(raw),
       });
     }

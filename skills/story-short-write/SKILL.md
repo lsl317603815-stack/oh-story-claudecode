@@ -14,7 +14,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 
 > Agent 兼容性：先识别当前运行时，只检查对应的项目定义：Claude Code 为 `.claude/agents/{agent}.md`，OpenCode 为 `.opencode/agents/{agent}.md`，TRAE Code 为 `.trae/agents/{agent}.md`，WorkBuddy（CodeBuddy Code）项目模式为 `.codebuddy/agents/{agent}.md`，Codex 为 `.codex/agents/{agent}.toml`；运行时无法识别时才按上述顺序探测。TRAE Code 使用内置 `Agent` 智能体选择同名 subagent，并把下文 prompt 作为任务正文，不把 Claude 的 `subagent_type` 参数原样传给 TRAE；WorkBuddy 项目模式使用内置 `Agent` 与原始 `subagent_type: "{agent}"`。WorkBuddy plugin-only 模式只有在当前 Agent registry 真实返回 `oh-story:{agent}` 时才使用该精确命名空间值，不从 plugin manifest 或磁盘文件推测已注册；未返回则按 solo/direct fallback。Codex 原生子代理优先使用同名 `agent_type`，Claude 兼容面保留 `subagent_type`；OpenCode 按当前版本实际暴露的工具传参（2.x 为 `subagent` 工具的 `agent` 参数，旧版为 `subagent_type`）。当前运行时未暴露对应 Agent registry/tool 或 Codex 返回 `unknown agent_type` 时，必须降级为 solo/direct：主会话自己写正文、去味是短篇常态，不必报；只有作者明确要交给写作助手而对应角色或工具不可用时，一句白话告诉作者「这次由我直接写/改」，`Fallback: project custom agents unavailable -> solo` 原文只进汇报最后一行「技术备注：」。ZCode 查当前已启用的 oh-story 插件注册的同名角色，用 `Agent` 工具按其实际 schema 派发，不要求 `.zcode/agents/`；角色缺失、调用失败或返回 unknown agent 时才降级，并提示先启用/更新 ZCode 插件；其他运行时不得因项目里并存 `.zcode/` 或其他端的 agent 目录而误判。下文 `Agent(subagent_type: "{agent}", ...)` 示例在 WorkBuddy plugin-only 模式中必须把 `{agent}` 替换为 registry 实际返回的 `oh-story:{agent}`。
 >
-> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 50` 不一致时（标记缺失、字段缺失/非整数、小于或大于 50）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 50）` 原文写进技术备注行；大于 50 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
+> Spawn 版本提示（不阻断 spawn）：先读取项目根 `.story-deployed` 的 `agents_version`。与本版 `agents_version: 51` 不一致时（标记缺失、字段缺失/非整数、小于或大于 51）**照常按文件存在性检查并 spawn**，同时用一句白话提示作者「写作助手是旧版（或比本工具包新），运行 `/story-setup` 后新开会话」，`Notice: agents bundle 版本不匹配（项目 {N}，本版 51）` 原文写进技术备注行；大于 51 时额外提示先更新 oh-story-claudecode，不要用本地旧版 setup 降级覆盖。只有 agent 文件缺失、或运行时不暴露 custom agent 时才降级 solo/direct，`Fallback: ... -> solo` 同样只进技术备注行。
 
 **面向作者的汇报**：构思汇报、交付说明和停下提问只讲故事本身（写了什么、发生了什么、字数）、要作者拍板的事（一句白话问题＋选项＋推荐默认）和下一步怎么说。脚本名、参数名、检测器类别名和内部清单名不进汇报；自查结果一句白话带过，如「语言和格式都过了，字数在你要的范围里」。机器行只放最后一行「技术备注：」。
 
@@ -203,7 +203,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 **交付参数锁定与写前预检（动笔前必须完成）**：先从当前请求和 `设定.md` 锁定三项交付参数：总字数范围（当前请求里作者给的范围优先；其次是 `设定.md`「目标字数」记下的范围；都没有才用 8000-20000）、节数（等于 `小节大纲.md` 规划节数）、逐节最低字数（只有作者明确提出时才设，默认不设）。然后在短篇目录运行参数预检：
 
 ```bash
-node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] --check-contract "{短篇目录}"
+node {skill 根}/scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] --check-contract "{短篇目录}"
 ```
 
 - 返回 0：参数可以同时满足，进入写作；这只是参数验收，不算交付。
@@ -338,20 +338,20 @@ node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars 
 
 ### Phase 3 完成门槛（进入 Phase 4 前必须通过）
 
-**正文验收第一关（语言门 + 文风卫生门）**：初稿落盘后立即运行 `node scripts/language_gate.js 正文.md`，返回零后紧接着运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md`。任一 blocking 都先退回原写作者修改并从语言门复扫；清零前不得运行错别字、去味或其他后续验收。
+**正文验收第一关（语言门 + 文风卫生门）**：初稿落盘后立即运行 `node {skill 根}/scripts/language_gate.js {短篇目录}/正文.md`，返回零后紧接着运行 `node {skill 根}/scripts/check-style-hygiene.js --check --fail-on=blocking {短篇目录}/正文.md`。任一 blocking 都先退回原写作者修改并从语言门复扫；清零前不得运行错别字、去味或其他后续验收。
 
-**错别字校验（语言门通过后的第二步）**：对实际落盘的 正文.md 运行 `node scripts/check-typos.js --check --fail-on=all 正文.md`。这一步专查错别字/形近字/音近字误用，跟风格/AI味/一致性是完全不同维度的问题。词典只收高置信度的固定搭配误写，命中全部是 advisory，脚本从不自动改写；先判断是不是项目里有意为之的风格化用词，确认是真错字才改。
+**错别字校验（语言门通过后的第二步）**：对实际落盘的 正文.md 运行 `node {skill 根}/scripts/check-typos.js --check --fail-on=all {短篇目录}/正文.md`。这一步专查错别字/形近字/音近字误用，跟风格/AI味/一致性是完全不同维度的问题。词典只收高置信度的固定搭配误写，命中全部是 advisory，脚本从不自动改写；先判断是不是项目里有意为之的风格化用词，确认是真错字才改。
 
-- [ ] `node scripts/language_gate.js 正文.md` 首先返回零，未授权外语与 HTML 标记已清零
-- [ ] `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md` 无 blocking，表情、颜文字、火星文和标点堆砌符合本篇策略
-- [ ] `node scripts/check-typos.js --check --fail-on=all 正文.md` 已过一遍，命中的真错字已改
-- [ ] `node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] "{短篇目录}"` 返回 0：总字数在锁定范围内、节数与小节标记合规、段间无空行（参数与写前预检一致）
+- [ ] `node {skill 根}/scripts/language_gate.js {短篇目录}/正文.md` 首先返回零，未授权外语与 HTML 标记已清零
+- [ ] `node {skill 根}/scripts/check-style-hygiene.js --check --fail-on=blocking {短篇目录}/正文.md` 无 blocking，表情、颜文字、火星文和标点堆砌符合本篇策略
+- [ ] `node {skill 根}/scripts/check-typos.js --check --fail-on=all {短篇目录}/正文.md` 已过一遍，命中的真错字已改
+- [ ] `node {skill 根}/scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars {上限} --sections {节数} [--min-section-chars {逐节下限}] "{短篇目录}"` 返回 0：总字数在锁定范围内、节数与小节标记合规、段间无空行（参数与写前预检一致）
 - [ ] 每节完成其批准情节点或状态变化；没有为拉齐长度补冲突、对话、回忆或旁人反应
 - [ ] 节数 = 小节大纲规划节数（不得合并/省略）
 - [ ] 身体细节按叙事功能判断，不设次数上限；不对“手、眼、心”等单字计数改稿
 - [ ] 「像/好像/仿佛/如同」不成片堆叠；超过 10 处需逐处复核功能，不机械全删
-- [ ] `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文.md` 无 blocking 命中；其余提示先通读，确属问题再改
-- [ ] `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文.md` 无 blocking 命中（普通英文句段/裸英文词、复读、截断、工程词泄漏）
+- [ ] `node {skill 根}/scripts/check-ai-patterns.js --check --fail-on=blocking {短篇目录}/正文.md` 无 blocking 命中；其余提示先通读，确属问题再改
+- [ ] `node {skill 根}/scripts/check-degeneration.js --check --language=zh --fail-on=blocking {短篇目录}/正文.md` 无 blocking 命中（普通英文句段/裸英文词、复读、截断、工程词泄漏）
 
 **中文文本统计注意事项**：
 - `wc -c` 统计的是字节数，禁止用于字数统计，也禁止模型估算字数
@@ -365,7 +365,7 @@ node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars 
 ### Phase 4：精修打磨
 
 加载 `references/writing-workflow.md` 中的精修清单完成检查。
-重点：开头钩子、情绪曲线、反转铺垫、每句话价值、格式规范、AI 腔排查。文件模式每次改完正文先重跑 `node scripts/language_gate.js 正文.md`，通过后运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking 正文.md`，再运行 `node scripts/check-ai-patterns.js --check --fail-on=blocking 正文.md`：blocking 先改正文并复扫；其他提示只作为读感风险，功能性写法标 `[需复核]`。再运行 `node scripts/normalize-punctuation.js 正文.md` 做标点兜底，并运行 `node scripts/check-degeneration.js --check --language=zh --fail-on=blocking 正文.md`。退化 blocking 要重新生成受影响段落，不靠润色；未授权外语须改回中文并复扫。URL、邮箱、文件路径/扩展名和行内/围栏代码只机械保护明确非叙事结构；其他外语只有经用户单独确认并命中 `.deslop-whitelist` 时才能保留，HTML 标记必须清零。
+重点：开头钩子、情绪曲线、反转铺垫、每句话价值、格式规范、AI 腔排查。文件模式每次改完正文先重跑 `node {skill 根}/scripts/language_gate.js {短篇目录}/正文.md`，通过后运行 `node {skill 根}/scripts/check-style-hygiene.js --check --fail-on=blocking {短篇目录}/正文.md`，再运行 `node {skill 根}/scripts/check-ai-patterns.js --check --fail-on=blocking {短篇目录}/正文.md`：blocking 先改正文并复扫；其他提示只作为读感风险，功能性写法标 `[需复核]`。再运行 `node {skill 根}/scripts/normalize-punctuation.js {短篇目录}/正文.md` 做标点兜底，并运行 `node {skill 根}/scripts/check-degeneration.js --check --language=zh --fail-on=blocking {短篇目录}/正文.md`。退化 blocking 要重新生成受影响段落，不靠润色；未授权外语须改回中文并复扫。URL、邮箱、文件路径/扩展名和行内/围栏代码只机械保护明确非叙事结构；其他外语只有经用户单独确认并命中 `.deslop-whitelist` 时才能保留，HTML 标记必须清零。
 
 #### Agent 调用：narrative-writer（去AI味）+ consistency-checker
 
@@ -472,12 +472,12 @@ node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars 
 
 ## 本篇语言验收 Gate（强制）
 
-短篇初稿完成后立即首先运行 `node scripts/language_gate.js "{正文文件}"`。返回非零时，把报告中的行号、原片段和所在行退回正文写作者修改，并重复检查；在返回码为零前，禁止其他检测、去味验收和正式交付。不得用自动翻译、简单删除或未经用户单独确认的白名单代替正文修改。
+短篇初稿完成后立即首先运行 `node {skill 根}/scripts/language_gate.js "{正文文件}"`。返回非零时，把报告中的行号、原片段和所在行退回正文写作者修改，并重复检查；在返回码为零前，禁止其他检测、去味验收和正式交付。不得用自动翻译、简单删除或未经用户单独确认的白名单代替正文修改。
 
 ## 本篇文风卫生 Gate（强制）
 
-语言门通过后运行 `node scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`。默认出版级策略阻断表情符号、颜文字、火星文、标点堆砌和不可见字符；`？！` 与 `……` 等有功能标点正常保留。若题材确需聊天体，按 [正文文风卫生门](references/style-hygiene.md) 在本篇 `设定/文风.md` 选择对白弹性或逐类配置，不得在正文生成后临时关门求通过。
+语言门通过后运行 `node {skill 根}/scripts/check-style-hygiene.js --check --fail-on=blocking "{正文文件}"`。默认出版级策略阻断表情符号、颜文字、火星文、标点堆砌和不可见字符；`？！` 与 `……` 等有功能标点正常保留。若题材确需聊天体，按 [正文文风卫生门](references/style-hygiene.md) 在本篇 `设定/文风.md` 选择对白弹性或逐类配置，不得在正文生成后临时关门求通过。
 
 ## 适度对白技巧（强制）
 
-重要对白场景按 [适度对白技巧](references/dialogue-craft-moderate.md) 形成轻量对白卡，并以 [对白卡 schema](references/dialogue-scene-card.schema.json) 约束字段；退化边界见 [对白归属标记漂移](references/dialogue-attribution-drift.md)。中文语言 Gate 通过后运行 `node scripts/dialogue_drift_gate.js --current "{正文文件}"`。正文自然混用无标签对白、简单“说/问”、有效动作和叙述反应。对白退化机械检测只阻断明确的连续逐句报幕，密度与动词集中只作预警并进入语义审查；不得用华丽标签、空动作或句句潜台词制造技巧感。
+重要对白场景按 [适度对白技巧](references/dialogue-craft-moderate.md) 形成轻量对白卡，并以 [对白卡 schema](references/dialogue-scene-card.schema.json) 约束字段；退化边界见 [对白归属标记漂移](references/dialogue-attribution-drift.md)。中文语言 Gate 通过后运行 `node {skill 根}/scripts/dialogue_drift_gate.js --current "{正文文件}"`。正文自然混用无标签对白、简单“说/问”、有效动作和叙述反应。对白退化机械检测只阻断明确的连续逐句报幕，密度与动词集中只作预警并进入语义审查；不得用华丽标签、空动作或句句潜台词制造技巧感。

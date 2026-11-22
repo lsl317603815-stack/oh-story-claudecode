@@ -7,6 +7,7 @@ model: inherit
 tools: [Read, Glob, Grep]
 disallowedTools: [Write, Edit, Bash]
 maxTurns: 30
+injectAgentsMd: false
 ---
 
 # Revision Governor -- 修改治理员
