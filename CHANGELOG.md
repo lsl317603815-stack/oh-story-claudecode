@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## 未发布
+## v0.16.0（Dev 候选 · 2026-11-23）
+
+吸收原仓库 zenstory-ai/oh-story-claudecode v0.9.2–v0.11.0 的修复（以本线为底）：情绪落地改为四条并列通道、默认视角改为第三人称贴身限知，去味检测补章尾全知预告与旁白省略号提示并减少误报，角色快照上限放到 64 KiB；新增 Google Antigravity 宿主；模型分工统一落到 `.story/models/`；纯润色快速通道与门禁缓存；可选项目级钩子与番茄竖屏直出排版。部署契约 `agents_version` 48 → 51、`setup_skill_version` 1.8.0 → 1.11.0，升级后在写作项目根重跑 `/story-setup` 并新开会话；书稿、设定和追踪不用迁移。
 
 ### 吸收原仓库 zenstory-ai v0.10.2–v0.11.0（以本线为底）
 
@@ -14,14 +16,42 @@ All notable changes to this project will be documented in this file.
 - Hooks 与适配器：书目发现跳过 `拆文库/`、`对标/`（#562）；Windows 盘符与 8.3 短路径规范化；Antigravity 每轮只注入一次会话上下文、子代理调用补 `Role`/`Prompt` 与异步回报协议（#527）；OpenCode 2.x 会话上下文注入、shell 重定向写后检测与 `git commit` 暂存区提醒，Reasonix Manifest v2 与真机 CI（#528）。
 - 短篇：自检命令改为 `{skill 根}/scripts/…` 加 `{短篇目录}/正文.md`，不依赖当前目录；点众扫榜过滤超过 5 万字的长篇连载。
 - 工作台：Markdown 表格预览、隐藏目录访问边界修复（#538、#562）。
-- 部署契约升至 `setup_skill_version: 1.11.0` / `agents_version: 51`。
 
-### 新增 Google Antigravity 宿主
+### 吸收原仓库 zenstory-ai v0.9.2–v0.10.1
+
+- 以 merge 合入原仓库 #499–#524（194e6417）：作者记忆 schema 与冲突校验加固；元叙事退化正则扩充；细纲「复沓锚句」豁免识别；`session-start.sh` 在 `/compact`、`/clear` 时保留重启提示；`story-architect` 参考资料包补齐 `cross-book-recall.md`；长篇脚本可直接传含 `.active-book` 的工作区根目录；起点扫榜标注整榜缺失；发布准备新增番茄平台约束、内容标签与男女频阅读参考。
+
+### 新增 Google Antigravity 宿主（含 agy 2.0）
 
 - story-setup 新增目标端 `antigravity`（Google Antigravity IDE 与交互式 `agy`），移植自原仓库 zenstory-ai #377 / #396 并按本线改造：21 个 Skill 物化到 `.agents/skills/`，8 个专业 agent（含 `revision-governor`）由 Claude agent 卡生成到 `.agents/agents/<名>/agent.md`，Always-On Rule `.agents/rules/oh-story.md`，hooks `.agents/hooks.json` 与 `.agents/hooks/`。部署说明在 `story-setup/references/antigravity/deploy.md`。
 - Hook 写前先查修订门禁再查正文前置门（与 Claude / ZCode 同一判据），写后检测经会话 artifact 在下一轮注入；共享 hook 核登记到 `shared-assets.json`，与其他端字节一致。
 - 在 Antigravity 里正文由 Gemini 直接写：生成原生 `narrative-writer`，Rule 禁止在 Antigravity 里再调用 `agy` 写手转发器；启用模型分工去味审查的项目由主会话直接运行 `.claude/models/run-deslop-review.py`。
 - 部署契约升至 `setup_skill_version: 1.9.0` / `agents_version: 49`；新增 `check-antigravity-adapter.sh`（含 hook 契约、hooks 合并、skill 物化三组测试），接入质量门禁与 CI。
+- agy 2.0：hooks 识别 `write_file` / `edit_file`（读 `args.Path`）；Stop 在 `NO_TOOL_CALL` 时也会续跑一次处理写后发现；子代理调用显式传 `Model`（写手、架构、设定、一致性、修订、研究用 `pro`，探查与拆章用 `flash`），长篇正文一律派 `narrative-writer` 执笔。
+
+### 共享资产托管与规则消歧（agents 50）
+
+- `scripts/shared-assets.json` + `scripts/sync-shared-assets.py` 全量托管跨 Skill 同名脚本与 references（主源 + 同步副本 + 显式分叉豁免），CI 检查漂移。
+- 多端共存时原生宿主规则优先于通用回退段；`story-format` 的空行与对白标签规则明确服从本书文风。
+- ZCode hook 在 stdin 损坏时对写前守卫改为 fail-closed（拒绝写入）。
+
+### 模型分工
+
+- 受管配置与运行器统一落到宿主中立的 `.story/models/`（自动继承旧 `.claude/models/config.json`）；Claude Code 与 Antigravity 都可部署。
+- 去 AI 味审查可交给方舟模型：候选章接纳前由 `chapter_candidate.py next` 给出 `run-deslop` 命令并自动登记回执，配专用精简审查规范 `deslop-reviewer-rubric.md`；`/story-review` 的文字审查只审不改。
+- 写手、读者审读转发脚本与写手 prompt 精简。
+
+### 写作流程与性能
+
+- 纯润色走快速通道（`revision_guard.py finish-polish`），不重跑整套候选章门禁。
+- JS 门禁批量运行（`run_js_gates_batch.js`）并按正文哈希缓存结果；追踪提交支持增量补丁。
+- 可选项目级钩子（部署到 `<书目录>/.story/hooks/`，配合 `.story/.env.local`）：标准库 TXT/EPUB3 导出 `export_book.py`、参数化朱雀台账 `zhuque_ledger.py`、正文与有声书 NAS 增量同步；由章节接纳、润色完成及 Stop 事件触发。
+- 番茄竖屏直出排版：`设定/门禁配置.json` 设 `"preset": "aigc-safe-g5-fanqie"`（或 `"layout": "fanqie"`）后，`chapter_candidate.py fix` 归档 G5 底稿并用 `fanqie_typeset.py` 无损拆行，直出 `# 第N章 标题`、零空行、全角缩进、独立对白与手机短段的各章 `.md`；导出加 `export-for-platform.js --fanqie` / `export_book.py --txt-layout fanqie`。
+
+### 部署契约与 CI
+
+- `agents_version` 48 → 51、`setup_skill_version` 1.8.0 → 1.11.0（原仓库最高 45 / 1.3.13）。v50 及更早的项目会在会话启动时收到重跑提示。
+- 统一质量门禁 `scripts/run-quality-gate.sh` 覆盖全部适配器、hook、追踪与 Dashboard（含 e2e）检查；Reasonix 新增真机 CI 任务。
 
 ## v0.15.0（Dev 候选 · 2026-10-27）
 
