@@ -31,11 +31,12 @@ trigger: always_on
 - `追踪/_tracking-state.json` 是结构化真源，只能通过 skill 里的追踪脚本修改；不要手改它派生的 Markdown 视图。
 - 写完正文后，先处理 oh-story hooks 注入的确定性检测结果，再去写下一章或结束任务。
 
-## 专业子代理
+## 专业子代理与 Orchestrator 协调模式
 
-- 子代理只看 `.agents/agents/agent-name/agent.md`（`agent-name` 为子代理名），用 `invoke_subagent` 加同名 `TypeName` 调用。skill 正文里提到的 `.claude/agents/`、`.opencode/agents/`、`.codex/agents/` 是其他宿主的目录，在 Antigravity 里不要拿它们判断是否已部署。
+- 子代理只看 `.agents/agents/agent-name/agent.md`（`agent-name` 为子代理名），用 `invoke_subagent` 加同名 `TypeName` 调用。除非作者当轮明确指定其他模型，调用时必须显式传 `Model` 锁定档位，不要省略或传 `inherit`（防止 Orchestrator 执行轮的轻量模型向下继承）：`narrative-writer`、`story-architect`、`character-designer`、`consistency-checker`、`revision-governor`、`story-researcher` 传 `Model: "pro"`；`story-explorer`、`chapter-extractor` 传 `Model: "flash"`。skill 正文里提到的 `.claude/agents/`、`.opencode/agents/`、`.codex/agents/` 是其他宿主的目录，在 Antigravity 里不要拿它们判断是否已部署。
 - 运行时不能启动子代理、返回未知 agent 或子代理失败时，按 skill 写明的 solo/direct 降级执行，并在回复里说明降级了。
-- 不要在 Antigravity 里再调用 `agy` 或 `.story/models/run-narrative-writer.sh`（及旧 `.claude/models/run-narrative-writer.sh`）：那是 Claude Code 宿主把写手转给 Gemini 的转发器，在这里调用会自己调用自己。在 Antigravity 里，正文由主会话或 `narrative-writer` 子代理直接写。
+- 不要在 Antigravity 里再调用 `agy` 或 `.story/models/run-narrative-writer.sh`（及旧 `.claude/models/run-narrative-writer.sh`）：那是 Claude Code 宿主把写手转给 Gemini 的转发器，在这里调用会自己调用自己。在 `narrative-writer` 子代理可用时，长篇候选章初稿、整章重写、短篇正文及大段润色一律派发 `narrative-writer`（`Model: "pro"`）执笔，禁止主会话（尤其是 Orchestrator 执行轮）直接在主会话代写正文；仅在子代理不可用触发 solo 降级，或作者明确只改零星字句时才由主会话直接改稿。
+- 主会话开启 Orchestrator（规划/执行两阶段）时：纯结构讨论、分支推演、采访拍板（未要求落盘）直接留在规划轮回答；需要写章、补纲或回炉时，规划轮只读核清 `追踪/上下文.md`、细纲/卷纲与情绪节奏意图并写清写手单后交棒，执行轮严格按计划建候选、派子代理、跑门禁和提交追踪，遇到细纲欠字数（`outline_underfilled`）、设定硬冲突（S1/S2）或路线分歧时回交规划轮裁决，不得擅自编剧情硬凑。
 - 项目启用了模型分工里的“去 AI 味审查”（`.story/models/config.json` 或旧 `.claude/models/config.json` 中 `deslop.enabled` 为 true）时，由主会话按 `chapter_candidate.py next` 给出的 `run-deslop --run <候选目录>` 命令运行（底层调用 `.story/models/run-deslop-review.py`）交给方舟审查模型并自动登记回执；输出 `RUNNING <运行ID>` 时加 `--wait-run <运行ID>` 继续等。不要自己替它审稿。
 
 ## 和作者沟通

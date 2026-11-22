@@ -78,7 +78,7 @@ function targetPaths(call) {
   const requestedCwd = core.existingDir(firstString(args, ["Cwd", "cwd", "WorkingDirectory"]))
   const base = requestedCwd && isInside(root, requestedCwd) ? requestedCwd : root
   const raw = []
-  const direct = firstString(args, ["TargetFile", "targetFile", "FilePath", "filePath", "path"])
+  const direct = firstString(args, ["Path", "TargetFile", "targetFile", "FilePath", "filePath", "path"])
   if (direct) raw.push(direct)
   if (call.name === "run_command") {
     const command = firstString(args, ["CommandLine", "command", "cmd"])
@@ -262,7 +262,7 @@ function stop() {
   const state = readPending()
   const message = pendingMessage(state)
   const termination = String(hookInput.terminationReason || "")
-  const mayContinue = termination === "" || termination === "model_stop"
+  const mayContinue = termination === "" || termination === "model_stop" || termination === "NO_TOOL_CALL" || termination === "no_tool_call"
   if (message && hookInput.fullyIdle !== false && mayContinue && state.stopAttempts < 1) {
     state.stopAttempts += 1
     writePending(state)

@@ -86,10 +86,19 @@ try {
   }).value
   assert.equal(response.decision, "deny")
   assert.match(response.reason, /小节大纲/)
+  response = invoke("pre-tool-use", {
+    toolCall: { name: "write_file", args: { Path: shortProse } },
+  }).value
+  assert.equal(response.decision, "deny")
+  assert.match(response.reason, /小节大纲/)
 
   write("短篇/小节大纲.md", "# 小节大纲\n")
   response = invoke("pre-tool-use", {
     toolCall: { name: "write_to_file", args: { TargetFile: "短篇/正文.md" } },
+  }).value
+  assert.deepEqual(response, { decision: "allow" })
+  response = invoke("pre-tool-use", {
+    toolCall: { name: "write_file", args: { Path: "短篇/正文.md" } },
   }).value
   assert.deepEqual(response, { decision: "allow" })
 
@@ -144,6 +153,23 @@ try {
   assert.ok(!fs.existsSync(pending), "clean rewrite must clear pending findings")
   assert.deepEqual(invoke("pre-invocation", { invocationNum: 1 }).value, {})
 
+  write("短篇/正文.md", "# 标题\n\n本章将在下一章继续展开")
+  post = invoke("post-tool-use", {
+    toolCall: { name: "write_file", args: { Path: "短篇/正文.md" } },
+  })
+  assert.equal(post.raw, "{}")
+  assert.ok(fs.existsSync(pending), "write_file PostToolUse must persist pending findings")
+  response = invoke("stop", { fullyIdle: true, terminationReason: "NO_TOOL_CALL" }).value
+  assert.equal(response.decision, "continue", "Stop must continue on NO_TOOL_CALL when findings are pending")
+  response = invoke("stop", { fullyIdle: true, terminationReason: "NO_TOOL_CALL" }).value
+  assert.equal(response.decision, "stop", "Stop may force at most one continuation on NO_TOOL_CALL")
+  write("短篇/正文.md", `# 标题\n\n${clean}\n`)
+  post = invoke("post-tool-use", {
+    toolCall: { name: "edit_file", args: { Path: "短篇/正文.md" } },
+  })
+  assert.equal(post.raw, "{}")
+  assert.ok(!fs.existsSync(pending), "clean edit_file must clear pending findings")
+
   write(".story-deployed", "agents_version: 26\ntarget_cli: antigravity\n")
   write(".active-book", "长书\n")
   write("长书/设定/世界观.md", "# 世界观\n")
@@ -171,6 +197,7 @@ try {
   write("修订书/正文/第002章_旧章.md", "# 第2章 旧章\n" + "已经接纳的正文。".repeat(40))
   for (const toolCall of [
     { name: "replace_file_content", args: { TargetFile: "修订书/正文/第002章_旧章.md" } },
+    { name: "edit_file", args: { Path: "修订书/正文/第002章_旧章.md" } },
     { name: "run_command", args: { CommandLine: "echo x > 修订书/正文/第002章_旧章.md" } },
   ]) {
     const revision = invoke("pre-tool-use", { toolCall }).value

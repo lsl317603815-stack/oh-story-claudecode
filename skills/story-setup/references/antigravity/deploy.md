@@ -2,7 +2,7 @@
 
 `target_cli` 含 `antigravity` 时，由 SKILL.md 读取并依次执行本文件。路径检查、幂等重跑、残留清理、部署标记、模板占位符和报告遵循 SKILL.md 的公共规则。本目录提供 Always-On Rule（`rules/oh-story.md`）、named-group hooks（`hooks/hooks.json`）与 I/O adapter（`hooks/story_antigravity_hook.js`）；写后 findings 经 session artifact 交给 PreInvocation/Stop。
 
-Antigravity IDE 与交互式命令行 `agy` 共用这套项目内 `.agents/` 产物。在 Antigravity 里，正文由宿主模型（Gemini）直接写；Claude Code 侧“写手转发给 agy”的模型分工只在 Claude Code 里有意义，两者可以在同一个项目里并存。
+Antigravity IDE、Antigravity 2.0 桌面端与交互式命令行 `agy` 共用这套项目内 `.agents/` 产物。在 Antigravity 里，正文由原生 `narrative-writer` 子代理（`pro` 档，不可用时才降级主会话）直接写，不走 Claude Code 侧“写手转发给 agy”的转发器；两者可以在同一个项目里并存。
 
 ## 部署清单（机械可检查）
 

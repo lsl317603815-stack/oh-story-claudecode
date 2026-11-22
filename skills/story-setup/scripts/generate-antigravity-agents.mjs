@@ -109,7 +109,7 @@ function parseInlineList(value) {
   return match[1].split(",").map((item) => item.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean)
 }
 
-function adaptBody(body, name, tools) {
+function adaptBody(body, name, tools, model) {
   let adapted = body
     .replaceAll(".claude/skills/story-setup/references/agent-references/", ".agents/skills/story-setup/references/agent-references/")
     .replaceAll("当前 Claude 部署", "当前 Antigravity 部署")
@@ -143,7 +143,7 @@ function adaptBody(body, name, tools) {
     : ""
 
   return `${adapted.trimEnd()}\n\n---\n\nAntigravity adaptation notes:\n` +
-    `- Call this agent through \`invoke_subagent\` with \`TypeName: "${name}"\`.\n` +
+    `- Call this agent through \`invoke_subagent\` with \`TypeName: "${name}"\` and \`Model: "${model}"\`.\n` +
     "- If the Antigravity runtime does not expose custom subagents, fall back to solo/direct execution and report the fallback.\n" +
     "- Stay within this agent's role boundary; return adjacent work to the parent agent.\n" +
     "- Use only `.agents/skills/story-setup/references/agent-references/`; if it is missing, report an incomplete deployment instead of probing other CLI roots.\n" +
@@ -188,7 +188,7 @@ function renderAgent(sourceFile) {
     frontmatter.push("skills:", ...sourceSkills.map((skill) => `  - skills/${skill}`))
   }
   frontmatter.push("---", "")
-  return `${frontmatter.join("\n")}\n${adaptBody(body, name, tools)}`
+  return `${frontmatter.join("\n")}\n${adaptBody(body, name, tools, model)}`
 }
 
 function prepareManagedDirectory(target) {

@@ -52,14 +52,16 @@ for event, entries in group.items():
             assert 'hooks/story_antigravity_hook.js' in handler['command']
             assert '.agents/.agents/' not in handler['command']
             assert isinstance(handler['timeout'], int) and 1 <= handler['timeout'] <= 30
-assert group['PreToolUse'][0]['matcher'] == 'run_command|write_to_file|replace_file_content|multi_replace_file_content'
-assert group['PostToolUse'][0]['matcher'] == 'run_command|write_to_file|replace_file_content|multi_replace_file_content'
+expected_matcher = 'run_command|write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content'
+assert group['PreToolUse'][0]['matcher'] == expected_matcher
+assert group['PostToolUse'][0]['matcher'] == expected_matcher
 
 rule = Path('skills/story-setup/references/antigravity/rules/oh-story.md').read_text()
 assert rule.startswith('---\ntrigger: always_on\n---\n')
 assert len(rule) < 12_000
 assert '.agents/skills/' in rule and 'invoke_subagent' in rule
 assert '~/.gemini/' in rule and 'scratch/' in rule and 'inside the current workspace' in rule
+assert 'Model: "pro"' in rule and 'Model: "flash"' in rule and 'Orchestrator' in rule
 PY
 
 node "$GENERATOR" --dest "$TMP_DIR/agents" >/dev/null
