@@ -79,7 +79,24 @@ PRESET_PROSE_BANDS: dict[str, dict[str, Any]] = {
         "narr_question_pct": {"low": 3, "high": 18, "label": "叙述句以？收%", "source": "aigc-safe-g5 预设"},
         "degree_adverb_per_kilo": {"low": 3, "high": 12, "label": "程度与口语副词/千字", "source": "aigc-safe-g5 预设"},
         "sentence_cv": {"low": 0.2, "high": 0.55, "label": "句长离散度", "source": "aigc-safe-g5 预设"},
-    }
+    },
+    "aigc-safe-g5-fanqie": {
+        "note": "内置 aigc-safe-g5-fanqie 双步直出番茄竖屏 .md 对标带（advisory：G5 口语词面 + 独立对白与手机1~2行短段）",
+        "paragraph_mean_chars": {"low": 18, "high": 30, "label": "段均字数", "source": "aigc-safe-g5-fanqie 预设"},
+        "sentence_mean_chars": {"low": 18, "high": 30, "label": "句均字数", "source": "aigc-safe-g5-fanqie 预设"},
+        "short_sentence_rate_pct": {"low": 4, "high": 28, "label": "短句(<15字)占比%", "source": "aigc-safe-g5-fanqie 预设"},
+        "bare_quote_rate_pct": {"low": 80, "high": 100, "label": "裸引语占含引号段%", "source": "aigc-safe-g5-fanqie 预设"},
+        "leading_colon_tag_count": {"low": 0, "high": 2, "label": "前置冒号标签段数", "source": "aigc-safe-g5-fanqie 预设"},
+        "short_paragraph_rate_pct": {"low": 0, "high": 18, "label": "≤12字段落占比%", "source": "aigc-safe-g5-fanqie 预设"},
+        "function_word_per_kilo": {"low": 120, "high": 165, "label": "叙述口语虚词/千字", "source": "aigc-safe-g5-fanqie 预设"},
+        "particle_per_kilo": {"low": 80, "high": 106, "label": "叙述语气助词/千字", "source": "aigc-safe-g5-fanqie 预设"},
+        "narr_modal_end_pct": {"low": 0, "high": 10, "label": "叙述句尾语气词%", "source": "aigc-safe-g5-fanqie 预设"},
+        "narr_second_person_pct": {"low": 0, "high": 3, "label": "叙述句含你我咱%", "source": "aigc-safe-g5-fanqie 预设"},
+        "narr_exclaim_pct": {"low": 0, "high": 15, "label": "叙述句以！收%", "source": "aigc-safe-g5-fanqie 预设"},
+        "narr_question_pct": {"low": 0, "high": 15, "label": "叙述句以？收%", "source": "aigc-safe-g5-fanqie 预设"},
+        "degree_adverb_per_kilo": {"low": 0.5, "high": 12, "label": "程度与口语副词/千字", "source": "aigc-safe-g5-fanqie 预设"},
+        "sentence_cv": {"low": 0.22, "high": 0.58, "label": "句长离散度", "source": "aigc-safe-g5-fanqie 预设"},
+    },
 }
 
 

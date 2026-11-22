@@ -125,6 +125,14 @@
       ]
     },
     {
+      "name": "fanqie-vertical-typesetter",
+      "source": "skills/story-long-write/scripts/fanqie_typeset.py",
+      "targets": [
+        "skills/story-deslop/scripts/fanqie_typeset.py",
+        "skills/story-short-write/scripts/fanqie_typeset.py"
+      ]
+    },
+    {
       "name": "story-tracking-transaction",
       "source": "skills/story-long-write/scripts/tracking_commit.py",
       "targets": [

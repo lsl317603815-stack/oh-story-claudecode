@@ -584,6 +584,168 @@ class Milestone3OptimizationsTests(unittest.TestCase):
             ledger_md = (project / "追踪/朱雀检测/台账.md").read_text(encoding="utf-8")
             self.assertIn("| 6 | 通过 | 100%", ledger_md)
 
+    def test_fanqie_lossless_vertical_typeset_parity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            prose = project / "正文"
+            prose.mkdir(parents=True, exist_ok=True)
+            sample_md = prose / "第001章_夜客叩门.md"
+            sample_md.write_text(
+                "## 第1章 夜客叩门\n\n"
+                "沈烬低头看了看柜台上的木牌，只见上面刻着“夜诊加收三钱，概不赊账”，周围几名伙计都好奇地转头打量，沈烬干脆看着门外假装没看见。\n\n"
+                "宋掌柜在账册上勾了“夜间急症”，转身交代道：“马上落锁了，先把后院那炉药火压下去。”\n\n"
+                "随着半空里响起一声闷雷，沈烬披上油布蓑衣直接冲出后院木门，檐角的铜铃马上晃出一串急响，居然比平时刮北风的时候还要吵上好几倍！\n",
+                encoding="utf-8",
+            )
+
+            chap_py_dir = project / "导出_py_chapters"
+            res = json.loads(
+                run_py(
+                    PROJECT_HOOKS / "export_book.py",
+                    "--project", str(project),
+                    "--formats", "txt",
+                    "--txt-layout", "fanqie",
+                    "--chapter-txt-dir", str(chap_py_dir),
+                ).stdout
+            )
+            self.assertEqual(res["txt_layout"], "fanqie")
+            py_chap = (chap_py_dir / "第001章_夜客叩门.txt").read_text(encoding="utf-8")
+            py_lines = py_chap.splitlines()
+            # 0 blank lines, line 1 is title, all body lines start with two ideographic spaces
+            self.assertTrue(all(line.strip() for line in py_lines))
+            self.assertEqual(py_lines[0], "第1章 夜客叩门")
+            self.assertTrue(all(line.startswith("\u3000\u3000") for line in py_lines[1:]))
+            # Pre-colon dialogue with inline quote in prefix splits into period-ended action + standalone quote
+            self.assertIn("\u3000\u3000“马上落锁了，先把后院那炉药火压下去。”", py_lines)
+            self.assertTrue(any(line.endswith("转身交代了一句。") for line in py_lines[1:]))
+            # Subordinate "随着..." does not glue all 4 clauses into one 5-row wall
+            self.assertTrue(all(len(line.strip()) < 65 for line in py_lines[1:]))
+
+            js_dir = project / "导出_js"
+            subprocess.run(
+                [
+                    "node",
+                    str(LONG_SCRIPTS / "export-for-platform.js"),
+                    f"--out={js_dir}",
+                    "--fanqie",
+                    str(sample_md),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            js_chap = (js_dir / "第001章_夜客叩门.txt").read_text(encoding="utf-8")
+            self.assertEqual(js_chap, py_chap)
+
+    def test_direct_fanqie_md_candidate_fix_and_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            project = base / "直出竖屏书"
+            for folder in ("设定", "大纲", "正文", "追踪"):
+                (project / folder).mkdir(parents=True, exist_ok=True)
+            write_json(project / "设定/门禁配置.json", {
+                "schema_version": 1,
+                "preset": "aigc-safe-g5-fanqie",
+                "gates": {
+                    "emotion_floor": {"mode": "advisory", "reason": "单元测试"},
+                    "hook_strength": {"mode": "advisory", "reason": "单元测试"},
+                },
+            })
+            write_json(base / "init_fanqie.json", {
+                "schema_version": 1,
+                "book_title": "直出竖屏书",
+                "last_chapter": 0,
+                "context": {
+                    "position": {"volume": "第一卷", "volume_start_chapter": 1, "story_time": "夏夜", "scene": "药柜前"},
+                    "long_term_constraints": [],
+                    "active_character_names": [],
+                    "continuity_risks": [],
+                },
+                "character_snapshots": {},
+                "foreshadow": [],
+                "timeline_events": [],
+                "facts": [],
+            })
+            run_py(TRACKING, "init", "--project", str(project), "--input", str(base / "init_fanqie.json"))
+            (project / "设定/文风.md").write_text("# 文风\n\n采用 G5 双步直出番茄竖屏排版。\n", encoding="utf-8")
+            (project / "大纲/细纲_第001章.md").write_text(
+                "# 第一章细纲\n\n- 章节定位：普通推进\n- 字数目标：160 字\n\n沈烬核对夜诊木牌与药炉。\n",
+                encoding="utf-8",
+            )
+
+            created = run_py(
+                CANDIDATE, "init", "--project", str(project), "--chapter", "1",
+                "--outline", "大纲/细纲_第001章.md", "--target", "正文/第001章_夜客叩门.md",
+                "--base", "设定/文风.md", "--id", "CFQ001",
+            )
+            run_dir = Path(created.stdout.strip())
+            next_write = json.loads(run_py(CANDIDATE, "next", "--project", str(project)).stdout)
+            self.assertEqual(next_write["step"], "write")
+            self.assertEqual(next_write["layout"], "fanqie")
+            self.assertTrue(next_write["commands"][0].startswith("chapter_candidate.py fix"))
+
+            g5_raw = (
+                "## 第1章 夜客叩门\n\n"
+                "沈烬低头看了看柜台上的木牌，上面刻着“夜诊加收三钱”，周围几名伙计都好奇地转头打量，沈烬干脆看着门外假装没看见。\n\n"
+                "宋掌柜在账册上勾了“夜间急症”，转身交代道：“马上落锁了，先把后院那炉药火压下去。”\n\n"
+                "随着半空里响起一声闷雷，沈烬披上油布蓑衣直接冲出后院木门，檐角的铜铃马上晃出一串急响，居然比平时刮北风的时候还要吵上好几倍！\n"
+            )
+            (run_dir / "candidate.md").write_text(g5_raw, encoding="utf-8")
+
+            # Unsplit G5 .md must be blocked by fanqie_layout before fix
+            failed_check = run_py(CANDIDATE, "check", "--run", str(run_dir), expected=2)
+            self.assertIn("fanqie_layout", failed_check.stderr)
+
+            # Revising base file + refresh-base keeps draft fresh
+            (project / "设定/文风.md").write_text("# 文风\n\n采用 G5 双步直出番茄竖屏各章 .md 排版。\n", encoding="utf-8")
+            run_py(CANDIDATE, "check", "--run", str(run_dir), "--freshness-only", expected=2)
+            refreshed = json.loads(run_py(CANDIDATE, "refresh-base", "--run", str(run_dir), "--note", "同步文风").stdout)
+            self.assertEqual(refreshed["status"], "refreshed")
+
+            # fix saves g5-draft.md and converts candidate.md directly to Fanqie .md
+            fix_res = json.loads(run_py(CANDIDATE, "fix", "--run", str(run_dir)).stdout)
+            self.assertTrue(fix_res["changed"])
+            self.assertEqual(fix_res["layout"], "fanqie")
+            self.assertTrue((run_dir / "g5-draft.md").is_file())
+
+            cand_lines = (run_dir / "candidate.md").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(cand_lines[0], "# 第1章 夜客叩门")
+            self.assertTrue(all(line.strip() for line in cand_lines))
+            self.assertTrue(all(line.startswith("\u3000\u3000") for line in cand_lines[1:]))
+            self.assertIn("\u3000\u3000“马上落锁了，先把后院那炉药火压下去。”", cand_lines)
+
+            # Now all deterministic gates (including fanqie_layout & aigc-safe-g5-fanqie prose_bands) pass!
+            passed_check = json.loads(run_py(CANDIDATE, "check", "--run", str(run_dir)).stdout)
+            self.assertEqual(passed_check["status"], "pass")
+            gate_names = [g["name"] for g in passed_check["gates"]]
+            self.assertIn("fanqie_layout", gate_names)
+
+            pkt = json.loads(run_py(CANDIDATE, "review-packet", "--run", str(run_dir), "--kind", "deslop").stdout)
+            self.assertEqual(pkt["layout"], "fanqie")
+            self.assertIn("排版锁（本书各章 .md 直传番茄竖屏标准）", pkt["prompt"])
+
+            # Verify --check-zhuque-windows blocks >290-char zero-quote silent narration deserts
+            silent_desert = (
+                "## 第1章 夜客叩门\n\n"
+                "沈烬把木牌放回柜台里头，顺手提起铜壶往药碗里添了半碗温水，外头的雨点敲在青瓦上头噼啪作响，连廊下的灯笼都被吹得晃个不停。\n\n"
+                "宋掌柜走到东头药架边翻开厚厚的青皮账本，用炭笔在第三页底下勾出两味缺货的草药，又伸手把半开的木窗给栓严实了。\n\n"
+                "沈烬拿起抹布把案板上的药渣全都扫进竹篓里头，转身从炉膛底下抽出两根烧红的松柴，免得后半夜没人盯着把药罐给熬干了。\n\n"
+                "角落里那口紫铜药碾子还沾着白天的苍术粉末，沈烬舀了半瓢井水把碾槽冲刷干净，顺带把铁杵挂回了墙角的木钩上头。\n\n"
+                "前堂梁上的油灯芯子结了一颗豆大的黑花，屋子里的光线暗下去小半截，沈烬拿铜剪子剪掉灯花，火苗才重新稳稳亮了起来。\n\n"
+                "门缝底下灌进来的夜风带着一股潮湿泥土味，吹得墙上挂着的几串干艾草轻轻摆动，满屋子都是苦丝丝的草药气息。\n\n"
+                "沈烬把擦干的药碗一只只摞进木橱底层，又检查了一遍门栓上的黄铜锁扣，这才解下围裙搭在了后院的竹竿上头。\n\n"
+                "更夫敲响三更竹梆子的声音顺着巷口远远传过来，青石板路上的积水映着昏黄灯光，整条长街连半个人影都瞧不见了。\n"
+            )
+            (run_dir / "candidate.md").write_text(silent_desert, encoding="utf-8")
+            run_py(CANDIDATE, "fix", "--run", str(run_dir))
+            blocked_desert = run_py(CANDIDATE, "check", "--run", str(run_dir), expected=2)
+            self.assertIn("fanqie_layout", blocked_desert.stderr)
+            gate_rep = json.loads((run_dir / "gate-report.json").read_text(encoding="utf-8"))
+            fq_gate = next(g for g in gate_rep["gates"] if g["name"] == "fanqie_layout")
+            self.assertEqual(fq_gate["status"], "fail")
+            self.assertTrue(any("朱雀" in msg for msg in fq_gate["payload"]["issues"]))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -24,7 +24,9 @@ SRC="$BOOK_ROOT/正文"
 NAS_SUBDIR="${STORY_NAS_PROSE_SUBDIR:-小说/$BOOK_DIR_NAME}"
 DEST="$NAS_ROOT/$NAS_SUBDIR"
 STAMP="$BOOK_ROOT/.story/.nas-prose-sync.stamp"
-FORMAT_VERSION="txt-v1+epub-v2"
+TXT_LAYOUT="${STORY_TXT_LAYOUT:-plain}"
+EPUB_LAYOUT="${STORY_EPUB_LAYOUT:-plain}"
+FORMAT_VERSION="txt-v2(${TXT_LAYOUT})+epub-v2(${EPUB_LAYOUT})"
 
 PYBIN=""
 for candidate in python3 python py; do
@@ -66,6 +68,8 @@ if ! "$PYBIN" -I "$SCRIPT_DIR/export_book.py" \
   --project "$BOOK_ROOT" \
   --out-dir "$tmp_dir/book" \
   --formats epub \
+  --txt-layout "$TXT_LAYOUT" \
+  --epub-layout "$EPUB_LAYOUT" \
   --chapter-txt-dir "$tmp_dir/chapters" \
   --book-title "$BOOK_DIR_NAME" \
   --author "${STORY_AUTHOR:-}" >/dev/null; then

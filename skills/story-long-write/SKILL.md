@@ -417,6 +417,7 @@ metadata: {"openclaw":{"source":"https://github.com/lsl317603815-stack/oh-story-
 | 写作方法 | `style_method.py check` | 拦截 |
 | 中文语言锁 | `language_gate.js` | 拦截；不过则立即停下，其余门禁不跑 |
 | 标点格式 | `normalize-punctuation.js --check` | 拦截；`fix` 自动修正并登记 |
+| 番茄竖屏与朱雀滑窗 | `fanqie_typeset.py --require-md-h1 [--check-zhuque-windows]` | 启用 `layout=fanqie` 时拦截（`aigc-safe-g5-fanqie` 同步拦截零对白滑窗与高危套话）；排版可由 `fix` 拆行生成 |
 | 文风卫生 | `check-style-hygiene.js` | 拦截 |
 | AI 句式 | `check-ai-patterns.js` | blocking 拦截，advisory 进报告 |
 | 中文退化 | `check-degeneration.js` | 拦截 |
@@ -554,7 +555,8 @@ S1/S2 或 REJECT 阻止 `approve`；改稿会让一致性回执失效（`fix` �
 | 去AI味 | `references/anti-ai-writing.md` |
 | 本书声音漂移 | `references/accepted-voice-profile.md` + `scripts/voice_profile.py check`；只作 advisory，画像过期时先更新 |
 | 近章场景发动机/问答/章尾同构 | `references/cross-chapter-shape.md` + `scripts/chapter_shape_gate.py`；只给证据，必须语义冷读 |
-| 发布前导出为纯文本 | `scripts/export-for-platform.js`（只做格式转换，不做登录/发布，发布仍需作者本人在平台后台手动操作） |
+| 番茄竖屏直出排版门（`layout=fanqie` 时启用） | `scripts/fanqie_typeset.py --json --require-md-h1`（由 `chapter_candidate.py fix` 自动备份候选目录内的 G5 底稿 g5-draft.md 并无损拆行直出 `# 第N章 标题` + 0空行 + `　　` 缩进 + 100%独立对白行 + 手机 1~2 行短段的各章 `.md`，直接兼容 `story-publish` 上传） |
+| 发布前导出为纯文本 | `scripts/export-for-platform.js`（只做格式转换，不做登录/发布；加 `--fanqie` 对已拆行 `.md` 幂等输出、对未拆行长复句源稿无损拆行） |
 
 ### 按主题快速定位（横切主题）
 

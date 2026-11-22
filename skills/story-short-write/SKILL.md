@@ -429,7 +429,8 @@ node scripts/check-delivery-contract.js --json --min-chars {下限} --max-chars 
 | [scripts/check-ai-patterns.js](scripts/check-ai-patterns.js) | Phase 3 完成门槛与 Phase 4 复扫；报告高危 AI 句式、破折号、碎句号、长段落、微动作复读、抽象总结、套词/比喻密度、解释链、系统公告腔、提纲感短段、低连接密度 |
 | [scripts/check-degeneration.js](scripts/check-degeneration.js) | Phase 3 完成门槛与 Phase 4 复扫；中文正文显式用 `--language=zh --fail-on=blocking`，报告英文泄漏与模型退化；blocking 需修复后复扫 |
 | [scripts/check-delivery-contract.js](scripts/check-delivery-contract.js) | Phase 3 写前参数预检（`--check-contract`）与 Phase 3/4 交付验收；按锁定参数检查非空白字符数、节数、小节标记与段间空行，只验形状、不评文；参数冲突返回 2 |
-| [scripts/export-for-platform.js](scripts/export-for-platform.js) | 定稿后导出平台可直接粘贴格式（`###N.` 节标题转纯数字行） |
+| [scripts/fanqie_typeset.py](scripts/fanqie_typeset.py) | 成稿当步将 G5 底稿词面守恒无损拆行为番茄竖屏排版（`--md` 保留短篇 `###1.` 小节标记直出 `正文.md`，默认模式转纯文本） |
+| [scripts/export-for-platform.js](scripts/export-for-platform.js) | 定稿后导出平台可直接粘贴格式（`###N.` 节标题转中文「第X章」，加 `--fanqie` 支持零空行、全角缩进与独立对白竖屏无损拆行） |
 | [references/dialogue-mastery.md](references/dialogue-mastery.md) | 写对话时 |
 | [references/output-contract.md](references/output-contract.md) | Phase 2 对标上下文加载时（理解 analyze 产出格式与消费规范） |
 

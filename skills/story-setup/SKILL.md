@@ -700,7 +700,7 @@ CodeBuddy 把根 `CODEBUDDY.md` 与 `.codebuddy/CODEBUDDY.md` 作为项目 memor
 | references/templates/rules/ | 4 条 path-scoped 规则模板 |
 | references/templates/agents/ | 8 个 agent 定义模板（story-architect, character-designer, narrative-writer, consistency-checker, revision-governor, story-researcher, story-explorer, chapter-extractor） |
 | references/templates/models/ | 可选模型分工（Step 8，部署到 `.story/models/`）：方舟客户端、写手/去味/读者审读转发脚本与专用精简审查规范、默认配置、`narrative-writer` 转发器与 `deslop-reviewer` 两个 agent 模板 |
-| references/templates/project-hooks/ | 可选项目级自动扩展模板（部署到 `<书目录>/.story/hooks/`，配合 `.story/.env.local`）：标准库 TXT/EPUB3 导出 `export_book.py`、零硬编码参数化朱雀台账 `zhuque_ledger.py`、正文与有声书 NAS 增量同步钩子；由 `chapter_candidate.py close`、`revision_guard.py finish-polish` 及 Claude/Antigravity Stop 事件自动触发。另可在 `设定/门禁配置.json` 设 `"preset": "aigc-safe-g5"` 一键启用适配朱雀 G5 的 14 项文风参考带与对白容忍度 |
+| references/templates/project-hooks/ | 可选项目级自动扩展模板（部署到 `<书目录>/.story/hooks/`，配合 `.story/.env.local`）：标准库 TXT/EPUB3 导出 `export_book.py`（支持 `--txt-layout fanqie` / `STORY_TXT_LAYOUT=fanqie` 幂等/无损竖屏排版）、零硬编码参数化朱雀台账 `zhuque_ledger.py`、正文与有声书 NAS 增量同步钩子；由 `chapter_candidate.py close`、`revision_guard.py finish-polish` 及 Claude/Antigravity Stop 事件自动触发。另可在 `设定/门禁配置.json` 设 `"preset": "aigc-safe-g5-fanqie"`（写章当步经 `chapter_candidate.py fix` 自动备份候选目录内的 G5 底稿 g5-draft.md 并无损拆行直出 `# 第N章 标题` + 0空行 + `　　` 缩进 + 100%独立对白各章 `.md`，配套 `fanqie_layout` 硬门与 14 项文风带）或 `"preset": "aigc-safe-g5"`（不拆行 G5 源稿） |
 | scripts/deploy-model-routing.py | 模型分工依赖检查（`check`）与按角色部署/关闭（`deploy`） |
 | references/agent-references/ | Agent 模板自带的参考资料副本；部署到 `.claude/skills/story-setup/references/agent-references/`，避免跨 skill references |
 | references/templates/settings-hooks.json | hooks 注册 JSON 片段 |

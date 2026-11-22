@@ -66,6 +66,7 @@ WAIVABLE_GATES = ("dialogue_drift", "emotion_floor", "hook_strength")
 GATE_MODES = ("blocking", "advisory")
 PAUSE_MODES = ("keep", "normalize")
 QUOTE_MODES = ("keep", "ascii", "yan")
+LAYOUT_MODES = ("keep", "fanqie")
 # 对白漂移门的两条连续计数上限（允许的最长连续行数，超过即阻断）。缺省值与脚本缺省一致：
 # 带归属标记 3（连续 4 行阻断，历史行为），报幕式标签 2（连续 3 行阻断）。
 # 全对白走“主语 + 动作 + 说道：”前置引导的书按书调高前者。
@@ -80,6 +81,15 @@ GATE_PRESETS: dict[str, dict[str, Any]] = {
             "max_consecutive_bare_tagged_turns": 2,
         },
         "prose_bands": True,
+        "layout": "keep",
+    },
+    "aigc-safe-g5-fanqie": {
+        "dialogue": {
+            "max_consecutive_tagged_turns": 5,
+            "max_consecutive_bare_tagged_turns": 2,
+        },
+        "prose_bands": True,
+        "layout": "fanqie",
     },
 }
 GATE_CONFIG_RELATIVE = "设定/门禁配置.json"
@@ -539,6 +549,7 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
         "punctuation": {"pause_mode": "keep", "quote_mode": "keep"},
         "dialogue": dict(DIALOGUE_LIMIT_KEYS),
         "prose_bands": False,
+        "layout": "keep",
     }
     path = project / GATE_CONFIG_RELATIVE
     if not path.is_file():
@@ -548,7 +559,7 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 的 schema_version 必须是 1")
     unknown = set(raw) - {
         "schema_version", "preset", "gates", "default_pressure",
-        "punctuation", "dialogue", "prose_bands", "note",
+        "punctuation", "dialogue", "prose_bands", "layout", "note",
     }
     if unknown:
         raise CandidateError(f"{GATE_CONFIG_RELATIVE} 含不支持的字段: {', '.join(sorted(unknown))}")
@@ -560,6 +571,12 @@ def load_gate_config(project: Path) -> tuple[dict[str, Any], str | None]:
         config["preset"] = preset
         config["dialogue"].update(preset_cfg.get("dialogue", {}))
         config["prose_bands"] = bool(preset_cfg.get("prose_bands", False))
+        if preset_cfg.get("layout") in LAYOUT_MODES:
+            config["layout"] = str(preset_cfg["layout"])
+    if "layout" in raw and raw["layout"] is not None:
+        if not isinstance(raw["layout"], str) or raw["layout"] not in LAYOUT_MODES:
+            raise CandidateError(f"{GATE_CONFIG_RELATIVE}.layout 必须是 {'/'.join(LAYOUT_MODES)}")
+        config["layout"] = raw["layout"]
     gates = raw.get("gates", {})
     if not isinstance(gates, dict):
         raise CandidateError(f"{GATE_CONFIG_RELATIVE}.gates 必须是 object")
@@ -661,7 +678,7 @@ def gate_specs(
     def heuristic(name: str) -> str:
         return config["gates"][name]["mode"]
 
-    return [
+    specs: list[dict[str, Any]] = [
         {"name": "writing_method", "kind": "blocking", "script": "style_method.py",
          "command": python("style_method.py", "check", "--project", str(project))},
         {"name": "language", "kind": "blocking", "script": "language_gate.js", "fail_fast": True,
@@ -669,6 +686,16 @@ def gate_specs(
         {"name": "punctuation", "kind": "blocking", "script": "normalize-punctuation.js", "remedy": "fix",
          "command": node("normalize-punctuation.js", "--check", "--pause-mode", punctuation["pause_mode"],
                          "--quote-mode", punctuation["quote_mode"], str(candidate))},
+    ]
+    if config.get("layout") == "fanqie":
+        fanqie_flags = ["--json", "--require-md-h1"]
+        if config.get("preset") == "aigc-safe-g5-fanqie":
+            fanqie_flags.append("--check-zhuque-windows")
+        specs.append(
+            {"name": "fanqie_layout", "kind": "blocking", "script": "fanqie_typeset.py", "remedy": "fix",
+             "command": python("fanqie_typeset.py", *fanqie_flags, str(candidate))}
+        )
+    specs.extend([
         {"name": "style_hygiene", "kind": "blocking", "script": "check-style-hygiene.js",
          "command": node("check-style-hygiene.js", "--check", "--fail-on=blocking",
                          *(["--style", str(style)] if style.is_file() else []), str(candidate))},
@@ -704,7 +731,8 @@ def gate_specs(
                          f"--chapter={chapter}", str(candidate))},
         {"name": "typos", "kind": "advisory", "script": "check-typos.js",
          "command": node("check-typos.js", "--check", "--json", "--fail-on=all", str(candidate))},
-    ]
+    ])
+    return specs
 
 
 def compute_gates_digest(
@@ -1304,9 +1332,10 @@ def cmd_fix(args: argparse.Namespace) -> int:
         raise CandidateError("候选稿为空")
     config, _ = load_gate_config(project)
     before = record_lineage(run, data, candidate, "edit")
+    scripts_dir = Path(__file__).resolve().parent
     command = [
         "node",
-        str(Path(__file__).resolve().parent / "normalize-punctuation.js"),
+        str(scripts_dir / "normalize-punctuation.js"),
         "--pause-mode",
         config["punctuation"]["pause_mode"],
         "--quote-mode",
@@ -1319,9 +1348,99 @@ def cmd_fix(args: argparse.Namespace) -> int:
         raise CandidateError("运行 fix 需要 node") from exc
     if completed.returncode != 0:
         raise CandidateError(f"normalize-punctuation.js 失败\n{completed.stdout}{completed.stderr}".rstrip())
+
+    g5_saved: str | None = None
+    if config.get("layout") == "fanqie":
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        import fanqie_typeset
+
+        raw_text = candidate.read_text(encoding="utf-8")
+        raw_lines = raw_text.splitlines()
+        has_unsplit_g5 = any(not l.strip() for l in raw_lines) or any(
+            fanqie_typeset.is_unsplit_dialogue_line(l.strip()) for l in raw_lines[1:] if l.strip()
+        )
+        g5_backup = run / "g5-draft.md"
+        lineage = data.get("lineage") or []
+        if has_unsplit_g5:
+            atomic_write_bytes(g5_backup, raw_text.encode("utf-8"))
+            g5_saved = g5_backup.relative_to(project).as_posix()
+        elif (
+            g5_backup.is_file()
+            and lineage
+            and lineage[-1].get("sha256") == before
+            and lineage[-1].get("source") == "fix"
+        ):
+            raw_text = g5_backup.read_text(encoding="utf-8")
+        converted = fanqie_typeset.convert_g5_to_fanqie(
+            raw_text,
+            fallback_title=f"第{data['chapter']}章",
+            keep_markdown_heading=True,
+        )
+        if converted != candidate.read_text(encoding="utf-8"):
+            atomic_write_bytes(candidate, converted.encode("utf-8"))
+
     after = record_lineage(run, data, candidate, "fix")
     atomic_write_json(manifest_path, data)
-    emit_json({"changed": before != after, "before_sha256": before, "after_sha256": after, "next": "check"})
+    payload: dict[str, Any] = {
+        "changed": before != after,
+        "before_sha256": before,
+        "after_sha256": after,
+        "layout": config.get("layout", "keep"),
+        "next": "check",
+    }
+    if g5_saved:
+        payload["g5_draft_saved"] = g5_saved
+    emit_json(payload)
+    return 0
+
+
+def cmd_refresh_base(args: argparse.Namespace) -> int:
+    project, manifest_path, data = load_run(args.run)
+    require_gated_draft(data, "refresh-base")
+    last, revision = tracking_snapshot(project)
+    if last != data.get("expected_last_committed_chapter"):
+        raise CandidateError(
+            f"已提交章节已变化（期望 {data.get('expected_last_committed_chapter')}，当前 {last}），不能刷新基础指纹；请 abandon 后重新 init"
+        )
+    target = project / str(data.get("target", ""))
+    if target.exists():
+        raise CandidateError(f"正文目标已存在，不能刷新基础指纹: {target}")
+    method_snapshot = writing_method_snapshot(project)
+    paths: list[Path] = []
+    for entry in data.get("base_files", []):
+        relative = str(entry.get("path", "")).strip()
+        if not relative:
+            continue
+        resolved, _ = resolve_inside(project, relative, must_exist=True, label=f"基础文件 {relative}")
+        paths.append(resolved)
+    paths.extend(writing_method_files(project))
+    new_entries = fingerprint(project, paths)
+    old_digest = data.get("context_digest")
+    new_digest = context_digest(new_entries, last, revision, str(data.get("target", "")))
+    data["base_files"] = new_entries
+    data["expected_state_revision"] = revision
+    data["writing_method"] = method_snapshot
+    data["context_digest"] = new_digest
+    refreshes = data.setdefault("base_refreshes", [])
+    refreshes.append(
+        {
+            "refreshed_at": utc_now(),
+            "old_context_digest": old_digest,
+            "new_context_digest": new_digest,
+            "note": (args.note or "").strip(),
+        }
+    )
+    atomic_write_json(manifest_path, data)
+    emit_json(
+        {
+            "status": "refreshed",
+            "old_context_digest": old_digest,
+            "new_context_digest": new_digest,
+            "state_revision": revision,
+            "next": "check",
+        }
+    )
     return 0
 
 
@@ -1380,6 +1499,14 @@ def packet_prompt(kind: str, packet: dict[str, Any]) -> str:
                 f"第{span['line']}行（{span['reason']}）" for span in packet.get("spans", [])
             )
         )
+        layout_lock = (
+            "排版锁（本书各章 .md 直传番茄竖屏标准）：工作副本已是直传平台的番茄原生竖屏排版——"
+            f"首行保持 `# 第{packet['chapter']}章 标题` 一级标题，全文 0 空行（严禁插入 `\\n\\n`），"
+            "正文每段严格以两个全角空格「　　」起首，人物/系统对白 100% 独立单起一行（`　　“……”`，严禁合并回 `说道：“……”` 长段，严禁删掉独立对白行导致连续无对白纯叙述超过 290 字或 500 字滑窗对白少于 2 句，保留叙述内嵌短词引用），"
+            "叙述保持手机 1~2 行短段与高口语虚词底子（压缩或微调时只砍冗余名词修饰定语与解释尾巴，绝不删减口语虚词助词；若新增换行，新段首同样加「　　」）。\n"
+            if packet.get("layout") == "fanqie"
+            else ""
+        )
         return (
             "任务描述：候选章去味独立审查（接纳前）\n"
             f"项目目录：{packet['project']}\n"
@@ -1388,7 +1515,8 @@ def packet_prompt(kind: str, packet: dict[str, Any]) -> str:
             f"细纲文件：{packet['outline']}\n"
             f"审查范围：{scope_text}\n"
             "禁止：写 候选稿本体、正文/、追踪/ 下任何其他文件，或新增细纲没有的剧情。\n"
-            "删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色"
+            + layout_lock
+            + "删除优先：每条 AI 味项先判能否删除——删后不丢伏笔/钩子/角色/情节/必要信息的直接删，会丢才润色"
             "（删除受比例上限与字数下限约束，跌破下限改降AI重写）。\n"
             "必须检查：跨段连续否定排比（如跨段‘不是A / 也不是B / 只是C’）或同章反复成口癖的翻转句（单句偶发的‘不是A，而是B’语料已退役，有语义功能时保留）；对话里的‘至于X不X，怎么X’和同动词"
             "‘不V A，不V B’工整清单；正文是否把细纲多个字段里重复的同一要求逐项复述；作者解释总结/意义尾巴；"
@@ -1438,6 +1566,7 @@ def _issue_review_packet(
     reviews = run / "reviews"
     text = candidate.read_text(encoding="utf-8")
     last, revision = tracking_snapshot(project)
+    gate_cfg, _ = load_gate_config(project)
     packet: dict[str, Any] = {
         "schema_version": 1,
         "kind": kind,
@@ -1448,6 +1577,7 @@ def _issue_review_packet(
         "candidate_sha256": current_sha,
         "outline": data["outline"],
         "scope": scope,
+        "layout": gate_cfg.get("layout", "keep"),
         "last_committed_chapter": last,
         "state_revision": revision,
         "agent": review_agent(project, kind),
@@ -2436,7 +2566,21 @@ def next_step(project: Path) -> dict[str, Any]:
         return {**base, "step": "legacy", "why": "旧版候选只能按原流程 approve/promote。"}
     candidate = project / data["candidate"]
     text = candidate.read_text(encoding="utf-8") if candidate.is_file() else ""
+    gate_cfg, _ = load_gate_config(project)
+    is_fanqie = gate_cfg.get("layout") == "fanqie"
     if not text.strip():
+        if is_fanqie:
+            return {
+                **base,
+                "step": "write",
+                "candidate": data["candidate"],
+                "layout": "fanqie",
+                "why": (
+                    "候选稿为空：按双步流程写本章——先按 G5 全绿底稿规则写入该候选文件（锁死口语虚词密度、显式真名与前置冒号引语，严禁单步裸写碎段），"
+                    "写完立即运行 fix 自动备份 g5-draft.md 并无损拆行为直传番茄竖屏 .md（首行 `# 第N章 标题`、0空行、`　　` 缩进、100%独立对白与手机1~2行短段），再运行 check。"
+                ),
+                "commands": [f'{tool} fix --run "{run}"', f'{tool} check --run "{run}"'],
+            }
         return {
             **base,
             "step": "write",
@@ -2447,14 +2591,21 @@ def next_step(project: Path) -> dict[str, Any]:
     current_sha = sha256_bytes(candidate.read_bytes())
     gate = data.get("gate_run") or {}
     if gate.get("candidate_sha256") != current_sha:
-        return {**base, "step": "check", "commands": [f'{tool} check --run "{run}"'], "why": "候选稿有改动，先跑确定性门禁。"}
+        commands = [f'{tool} check --run "{run}"']
+        why = "候选稿有改动，先跑确定性门禁。"
+        if is_fanqie:
+            raw_lines = text.splitlines()
+            if any(not l.strip() for l in raw_lines) or any(not l.startswith("\u3000\u3000") for l in raw_lines[1:] if l.strip()):
+                commands = [f'{tool} fix --run "{run}"', f'{tool} check --run "{run}"']
+                why = "候选稿尚未完成番茄竖屏无损拆行/缩进收尾：先跑 fix（自动备份 g5-draft.md 并转为直传番茄竖屏 .md），再跑 check。"
+        return {**base, "step": "check", "commands": commands, "why": why}
     if gate.get("status") != "pass":
         failures = gate.get("failures", [])
         commands = []
-        if "punctuation" in failures:
+        if "punctuation" in failures or "fanqie_layout" in failures:
             commands.append(f'{tool} fix --run "{run}"')
         commands.append(f'{tool} check --run "{run}"')
-        why = "门禁未通过：" + "、".join(failures) + "。按 gate-report.json 改稿；标点问题用 fix 自动修正。"
+        why = "门禁未通过：" + "、".join(failures) + "。按 gate-report.json 改稿；标点或番茄竖屏排版问题用 fix 自动修正。"
         waivable = [name for name in failures if name in WAIVABLE_GATES]
         if waivable and data.get("approval_mode") == "review":
             why += f"{'、'.join(waivable)} 是启发式门禁：确属误报时先问作者，作者确认后 waive。"
@@ -2587,9 +2738,14 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--freshness-only", action="store_true")
     check.set_defaults(func=cmd_check)
 
-    fix = sub.add_parser("fix", help="在候选稿上做确定性标点收尾并登记改动")
+    fix = sub.add_parser("fix", help="在候选稿上做确定性标点收尾（layout=fanqie 时同步备份 g5-draft.md 并无损拆行为番茄竖屏 .md）")
     fix.add_argument("--run", required=True)
     fix.set_defaults(func=cmd_fix)
+
+    refresh = sub.add_parser("refresh-base", help="在设定/细纲合法修订且已提交章节未变时，刷新 draft 候选章的基础指纹")
+    refresh.add_argument("--run", required=True)
+    refresh.add_argument("--note", default="", help="刷新原因备注")
+    refresh.set_defaults(func=cmd_refresh_base)
 
     packet = sub.add_parser("review-packet", help="为去味/一致性审查发出绑定当前候选稿的审查包")
     packet.add_argument("--run", required=True)
